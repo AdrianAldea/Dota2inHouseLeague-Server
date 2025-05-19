@@ -10,188 +10,266 @@ using static SteamKit2.Internal.CMsgRemoteClientBroadcastStatus;
 
 namespace IHLDota2Bot
 {
-    public class DotaLobbyManager
+    class DotaLobbyManager
     {
         private SteamClient steamClient;
         private CallbackManager callbackManager;
         private SteamUser steamUser;
         private SteamFriends steamFriends;
-        private SteamGameCoordinator gameCoordinator;
-        private uint dotaAppId = 570;
+        private SteamGameCoordinator steamGameCoordinator;
 
+        private bool isRunning;
+        private string username;
+        private string password;
+        private string authCode, twoFactorAuth; // Pentru Steam Guard
 
-        private string username = "dota2inhouseleague";
-        private string password = "Romania90.";
+        private const uint DOTA_APP_ID = 570; // AppID pentru Dota 2
 
-        private bool isRunning = false;
-        private bool isReady = false;
-
-        private List<ulong> pendingInvites = new();
-
-        public async Task ConnectAsync()
+        public DotaLobbyManager(string user, string pass)
         {
-            DebugLog.AddListener(new MyListener());
+            username = user;
+            password = pass;
+
             steamClient = new SteamClient();
             callbackManager = new CallbackManager(steamClient);
+
             steamUser = steamClient.GetHandler<SteamUser>();
             steamFriends = steamClient.GetHandler<SteamFriends>();
-            gameCoordinator = steamClient.GetHandler<SteamGameCoordinator>();
+            steamGameCoordinator = steamClient.GetHandler<SteamGameCoordinator>();
 
+            // Subscrie la callback-uri
             callbackManager.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
             callbackManager.Subscribe<SteamClient.DisconnectedCallback>(OnDisconnected);
             callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
             callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
+            callbackManager.Subscribe<SteamUser.AccountInfoCallback>(OnAccountInfo);
+            //callbackManager.Subscribe<SteamUser.UpdateMachineAuthCallback>(OnMachineAuth);
             callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
+        }
 
+        public void Connect()
+        {
             isRunning = true;
-
+            Console.WriteLine($"Conectare la Steam ca {username}...");
             steamClient.Connect();
 
-            while (!isReady)
+            // Bucla principală pentru callback-uri
+            while (isRunning)
             {
                 callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(1));
-                await Task.Delay(500);
             }
-        }
-
-        class MyListener : IDebugListener
-        {
-            public void WriteLine(string category, string msg)
-            {
-                // this function will be called when internal steamkit components write to the debuglog
-
-                // for this example, we'll print the output to the console
-                Console.WriteLine("MyListener - {0}: {1}", category, msg);
-            }
-        }
-
-        public async Task CreateLobbyAsync(string name, string password)
-        {
-            if (!isReady)
-            {
-                Console.WriteLine("GC nu este pregătit încă.");
-                return;
-            }
-
-            var createLobby = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
-
-            //createLobby.Body.search_key = name;
-            createLobby.Body.lobby_details = new CMsgPracticeLobbySetDetails();
-            //createLobby.Body.lobby_details.pass_key = password;
-            //createLobby.Body.lobby_details.game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_1V1MID;
-            createLobby.Body.lobby_details.game_name = name;
-            createLobby.Body.lobby_details.visibility = DOTALobbyVisibility.DOTALobbyVisibility_Public;
-            //createLobby.Body.lobby_details.game_version = DOTAGameVersion.GAME_VERSION_CURRENT;
-            //createLobby.Body.lobby_details.server_region = 2;
-            //createLobby.Body.lobby_details.custom_max_players = 2;
-            //createLobby.Body.lobby_details.intro_mode = false;
-            //createLobby.Body.lobby_details.lan = false;
-
-            gameCoordinator.Send(createLobby, dotaAppId);
-
-            Console.WriteLine($"Lobby creat: {name} cu parola: {password}");
-            await Task.Delay(1000);
-
-            foreach (var steamId in pendingInvites)
-            {
-                InviteToLobby(steamId);
-                await Task.Delay(500);
-            }
-        }
-
-        public void SetPendingInvites(List<string> steamIds)
-        {
-            pendingInvites.Clear();
-            foreach (var id in steamIds)
-            {
-                if (ulong.TryParse(id, out var steamId))
-                {
-                    pendingInvites.Add(steamId);
-                }
-            }
-        }
-
-        private void InviteToLobby(ulong steamId)
-        {
-            var inviteMsg = new ClientGCMsgProtobuf<CMsgInviteToLobby>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
-            inviteMsg.Body.steam_id = steamId;
-            gameCoordinator.Send(inviteMsg, dotaAppId);
-            Console.WriteLine($"Trimis invite către: {steamId}");
-        }
-
-        private void LeaveLobby()
-        {
-            var leaveLobby = new ClientGCMsgProtobuf<CMsgPracticeLobbyLeave>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLeave);
-            gameCoordinator.Send(leaveLobby, dotaAppId);
         }
 
         private void OnConnected(SteamClient.ConnectedCallback callback)
         {
-            Console.WriteLine("Conectat la Steam, autentificare in curs... '{0}'...", username);
+            Console.WriteLine("Conectat la Steam! Se încearcă autentificarea...");
+            // Pregătește fișierul sentry dacă există (pentru Steam Guard)
+            //byte[] sentryHash = null;
+            //if (File.Exists("sentry.bin"))
+            //{
+            //    sentryHash = File.ReadAllBytes("sentry.bin");
+            //}
 
             steamUser.LogOn(new SteamUser.LogOnDetails
             {
                 Username = username,
-                Password = password
+                Password = password,
+                //AuthCode = authCode, // Se completează dacă este cerut (email)
+                //TwoFactorCode = twoFactorAuth, // Se completează dacă este cerut (authenticator app)
+                //SentryFileHash = sentryHash, // Pentru autentificarea mașinii
+                //ShouldRememberPassword = true,
             });
         }
 
         private void OnDisconnected(SteamClient.DisconnectedCallback callback)
         {
-            Console.WriteLine("Deconectat de la Steam");
+            Console.WriteLine("Deconectat de la Steam.");
             isRunning = false;
+            // Poți adăuga logică de reconectare aici
+            Thread.Sleep(TimeSpan.FromSeconds(5));
+            // steamClient.Connect(); // Exemplu de reconectare
         }
 
         private void OnLoggedOn(SteamUser.LoggedOnCallback callback)
         {
             if (callback.Result == EResult.OK)
             {
-                Console.WriteLine("Autentificare Steam reușită! Lansare Dota 2...");
+                Console.WriteLine("Autentificare reușită!");
+                steamFriends.SetPersonaState(EPersonaState.Online); // Setează statusul ca Online
 
-                if (callback.Result == EResult.AccountLogonDenied)
+                // "Lansează" Dota 2 pentru a putea interacționa cu GC-ul Dota 2
+                var gamePlayed = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
+                gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
                 {
-                    // if we recieve AccountLogonDenied or one of it's flavors (AccountLogonDeniedNoMailSent, etc)
-                    // then the account we're logging into is SteamGuard protected
-                    // see sample 5 for how SteamGuard can be handled
+                    game_id = DOTA_APP_ID, // Poate fi necesar să folosești game_id long (ulong)
+                    // game_ip_address = 0, // Opțional
+                    // game_port = 0, // Opțional
+                });
+                steamClient.Send(gamePlayed);
+                Console.WriteLine("Am notificat Steam că 'jucăm' Dota 2.");
 
-                    Console.WriteLine("Unable to logon to Steam: This account is SteamGuard protected.");
+                // Așteaptă puțin pentru ca GC-ul să fie gata
+                Thread.Sleep(5000);
 
-                    isRunning = false;
-                    return;
-                }
-
-                isReady = true;
+                // Acum poți încerca să creezi un lobby
+                CreateDotaLobby();
+            }
+            else if (callback.Result == EResult.AccountLogonDenied)
+            {
+                Console.WriteLine("Autentificare eșuată: Steam Guard. Introduceți codul din email/aplicație.");
+                Console.Write("Auth Code (lăsați gol dacă folosiți 2FA): ");
+                authCode = Console.ReadLine();
+                Console.Write("Two-Factor Code (lăsați gol dacă folosiți email): ");
+                twoFactorAuth = Console.ReadLine();
+            }
+            else if (callback.Result == EResult.InvalidPassword)
+            {
+                Console.WriteLine("Autentificare eșuată: Parolă invalidă.");
+                isRunning = false;
             }
             else
             {
-                Console.WriteLine("Unable to logon to Steam: {0} / {1}", callback.Result, callback.ExtendedResult);
-
+                Console.WriteLine($"Autentificare eșuată: {callback.Result} / {callback.ExtendedResult}");
                 isRunning = false;
-                return;
             }
-            // at this point, we'd be able to perform actions on Steam
-
-            // for this sample we'll just log off
-            //steamUser.LogOff();
         }
 
         private void OnLoggedOff(SteamUser.LoggedOffCallback callback)
         {
-            Console.WriteLine("Delogat de la Steam");
-            isRunning = false;
+            Console.WriteLine($"Deconectat de la cont: {callback.Result}");
+        }
+
+        private void OnAccountInfo(SteamUser.AccountInfoCallback callback)
+        {
+            Console.WriteLine($"Nume cont: {callback.PersonaName}");
+            // Poți seta aici și clan tag, etc.
+        }
+
+
+        //private void OnMachineAuth(SteamUser.UpdateMachineAuthCallback callback)
+        //{
+        //    Console.WriteLine("Se actualizează fișierul sentry...");
+        //    // Scrie noul hash sentry pe disc pentru autentificări viitoare
+        //    File.WriteAllBytes("sentry.bin", callback.Data);
+        //    steamUser.SendMachineAuthResponse(new SteamUser.MachineAuthDetails
+        //    {
+        //        JobID = callback.JobID,
+        //        FileName = callback.FileName,
+        //        BytesWritten = callback.BytesToWrite,
+        //        FileSize = callback.Data.Length,
+        //        Offset = callback.Offset,
+        //        Result = EResult.OK,
+        //        LastError = 0,
+        //        OneTimePassword = callback.OneTimePassword, // Poate fi necesar pentru unele cazuri
+        //        SentryFileHash = callback.SentryFileHash,
+        //    });
+        //    Console.WriteLine("Fișier sentry actualizat.");
+        //}
+
+        private void CreateDotaLobby()
+        {
+            Console.WriteLine("Se încearcă trimiterea mesajului de creare lobby către GC-ul Dota 2...");
+
+            // ACEASTA ESTE PARTEA CRITICĂ ȘI COMPLEXĂ
+            // Vei avea nevoie de definițiile protobuf corecte pentru Dota 2.
+            // CMsgPracticeLobbyCreate este un exemplu, dar structura sa exactă
+            // și ID-ul mesajului (EMsg) trebuie verificate din surse actualizate.
+
+            // Presupunând că ai o clasă generată `CMsgPracticeLobbyCreate`
+            // și `EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate`
+
+            var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate); // ID-ul mesajului GC
+
+            // Setează detaliile lobby-ului
+            // Aceste câmpuri sunt ipotetice și trebuie verificate cu definiția protobuf reală!
+            createLobbyMsg.Body.lobby_details = new CMsgPracticeLobbySetDetails();
+            //createLobby.Body.lobby_details.pass_key = password;
+            createLobbyMsg.Body.lobby_details.game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_1V1MID;
+            createLobbyMsg.Body.lobby_details.game_name = "test123";
+
+            createLobbyMsg.Body.client_version = 0;
+            createLobbyMsg.Body.lobby_details.visibility = DOTALobbyVisibility.DOTALobbyVisibility_Friends;
+            createLobbyMsg.Body.lobby_details.game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP; // All Pick, exemplu
+            createLobbyMsg.Body.pass_key = "parolasecreta"; // Parola lobby-ului
+                                                            // ... alte setări: server region, fill with bots, cheats, etc.
+            createLobbyMsg.Body.lobby_details.server_region = 2;
+
+            Console.WriteLine($"Se trimite CMsgPracticeLobbyCreate pentru lobby: {createLobbyMsg.Body.lobby_details.game_name}");
+            steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
+
+
+            // ---- DECOMENTEAZĂ ȘI ADAPTEAZĂ SECȚIUNEA DE MAI SUS ----
+            Console.WriteLine("Funcționalitatea de creare lobby (CMsgPracticeLobbyCreate) este comentată.");
+            Console.WriteLine("Trebuie să obții definițiile protobuf corecte pentru Dota 2 și să le implementezi.");
+            Console.WriteLine("Caută pe GitHub 'SteamDatabase/GameTracking-Dota2' pentru protobuf-uri.");
         }
 
         private void OnGCMessage(SteamGameCoordinator.MessageCallback callback)
         {
-            if (callback.EMsg == (uint)EMsg.ClientHello)
+            Console.WriteLine($"Mesaj GC primit: ID Mesaj = {callback.EMsg}, AppID = {callback.AppID}");
+
+            // Verifică dacă mesajul este pentru Dota 2
+            if (callback.AppID != DOTA_APP_ID)
+                return;
+
+            // Aici vei procesa răspunsurile de la GC-ul Dota 2
+            // De exemplu, răspunsul la crearea lobby-ului (CMsgPracticeLobbyCreateResponse sau similar)
+            // Vei avea nevoie de un switch pe callback.EMsg pentru a identifica tipul mesajului
+            // și apoi să deserializezi `callback.Data` în obiectul protobuf corespunzător.
+
+
+            if (callback.EMsg == (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate) // ID-ul mesajului de răspuns
             {
-                Console.WriteLine("Conectat la Game Coordinator Dota 2!");
-                isReady = true;
+                //var response = callback.GetDataAs<CMsgPracticeLobbyCreateResponse>(); // Presupunând că ai această clasă generată
+                //if (response != null && response.result == DOTALobbyReadyState.DOTALobbyReadyState_ACCEPTED) // Verifică enum-ul corect
+                //{
+                //    Console.WriteLine($"Lobby creat cu succes! Lobby ID: {response.lobby_id}");
+                //    // Poți salva lobby_id pentru acțiuni viitoare (invitații, start joc etc.)
+                //}
+                //else
+                //{
+                //    Console.WriteLine($"Crearea lobby-ului a eșuat. Rezultat: {response?.result}");
+                //}
             }
-            else
-            {
-                Console.WriteLine($"[GC MSG] {callback.EMsg}");
-            }
+            // ... alte cazuri pentru diferite mesaje GC
+
+
+            // ---- DECOMENTEAZĂ ȘI ADAPTEAZĂ SECȚIUNEA DE MAI SUS ----
+            Console.WriteLine("Procesarea mesajelor GC (răspunsuri) este comentată.");
+
+            // Pentru debug, poți scrie datele brute ale mesajului
+            // File.WriteAllBytes($"gc_msg_{callback.EMsg}.bin", callback.Data.ToArray());
         }
+
+        public void Disconnect()
+        {
+            Console.WriteLine("Se deconectează...");
+            steamUser.LogOff();
+            // isRunning va fi setat pe false în OnDisconnected sau OnLoggedOff
+        }
+
+        //static async Task Main(string[] args)
+        //{
+        //    Console.WriteLine("Bot SteamKit2 pentru Lobby Dota 2");
+
+        //    // ATENȚIE: Nu stoca niciodată credențialele direct în cod pentru aplicații reale!
+        //    // Folosește variabile de mediu, fișiere de configurare securizate etc.
+        //    Console.Write("Nume utilizator Steam: ");
+        //    string user = Console.ReadLine();
+        //    Console.Write("Parolă Steam: ");
+        //    string pass = Console.ReadLine(); // Ideal ar fi să maschezi input-ul parolei
+
+        //    if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
+        //    {
+        //        Console.WriteLine("Numele de utilizator și parola nu pot fi goale.");
+        //        return;
+        //    }
+
+        //    SteamBot bot = new SteamBot(user, pass);
+        //    bot.Connect(); // Aceasta va bloca până la deconectare
+
+        //    Console.WriteLine("Bot oprit. Apasă orice tastă pentru a ieși.");
+        //    Console.ReadKey();
+        //}
     }
 }

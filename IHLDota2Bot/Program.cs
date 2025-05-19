@@ -3,14 +3,18 @@ using System.Text.Json;
 using Discord;
 using Discord.WebSocket;
 using SteamKit2.GC.Dota.Internal;
+using static SteamKit2.Internal.CMsgRemoteClientBroadcastStatus;
 
 namespace IHLDota2Bot
 {
     public class Program
     {
-        private DotaLobbyManager dotaLobbyManager;
+        private const string DiscordToken = "MTM3MzQwMTIxMjkzNzgzMDU3Mg.GwOJf5.ZBOX0Fm6od95W77Ow7XDiZVgJ8a9Bqh4EaFiWE";
+        private const string SteamUsername = "dota2inhouseleague";
+        private const string SteamPassword = "Romania90.";
         private DiscordSocketClient _client;
-        private const string Token = "MTM3MzQwMTIxMjkzNzgzMDU3Mg.GwOJf5.ZBOX0Fm6od95W77Ow7XDiZVgJ8a9Bqh4EaFiWE";
+        private DotaLobbyManager dotaLobbyManager;
+        SteamBot steamBot;
         private static Dictionary<ulong, Player> players = [];
         private static List<Match> matches = [];
         private static Dictionary<ulong, Guid> activeCaptainMatches = new();
@@ -20,9 +24,8 @@ namespace IHLDota2Bot
 
         public async Task MainAsync()
         {
-            dotaLobbyManager = new DotaLobbyManager();
-            await dotaLobbyManager.ConnectAsync();
-            _ = Task.Run(async () => dotaLobbyManager.ConnectAsync());
+            steamBot = new SteamBot(SteamUsername, SteamPassword);
+            _ = Task.Run( async() => await steamBot.Connect());
             var config = new DiscordSocketConfig
             {
                 GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
@@ -34,7 +37,7 @@ namespace IHLDota2Bot
 
             LoadPlayers();
             LoadMatches();
-            await _client.LoginAsync(TokenType.Bot, Token);
+            await _client.LoginAsync(TokenType.Bot, DiscordToken);
             await _client.StartAsync();
             await Task.Delay(-1);
         }
@@ -107,7 +110,7 @@ namespace IHLDota2Bot
             var parts = message.Content.Split(' ');
             if (parts.Length < 2)
             {
-                await message.Channel.SendMessageAsync("Folosește: `!register <SteamID64>`");
+                await message.Channel.SendMessageAsync("Use: `!register <SteamID64>`");
                 return;
             }
 
@@ -116,7 +119,7 @@ namespace IHLDota2Bot
 
             if (players.ContainsKey(userId))
             {
-                await message.Channel.SendMessageAsync("Ești deja înregistrat.");
+                await message.Channel.SendMessageAsync("You are already registered.");
                 return;
             }
 
@@ -132,22 +135,22 @@ namespace IHLDota2Bot
 
             players[userId] = player;
             SavePlayers();
-            await message.Channel.SendMessageAsync($"Te-ai înregistrat cu succes ca {player.Username} (SteamID: {steamId})!");
+            await message.Channel.SendMessageAsync($"You have successfully registered as {player.Username} (SteamID: {steamId})!");
         }
 
         private async Task ShowProfileAsync(SocketMessage message)
         {
             if (!players.TryGetValue(message.Author.Id, out var player))
             {
-                await message.Channel.SendMessageAsync("Nu ești înregistrat. Folosește `!register <SteamID64>`");
+                await message.Channel.SendMessageAsync("You are not registered. Use `!register <SteamID64>`");
                 return;
             }
 
-            var profile = $"**Profil pentru {player.Username}**\n" +
+            var profile = $"**Profile for {player.Username}**\n" +
                           $"- SteamID: {player.SteamId}\n" +
                           $"- Rating: {player.Rating}\n" +
-                          $"- Meciuri: {player.Matches}\n" +
-                          $"- Victorii: {player.Wins}";
+                          $"- Matches: {player.Matches}\n" +
+                          $"- Wins: {player.Wins}";
 
             await message.Channel.SendMessageAsync(profile);
         }
@@ -156,13 +159,13 @@ namespace IHLDota2Bot
         {
             if (!players.TryGetValue(message.Author.Id, out var captain1))
             {
-                await message.Channel.SendMessageAsync("Trebuie să fii înregistrat pentru a crea un meci.");
+                await message.Channel.SendMessageAsync("You must be registered to create a match.");
                 return;
             }
 
             if (activeCaptainMatches.ContainsKey(message.Author.Id))
             {
-                await message.Channel.SendMessageAsync("Ești deja într-un meci activ.");
+                await message.Channel.SendMessageAsync("You are already in an active match.");
                 return;
             }
 
@@ -174,7 +177,7 @@ namespace IHLDota2Bot
 
             if (availablePlayers.Count < 9)
             {
-                await message.Channel.SendMessageAsync("Nu sunt suficienți jucători disponibili pentru un meci (minim 10).");
+                await message.Channel.SendMessageAsync("There are not enough players available for a match (minimum 10).");
                 return;
             }
 
@@ -203,7 +206,7 @@ namespace IHLDota2Bot
 
             //await dotaLobbyManager.CreateLobbyAsync("AATEST", "123123");
 
-            await message.Channel.SendMessageAsync($"Meci creat între {captain1.Username} și {captain2.Username}. Se începe draftul!");
+            await message.Channel.SendMessageAsync($"Match created between {captain1.Username} and {captain2.Username}. Draft begins!");
         }
 
         private async Task HandlePickAsync(SocketMessage message)
@@ -211,21 +214,21 @@ namespace IHLDota2Bot
             var userId = message.Author.Id;
             if (!activeCaptainMatches.TryGetValue(userId, out var matchId))
             {
-                await message.Channel.SendMessageAsync("Nu ești într-un draft activ.");
+                await message.Channel.SendMessageAsync("You are not in an active draft.");
                 return;
             }
 
             var match = matches.FirstOrDefault(m => m.Id == matchId);
             if (match == null || match.NextCaptainId != userId)
             {
-                await message.Channel.SendMessageAsync("Nu este rândul tău să alegi.");
+                await message.Channel.SendMessageAsync("It's not your turn to choose.");
                 return;
             }
 
             var parts = message.Content.Split(' ', 2);
             if (parts.Length < 2)
             {
-                await message.Channel.SendMessageAsync("Folosește: `!pick <nume_jucator>`");
+                await message.Channel.SendMessageAsync("Use: `!pick <player_name>`");
                 return;
             }
 
@@ -233,7 +236,7 @@ namespace IHLDota2Bot
             var pick = match.DraftPool.FirstOrDefault(p => p.Username.Equals(pickName, StringComparison.OrdinalIgnoreCase));
             if (pick == null)
             {
-                await message.Channel.SendMessageAsync("Jucătorul nu este disponibil pentru pick.");
+                await message.Channel.SendMessageAsync("Player is not available for pick.");
                 return;
             }
 
@@ -247,11 +250,11 @@ namespace IHLDota2Bot
             match.NextCaptainId = match.NextCaptainId == match.Captain1.UserId ? match.Captain2.UserId : match.Captain1.UserId;
             SaveMatches();
 
-            await message.Channel.SendMessageAsync($"{message.Author.Username} a ales pe {pick.Username}.");
+            await message.Channel.SendMessageAsync($"{message.Author.Username} chose {pick.Username}.");
 
             if (match.DraftPool.Count == 0)
             {
-                await message.Channel.SendMessageAsync("Draftul este complet. Meciul poate fi jucat!");
+                await message.Channel.SendMessageAsync("The draft is complete. The game can be played!");
                 activeCaptainMatches.Remove(match.Captain1.UserId);
                 activeCaptainMatches.Remove(match.Captain2.UserId);
             }
@@ -262,14 +265,14 @@ namespace IHLDota2Bot
             var parts = message.Content.Split(' ');
             if (parts.Length < 2 || !int.TryParse(parts[1], out int winner))
             {
-                await message.Channel.SendMessageAsync("Folosește: `!report <1 sau 2>` pentru echipa câștigătoare.");
+                await message.Channel.SendMessageAsync("Use: `!report <1 or 2>` for the winning team.");
                 return;
             }
 
             var lastMatch = matches.LastOrDefault();
             if (lastMatch == null)
             {
-                await message.Channel.SendMessageAsync("Nu există niciun meci de raportat.");
+                await message.Channel.SendMessageAsync("There is no match to report.");
                 return;
             }
 
@@ -292,13 +295,13 @@ namespace IHLDota2Bot
             SavePlayers();
             SaveMatches();
 
-            await message.Channel.SendMessageAsync($"Meciul a fost raportat. Echipa {winner} a câștigat.");
+            await message.Channel.SendMessageAsync($"The match has been reported. Team {winner} won.");
         }
 
         private async Task ShowLeaderboardAsync(SocketMessage message)
         {
             var topPlayers = players.Values.OrderByDescending(p => p.Rating).Take(10);
-            var leaderboard = "**Clasament Top 10**\n";
+            var leaderboard = "**Ranking Top 10**\n";
 
             int rank = 1;
             foreach (var p in topPlayers)
@@ -312,7 +315,7 @@ namespace IHLDota2Bot
         private async Task ShowRecentMatchesAsync(SocketMessage message)
         {
             var recent = matches.TakeLast(5);
-            string report = "**Ultimele meciuri:**\n";
+            string report = "**Last games:**\n";
 
             foreach (var m in recent)
             {
@@ -326,7 +329,7 @@ namespace IHLDota2Bot
         {
             if (!players.TryGetValue(message.Author.Id, out var player))
             {
-                await message.Channel.SendMessageAsync("Nu ești înregistrat. Folosește `!register <SteamID64>`");
+                await message.Channel.SendMessageAsync("You are not registered. Use `!register <SteamID64>`");
                 return;
             }
 
@@ -334,12 +337,12 @@ namespace IHLDota2Bot
             var sorted = players.Values.OrderByDescending(p => p.Rating).ToList();
             var rank = sorted.FindIndex(p => p.UserId == player.UserId) + 1;
 
-            string stats = $"**Statistici pentru {player.Username}:**\n" +
+            string stats = $"**Stats for {player.Username}:**\n" +
                            $"- Rating: {player.Rating}\n" +
-                           $"- Meciuri: {player.Matches}\n" +
-                           $"- Victorii: {player.Wins}\n" +
+                           $"- Matches: {player.Matches}\n" +
+                           $"- Wins: {player.Wins}\n" +
                            $"- Winrate: {winRate:F2}%\n" +
-                           $"- Loc în clasament: #{rank}";
+                           $"- Rank: #{rank}";
 
             await message.Channel.SendMessageAsync(stats);
         }
@@ -348,32 +351,32 @@ namespace IHLDota2Bot
         {
             if (!players.TryGetValue(message.Author.Id, out _))
             {
-                await message.Channel.SendMessageAsync("Trebuie să fii înregistrat pentru a provoca pe cineva.");
+                await message.Channel.SendMessageAsync("You have to be registered to challenge someone.");
                 return;
             }
 
             if (message.MentionedUsers.Count == 0)
             {
-                await message.Channel.SendMessageAsync("Folosește: `!challenge @jucator`");
+                await message.Channel.SendMessageAsync("Use: `!challenge @jucator`");
                 return;
             }
 
             var opponent = message.MentionedUsers.First();
             if (!players.ContainsKey(opponent.Id))
             {
-                await message.Channel.SendMessageAsync("Jucătorul provocat nu este înregistrat.");
+                await message.Channel.SendMessageAsync("The challenged player is not registered.");
                 return;
             }
 
             pendingChallenges.Add((message.Author.Id, opponent.Id));
-            await message.Channel.SendMessageAsync($"{opponent.Username}, ai fost provocat de {message.Author.Username}! Răspunde cu `!acceptmatch @{message.Author.Username}` sau `!declinematch @{message.Author.Username}`.");
+            await message.Channel.SendMessageAsync($"{opponent.Username}, you have been challenged by {message.Author.Username}! Respond with `!acceptmatch @{message.Author.Username}` or `!declinematch @{message.Author.Username}`.");
         }
 
         private async Task AcceptChallengeAsync(SocketMessage message)
         {
             if (message.MentionedUsers.Count == 0)
             {
-                await message.Channel.SendMessageAsync("Folosește: `!acceptmatch @jucator`");
+                await message.Channel.SendMessageAsync("Use: `!acceptmatch @player`");
                 return;
             }
 
@@ -382,7 +385,7 @@ namespace IHLDota2Bot
 
             if (!pendingChallenges.Contains((challenger.Id, opponent.Id)))
             {
-                await message.Channel.SendMessageAsync("Nu există nicio provocare activă de la acest jucător.");
+                await message.Channel.SendMessageAsync("There is no active challenge from this player.");
                 return;
             }
 
@@ -402,14 +405,15 @@ namespace IHLDota2Bot
 
             matches.Add(match);
             SaveMatches();
-            await message.Channel.SendMessageAsync($"Meci 1v1 creat între {challenger.Username} și {opponent.Username}! ID meci: {match.Id}");
+            await message.Channel.SendMessageAsync($"1v1 match created between {challenger.Username} and {opponent.Username}! Match ID: {match.Id}");
+            ///
         }
 
         private async Task DeclineChallengeAsync(SocketMessage message)
         {
             if (message.MentionedUsers.Count == 0)
             {
-                await message.Channel.SendMessageAsync("Folosește: `!declinematch @jucator`");
+                await message.Channel.SendMessageAsync("Use: `!declinematch @player`");
                 return;
             }
 
@@ -422,7 +426,7 @@ namespace IHLDota2Bot
                 return;
             }
 
-            await message.Channel.SendMessageAsync($"{opponent.Username} a refuzat provocarea de la {challenger.Username}.");
+            await message.Channel.SendMessageAsync($"{opponent.Username} has declined the challenge from {challenger.Username}.");
         }
 
         private async Task ReportMatch1v1Async(SocketMessage message)
@@ -430,21 +434,21 @@ namespace IHLDota2Bot
             var parts = message.Content.Split(' ');
             if (parts.Length != 2 || !ulong.TryParse(parts[1], out var winnerId))
             {
-                await message.Channel.SendMessageAsync("Folosește: `!reportmatch <userId_câștigător>`");
+                await message.Channel.SendMessageAsync("Use: `!reportmatch <userId_câștigător>`");
                 return;
             }
 
             var match = matches.LastOrDefault(m => m.Team1.Count == 1 && m.Team2.Count == 1);
             if (match == null)
             {
-                await message.Channel.SendMessageAsync("Nu există niciun meci 1v1 recent de raportat.");
+                await message.Channel.SendMessageAsync("There are no recent 1v1 matches to report.");
                 return;
             }
 
             var winner = match.Team1.Concat(match.Team2).FirstOrDefault(p => p.UserId == winnerId);
             if (winner == null)
             {
-                await message.Channel.SendMessageAsync("Câștigătorul specificat nu este valid pentru ultimul meci 1v1.");
+                await message.Channel.SendMessageAsync("The specified winner is not valid for the last 1v1 match.");
                 return;
             }
 
@@ -460,12 +464,22 @@ namespace IHLDota2Bot
             SavePlayers();
             SaveMatches();
 
-            await message.Channel.SendMessageAsync($"Meci 1v1 raportat. {winner.Username} a câștigat împotriva lui {loser.Username}.");
+            await message.Channel.SendMessageAsync($"1v1 match reported. {winner.Username} won against {loser.Username}.");
         }
 
         private async Task CreateGame(SocketMessage message)
         {
-            await dotaLobbyManager.CreateLobbyAsync("aaa", "aaa");
+            var lastMatch = matches.LastOrDefault();
+            if (lastMatch == null)
+            {
+                await message.Channel.SendMessageAsync("Nu există niciun meci recent pentru a crea lobby.");
+                return;
+            }
+
+            var steamIds = lastMatch.Team1.Concat(lastMatch.Team2).Select(p => p.SteamId).ToList();
+            steamBot.CreateDotaLobby("D2IHLRO", "123", steamIds);
+
+            await message.Channel.SendMessageAsync("Se creează lobby-ul și se trimit invitațiile...");
         }
 
         private void SavePlayers()
