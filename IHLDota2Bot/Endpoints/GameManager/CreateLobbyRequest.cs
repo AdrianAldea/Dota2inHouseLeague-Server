@@ -1,7 +1,7 @@
-﻿namespace Dota2Bot.Endpoints.GameManager;
+﻿namespace IHLDota2Bot.Endpoints.GameManager;
 
 public class CreateLobbyRequest
 {
-    public string LobbyName { get; set; }
-    public string LobbyPassword { get; set; }
+    public required string LobbyName { get; set; }
+    public required string LobbyPassword { get; set; }
 }

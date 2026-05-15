@@ -1,16 +1,16 @@
-﻿using Dota2Bot.Endpoints.GameManager;
-using Dota2Bot.Endpoints.StartUp;
+﻿using IHLDota2Bot.Endpoints.GameManager;
+using IHLDota2Bot.Endpoints.StartUp;
 using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
 
-namespace Dota2Bot.Services;
+namespace IHLDota2Bot.Services;
 
 public class SteamService
 {
     private bool isRunning;
-    private uint DOTA_APP_ID = 570;
+    private const uint DOTA_APP_ID = 570;
     private readonly SteamClient steamClient;
     private readonly SteamFriends steamFriends;
     private readonly SteamGameCoordinator steamGameCoordinator;
@@ -20,9 +20,9 @@ public class SteamService
     public SteamService()
     {
         steamClient = new SteamClient();
-        steamUser = steamClient.GetHandler<SteamUser>();
-        steamFriends = steamClient.GetHandler<SteamFriends>();
-        steamGameCoordinator = steamClient.GetHandler<SteamGameCoordinator>();
+        steamUser = steamClient.GetHandler<SteamUser>()!;
+        steamFriends = steamClient.GetHandler<SteamFriends>()!;
+        steamGameCoordinator = steamClient.GetHandler<SteamGameCoordinator>()!;
 
         callbackManager = new CallbackManager(steamClient);
         callbackManager.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
@@ -120,7 +120,7 @@ public class SteamService
         createLobbyMsg.Body.pass_key = createLobbyRequest.LobbyPassword;
         createLobbyMsg.Body.lobby_details.server_region = 2;
 
-        Console.WriteLine(($"{nameof(CreateLobby)}: Sending CMsgPracticeLobbyCreate for lobby: {createLobbyRequest.LobbyName}"));
+        Console.WriteLine($"{nameof(CreateLobby)}: Sending CMsgPracticeLobbyCreate for lobby: {createLobbyRequest.LobbyName}");
         steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
     }
 }

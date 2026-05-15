@@ -1,10 +1,8 @@
-﻿
-using Dota2Bot.Endpoints.GameManager;
-using Dota2Bot.Services;
+﻿using IHLDota2Bot.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Dota2Bot.Endpoints.StartUp;
+namespace IHLDota2Bot.Endpoints.GameManager;
 
 public static class GameManagerEndpoints
 {
@@ -20,9 +18,22 @@ public static class GameManagerEndpoints
         CancellationToken cancellationToken
     )
     {
-        steamService.CreateLobby(new CreateLobbyRequest { LobbyName = "GameRomania1", LobbyPassword = "GameRomania1" });
+        try
+        {
+            steamService.CreateLobby(new CreateLobbyRequest
+            {
+                LobbyName = request.LobbyName,
+                LobbyPassword = request.LobbyPassword
+            });
 
-        return TypedResults.Ok(true);
+            return TypedResults.Ok(true);
+        }
+        catch (Exception ex)
+        {
+            // Log the exception (if logging is configured)
+            Console.Error.WriteLine($"Error creating lobby: {ex.Message}");
+            return TypedResults.StatusCode(500);
+        }
     }
 
     private static Results<Ok<bool>, StatusCodeHttpResult> InvitePlayersToLobby(
@@ -31,8 +42,17 @@ public static class GameManagerEndpoints
         CancellationToken cancellationToken
     )
     {
-        steamService.InvitePlayersToLobby([76561198046987929]);
+        try
+        {
+            steamService.InvitePlayersToLobby(request.PlayersIds);
 
-        return TypedResults.Ok(true);
+            return TypedResults.Ok(true);
+        }
+        catch (Exception ex)
+        {
+            // Log the exception (if logging is configured)
+            Console.Error.WriteLine($"Error inviting players to lobby: {ex.Message}");
+            return TypedResults.StatusCode(500);
+        }
     }
 }

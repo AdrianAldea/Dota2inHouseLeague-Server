@@ -1,4 +1,4 @@
-﻿namespace Dota2Bot.Endpoints.GameManager;
+﻿namespace IHLDota2Bot.Endpoints.GameManager;
 
 public class InviteRequest
 {

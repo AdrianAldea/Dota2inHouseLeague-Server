@@ -1,5 +1,12 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddProject<Projects.IHLDota2Bot>("dota2bot");
+var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL")
+    .WithLifetime(ContainerLifetime.Persistent);
+
+var db = sql.AddDatabase("Dota2inHouseLeagueDB");
+
+builder.AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague")
+    .WithReference(db)
+    .WaitFor(db);
 
 builder.Build().Run();

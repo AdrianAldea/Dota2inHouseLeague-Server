@@ -1,4 +1,5 @@
-﻿using Dota2Bot.Endpoints.StartUp;
+﻿using IHLDota2Bot.Endpoints.GameManager;
+using IHLDota2Bot.Endpoints.StartUp;
 
 namespace Dota2Bot.Extensions;
 

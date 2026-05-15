@@ -1,7 +1,7 @@
-﻿namespace Dota2Bot.Endpoints.StartUp;
+﻿namespace IHLDota2Bot.Endpoints.StartUp;
 
 public class StartUpRequest
 {
-    public string Username { get; set; }
-    public string Password { get; set; }
+    public required string Username { get; set; }
+    public required string Password { get; set; }
 }

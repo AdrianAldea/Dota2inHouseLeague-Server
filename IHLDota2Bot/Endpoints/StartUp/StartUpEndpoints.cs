@@ -1,9 +1,8 @@
-﻿
-using Dota2Bot.Services;
+﻿using IHLDota2Bot.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Dota2Bot.Endpoints.StartUp;
+namespace IHLDota2Bot.Endpoints.StartUp;
 
 public static class StartUpEndpoints
 {

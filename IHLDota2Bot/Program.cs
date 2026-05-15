@@ -1,6 +1,5 @@
 using Dota2Bot.Extensions;
-using Dota2Bot.Services;
-using SteamKit2;
+using IHLDota2Bot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
