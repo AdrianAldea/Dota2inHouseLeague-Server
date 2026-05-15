@@ -1,0 +1,6 @@
+@Dota2Bot_HostAddress = http://localhost:5193
+
+GET {{Dota2Bot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
