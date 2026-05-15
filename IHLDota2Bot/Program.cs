@@ -7,6 +7,7 @@ builder.AddServiceDefaults();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<SteamService>();
+builder.Services.AddSingleton<DiscordService>();
 
 var app = builder.Build();
 
