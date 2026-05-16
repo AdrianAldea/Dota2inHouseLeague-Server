@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>04901ed6-d448-4909-923c-bf654280def0</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.3.2" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IHLDota2Bot\IHLDota2Bot.csproj" />
+  </ItemGroup>
+
+</Project>

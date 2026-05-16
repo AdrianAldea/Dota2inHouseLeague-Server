@@ -1,0 +1,6 @@
+@IHLDota2Bot_HostAddress = http://localhost:5193
+
+GET {{IHLDota2Bot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
