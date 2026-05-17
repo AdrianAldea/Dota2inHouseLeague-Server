@@ -1,9 +1,7 @@
 using Discord;
 using Discord.WebSocket;
-using IHLDota2Bot.Endpoints.Discord;
-using SteamKit2;
 
-namespace IHLDota2Bot.Services;
+namespace IHLDota2Bot.Discord;
 
 // @todo This should be moved into a file, internal to `DiscordService`
 internal enum DiscordAction
@@ -169,7 +167,7 @@ public struct GetPlayerStatsResponse
     public Optional<SuccessData> Data;
 };
 
-public class DiscordService
+public class DiscordServicex
 {
     // @TODO VERY IMPORTANT, REGENERATE THIS AND PUT IT IN A SECRETS FILE OR PASS BY CLI NOT STORED ON GITHUB
     private const string DiscordToken = "MTM3MzQwMTIxMjkzNzgzMDU3Mg.GwOJf5.ZBOX0Fm6od95W77Ow7XDiZVgJ8a9Bqh4EaFiWE";
@@ -246,7 +244,7 @@ public class DiscordService
     private static List<(ulong ChallengerId, ulong OpponentId)> pendingChallenges = new();
     // END TODO
 
-    public DiscordService()
+    public DiscordServicex()
     {
         var config = new DiscordSocketConfig
         {
@@ -256,7 +254,7 @@ public class DiscordService
         discordClient.MessageReceived += HandleMessageAsync;
     }
 
-    public async Task<bool> ConnectToDiscord(DiscordStartUpRequest request)
+    public async Task<bool> ConnectToDiscord()
     {
         isRunning = true;
 
