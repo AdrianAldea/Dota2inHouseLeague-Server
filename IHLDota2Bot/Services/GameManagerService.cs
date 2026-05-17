@@ -21,10 +21,11 @@ public class GameManagerService
     private readonly SteamGameCoordinator steamGameCoordinator;
     private readonly SteamUser steamUser;
     private readonly CallbackManager callbackManager;
-    private readonly LobbyPoolManager poolManager;
+    private readonly GamePoolManager poolManager;
 
     public GameManagerService()
     {
+        poolManager = new GamePoolManager();
         steamClient = new SteamClient();
 
         steamUser = steamClient.GetHandler<SteamUser>()!;
@@ -44,7 +45,7 @@ public class GameManagerService
         discordClient = new DiscordSocketClient(config);
         discordClient.MessageReceived += HandleMessageAsync;
 
-        poolManager = new LobbyPoolManager();
+        poolManager = new GamePoolManager();
     }
 
     private async Task HandleMessageAsync(SocketMessage message)
@@ -78,6 +79,9 @@ public class GameManagerService
                 break;
             case DiscordAction.INVITE_LOBBY:
                 await InviteToLobbyAsync();
+                break;
+            case DiscordAction.END_LOBBY:
+                await RegisterMatchResultsAsync();
                 break;
             case DiscordAction.PROFILE:
                 await ShowProfileAsync(message);
@@ -116,6 +120,12 @@ public class GameManagerService
                 //    await ShowCommandsAsync(message);
                 //    break;
         }
+    }
+
+    private async Task RegisterMatchResultsAsync()
+    {
+        // unqueue lobby from pool, mark it as ended, and update player stats in the database based on the match results
+        // poolManager.MarkLobbyAsFinished(lobbyId, winningTeam);
     }
 
     private async Task InviteToLobbyAsync()
@@ -177,6 +187,11 @@ public class GameManagerService
 
     private async Task CreateLobbyAsync()
     {
+        // Get free boot steam account from the pool
+        // poolManager.GetAvailableSteamAccount(); and connect using that account to Steam (similar to StartServer but with specific credentials)
+        // create lobby using that account and send the lobby details back to the Discord channel
+        //poolManager._lobbyQueue.Enqueue(new LobbyInfo { LobbyName = "My Lobby", LobbyPassword = "defaultpassword" });
+
         CreateLobby(new CreateLobbyRequest { LobbyName = "My Lobby", LobbyPassword = "defaultpassword" });
     }
 

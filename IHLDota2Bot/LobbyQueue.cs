@@ -26,7 +26,7 @@ namespace IHLDota2Bot
 
         public LobbyQueue()
         {
-            CreateNewLobby();
+            //CreateNewLobby();
         }
 
         /// <summary>

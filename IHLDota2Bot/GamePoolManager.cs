@@ -9,11 +9,11 @@ namespace IHLDota2Bot
     /// Main orchestrator for the pool system
     /// Manages Steam account pool and lobby queue
     /// </summary>
-    public class LobbyPoolManager
+    public class GamePoolManager
     {
-        private SteamAccountPool _accountPool;
-        private LobbyQueue _lobbyQueue;
-        private Dictionary<string, LobbySession> _activeSessions = new();
+        public SteamAccountPool _accountPool;
+        public LobbyQueue _lobbyQueue;
+        public Dictionary<string, LobbySession> _activeSessions = new();
         private readonly object _lockObject = new object();
 
         // Events
@@ -21,7 +21,7 @@ namespace IHLDota2Bot
         public event EventHandler<GameStartedEventArgs> GameStarted;
         public event EventHandler<GameFinishedEventArgs> GameFinished;
 
-        public LobbyPoolManager()
+        public GamePoolManager()
         {
             _accountPool = new SteamAccountPool();
             _lobbyQueue = new LobbyQueue();

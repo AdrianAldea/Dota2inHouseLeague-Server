@@ -14,6 +14,7 @@ internal enum DiscordAction
     PICK,
     CREATE_LOBBY,
     INVITE_LOBBY,
+    END_LOBBY,
     REPORT,
     LEADERBOARD,
     MATCHES,
