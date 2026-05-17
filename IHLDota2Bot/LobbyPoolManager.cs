@@ -19,11 +19,11 @@ namespace IHLDota2Bot
         public event EventHandler<GameStartedEventArgs> GameStarted;
         public event EventHandler<GameFinishedEventArgs> GameFinished;
 
-        public LobbyPoolManager(DiscordClient discordClient, LobbyQueue lobbyQueue)
+        public LobbyPoolManager(DiscordClient discordClient)
         {
-            _accountPool = new SteamAccountPool();
+            _accountPool = new SteamAccountPool(discordClient);
             _discordClient = discordClient;
-            _lobbyQueue = lobbyQueue;
+            _lobbyQueue = new LobbyQueue(discordClient);
 
             RegisterSteamAccount("dota2inhouseleague", "Romania10.");
             RegisterSteamAccount("dota2inhouseleague2", "Romania10.");

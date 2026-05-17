@@ -1,3 +1,4 @@
+using IHLDota2Bot.Common.Requests;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace IHLDota2Bot.Discord.Discord;
@@ -8,6 +9,16 @@ public static class DiscordStartUpEndpoints
     {
         group.MapPost("/start", StartServer);
         group.MapPost("/stop", StopServer);
+        group.MapPost("/message", HandleMessage);
+    }
+
+    private static async Task HandleMessage(
+        MessageRequest messageRequest,
+        Services.DiscordService service,
+        CancellationToken cancellationToken
+    )
+    {
+        await service.SendMessageAsync(messageRequest.Message, cancellationToken);
     }
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(

@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
 using IHLDota2Bot.Discord.Helpers;
+using System.Threading.Channels;
 
 namespace IHLDota2Bot.Discord.Services;
 
@@ -140,5 +141,13 @@ public class DiscordService
         await discordClient.LogoutAsync();
         await discordClient.StopAsync();
         await discordClient.DisposeAsync();
+    }
+
+    public async Task SendMessageAsync(string message,CancellationToken cancellationToken)
+    {
+        if (discordClient.GetChannel(1373400451906666510) is IMessageChannel channel)
+        {
+            await channel.SendMessageAsync(message);
+        }
     }
 }

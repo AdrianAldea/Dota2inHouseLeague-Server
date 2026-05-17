@@ -13,7 +13,7 @@ public static class GameManagerEndpoints
         group.MapPost("/create", CreateLobby);
         group.MapGet("/player/{id}", GetPlayerProfile);
         group.MapPost("/register", RegisterPlayer);
-        group.MapPost("/ready", MarkPlayerAsReady);
+        group.MapPost("/ready/{id}", MarkPlayerAsReady);
         group.MapPost("/invite", InvitePlayersToLobby);
     }
 

@@ -1,4 +1,5 @@
-﻿using IHLDota2Bot.Common.DTOs;
+﻿using IHLDota2Bot.Clients;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Endpoints.GameManager;
 using IHLDota2Bot.Endpoints.StartUp;
@@ -20,9 +21,9 @@ public class Dota2Service
     private readonly CallbackManager callbackManager;
     private readonly LobbyPoolManager poolManager;
 
-    public Dota2Service()
+    public Dota2Service(DiscordClient discordClient)
     {
-        poolManager = new LobbyPoolManager();
+        poolManager = new LobbyPoolManager(discordClient);
         steamClient = new SteamClient();
 
         steamUser = steamClient.GetHandler<SteamUser>()!;
