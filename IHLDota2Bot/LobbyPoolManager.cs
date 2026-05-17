@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using IHLDota2Bot.Clients;
 
 namespace IHLDota2Bot
 {
@@ -9,10 +6,11 @@ namespace IHLDota2Bot
     /// Main orchestrator for the pool system
     /// Manages Steam account pool and lobby queue
     /// </summary>
-    public class GamePoolManager
+    public class LobbyPoolManager
     {
         public SteamAccountPool _accountPool;
-        public LobbyQueue _lobbyQueue;
+        private readonly DiscordClient _discordClient;
+        private readonly LobbyQueue _lobbyQueue;
         public Dictionary<string, LobbySession> _activeSessions = new();
         private readonly object _lockObject = new object();
 
@@ -21,12 +19,16 @@ namespace IHLDota2Bot
         public event EventHandler<GameStartedEventArgs> GameStarted;
         public event EventHandler<GameFinishedEventArgs> GameFinished;
 
-        public GamePoolManager()
+        public LobbyPoolManager(DiscordClient discordClient, LobbyQueue lobbyQueue)
         {
             _accountPool = new SteamAccountPool();
-            _lobbyQueue = new LobbyQueue();
+            _discordClient = discordClient;
+            _lobbyQueue = lobbyQueue;
 
-            // Subscribe to lobby queue events
+            RegisterSteamAccount("dota2inhouseleague", "Romania10.");
+            RegisterSteamAccount("dota2inhouseleague2", "Romania10.");
+            RegisterSteamAccount("dota2inhouseleague3", "Romania10.");
+
             _lobbyQueue.LobbyReady += OnLobbyReady;
             _lobbyQueue.LobbyCreated += OnLobbyCreated;
             _lobbyQueue.PlayerReady += OnPlayerReady;
@@ -122,7 +124,9 @@ namespace IHLDota2Bot
 
                 if (account == null)
                 {
-                    Console.WriteLine($"❌ No available Steam accounts for lobby {lobby.Id}");
+                    var message = $"❌ No available Steam accounts for lobby {lobby.Id}. Please wait...";
+                    _discordClient.SendMessageAsync(message);
+                    Console.WriteLine(message);
                     return;
                 }
 
@@ -140,7 +144,10 @@ namespace IHLDota2Bot
                 lobby.SteamAccountId = account.Id;
                 _accountPool.MarkAccountInUse(account.Id, lobby.Id);
 
-                Console.WriteLine($"✅ GAME READY: Lobby {lobby.Id} assigned account {account.Username}");
+                var readyMessage = $"✅ Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
+                _discordClient.SendMessageAsync(readyMessage);
+                Console.WriteLine(readyMessage);
+                
                 GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
             }
         }
@@ -150,7 +157,9 @@ namespace IHLDota2Bot
         /// </summary>
         public void OnLobbyCreated(object sender, LobbyCreatedEventArgs e)
         {
-            Console.WriteLine($"📋 New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)");
+            var message = $"📋 New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)";
+            _discordClient.SendMessageAsync(message);
+            Console.WriteLine(message);
         }
 
         /// <summary>
@@ -159,7 +168,9 @@ namespace IHLDota2Bot
         public void OnPlayerReady(object sender, PlayerReadyEventArgs e)
         {
             var lobby = _lobbyQueue.GetCurrentLobby();
-            Console.WriteLine($"✅ {e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})");
+            var message = $"✅ {e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})";
+            _discordClient.SendMessageAsync(message);
+            Console.WriteLine(message);
         }
 
         /// <summary>
@@ -171,14 +182,18 @@ namespace IHLDota2Bot
             {
                 if (!_activeSessions.TryGetValue(lobbyId, out var session))
                 {
-                    Console.WriteLine($"⚠️ Session {lobbyId} not found");
+                    var message = $"⚠️ Session {lobbyId} not found";
+                    _discordClient.SendMessageAsync(message);
+                    Console.WriteLine(message);
                     return;
                 }
 
                 session.State = LobbySessionState.InProgress;
                 session.GameStartedAt = DateTime.UtcNow;
 
-                Console.WriteLine($"🎮 GAME STARTED: {lobbyId}");
+                var gameStartedMessage = $"🎮 GAME STARTED: {lobbyId}";
+                _discordClient.SendMessageAsync(gameStartedMessage);
+                Console.WriteLine(gameStartedMessage);
                 GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
             }
         }
@@ -192,7 +207,9 @@ namespace IHLDota2Bot
             {
                 if (!_activeSessions.TryGetValue(lobbyId, out var session))
                 {
-                    Console.WriteLine($"⚠️ Session {lobbyId} not found");
+                    var message = $"⚠️ Session {lobbyId} not found";
+                    _discordClient.SendMessageAsync(message);
+                    Console.WriteLine(message);
                     return;
                 }
 
@@ -203,7 +220,9 @@ namespace IHLDota2Bot
                 _accountPool.ReleaseAccount(session.AccountId);
                 var account = _accountPool.GetAccountById(session.AccountId);
 
-                Console.WriteLine($"✅ GAME FINISHED: {lobbyId} | Account {account?.Username} released");
+                var gameFinishedMessage = $"✅ GAME FINISHED: {lobbyId} | Account {account?.Username} released";
+                _discordClient.SendMessageAsync(gameFinishedMessage);
+                Console.WriteLine(gameFinishedMessage);
 
                 // Finish the lobby
                 _lobbyQueue.FinishLobby(lobbyId);
@@ -261,40 +280,48 @@ namespace IHLDota2Bot
         {
             var status = GetSystemStatus();
 
-            Console.WriteLine("\n╔════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║          POOL SYSTEM STATUS                              ║");
-            Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
+            string output = $@"
+                ╔════════════════════════════════════════════════════════════╗
+                ║          POOL SYSTEM STATUS                                ║
+                ╚════════════════════════════════════════════════════════════╝
 
-            // Pool Status
-            Console.WriteLine("📊 STEAM ACCOUNT POOL:");
-            Console.WriteLine($"   Total: {status.PoolStats.TotalAccounts}");
-            Console.WriteLine($"   Ready: {status.PoolStats.ReadyAccounts} ✅");
-            Console.WriteLine($"   In Use: {status.PoolStats.InUseAccounts} 🎮");
-            Console.WriteLine($"   Cooldown: {status.PoolStats.OnCooldownAccounts} ⏳");
+                📊 STEAM ACCOUNT POOL:
+                   Total: {status.PoolStats.TotalAccounts}
+                   Ready: {status.PoolStats.ReadyAccounts} ✅
+                   In Use: {status.PoolStats.InUseAccounts} 🎮
+                   Cooldown: {status.PoolStats.OnCooldownAccounts} ⏳
 
-            // Queue Status
-            Console.WriteLine("\n👥 QUEUE STATUS:");
-            Console.WriteLine($"   Registered Players: {status.QueueStats.TotalRegisteredPlayers}");
-            Console.WriteLine($"   Waiting: {status.QueueStats.WaitingPlayers}");
-            Console.WriteLine($"   Current Lobby: {status.QueueStats.CurrentLobbyPlayerCount}/10");
-            Console.WriteLine($"   Ready: {status.QueueStats.PlayersReady}/{status.QueueStats.CurrentLobbyPlayerCount}");
+                👥 QUEUE STATUS:
+                   Registered Players: {status.QueueStats.TotalRegisteredPlayers}
+                   Waiting: {status.QueueStats.WaitingPlayers}
+                   Current Lobby: {status.QueueStats.CurrentLobbyPlayerCount}/10
+                   Ready: {status.QueueStats.PlayersReady}/{status.QueueStats.CurrentLobbyPlayerCount}
 
-            // Active Sessions
-            Console.WriteLine("\n🎮 ACTIVE GAMES:");
+                🎮 ACTIVE GAMES:
+                ";
+            _discordClient.SendMessageAsync(output);
+            Console.WriteLine(output);
+
             if (status.ActiveSessions.Count == 0)
             {
-                Console.WriteLine("   No active games");
+                var noGamesMessage = "   No active games";
+                _discordClient.SendMessageAsync(noGamesMessage);
+                Console.WriteLine(noGamesMessage);
             }
             else
             {
                 foreach (var session in status.ActiveSessions)
                 {
                     var duration = DateTime.UtcNow - session.StartedAt;
-                    Console.WriteLine($"   Lobby {session.LobbyId}: {session.State} - {PoolExtensions.FormatDuration(duration)}");
+                    var gameFinishedMessage = $"   Lobby {session.LobbyId}: {session.State} - {PoolExtensions.FormatDuration(duration)}";
+                    _discordClient.SendMessageAsync(gameFinishedMessage);
+                    Console.WriteLine(gameFinishedMessage);
                 }
             }
 
-            Console.WriteLine($"\n   Updated: {status.Timestamp:dd/MM/yyyy HH:mm:ss}\n");
+            var timestampMessage = $"   Updated: {status.Timestamp:dd/MM/yyyy HH:mm:ss}";
+            _discordClient.SendMessageAsync(timestampMessage);
+            Console.WriteLine(timestampMessage);
         }
     }
 

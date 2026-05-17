@@ -12,7 +12,7 @@ public static class StartUpEndpoints
     }
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(
-        GameManagerService service,
+        Services.Dota2Service service,
         [FromBody] StartUpRequest request,
         CancellationToken cancellationToken
     )

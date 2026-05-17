@@ -6,7 +6,8 @@ namespace IHLDota2Bot.Common.DTOs
 {
     public class RegisteredPlayer
     {
-        public ulong SteamId {  get; set; }
-        public ulong UserId {  get; set; }
+        public string SteamId {  get; set; }
+        public string Username {  get; set; }
+        public string UserId {  get; set; }
     }
 }

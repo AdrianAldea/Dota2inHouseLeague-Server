@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<GameManagerService>();
+builder.Services.AddSingleton<IHLDota2Bot.Services.Dota2Service>();
 
 var app = builder.Build();
 

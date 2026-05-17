@@ -9,7 +9,7 @@ using SteamKit2.Internal;
 
 namespace IHLDota2Bot.Services;
 
-public class GameManagerService
+public class Dota2Service
 {
     private bool isRunning;
     private const uint DOTA_APP_ID = 570;
@@ -18,11 +18,11 @@ public class GameManagerService
     private readonly SteamGameCoordinator steamGameCoordinator;
     private readonly SteamUser steamUser;
     private readonly CallbackManager callbackManager;
-    private readonly GamePoolManager poolManager;
+    private readonly LobbyPoolManager poolManager;
 
-    public GameManagerService()
+    public Dota2Service()
     {
-        poolManager = new GamePoolManager();
+        poolManager = new LobbyPoolManager();
         steamClient = new SteamClient();
 
         steamUser = steamClient.GetHandler<SteamUser>()!;
@@ -33,8 +33,6 @@ public class GameManagerService
         callbackManager.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
         callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
         callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
-
-        poolManager = new GamePoolManager();
     }
 
     private async Task RegisterMatchResultsAsync()
@@ -43,14 +41,14 @@ public class GameManagerService
         // poolManager.MarkLobbyAsFinished(lobbyId, winningTeam);
     }
 
-    private async Task CreateLobbyAsync()
+    private async Task CreateLobbyAsync(CreateLobbyRequest request)
     {
         // Get free boot steam account from the pool
         // poolManager.GetAvailableSteamAccount(); and connect using that account to Steam (similar to StartServer but with specific credentials)
         // create lobby using that account and send the lobby details back to the Discord channel
         //poolManager._lobbyQueue.Enqueue(new LobbyInfo { LobbyName = "My Lobby", LobbyPassword = "defaultpassword" });
 
-        CreateLobby(new CreateLobbyRequest { LobbyName = "My Lobby", LobbyPassword = "defaultpassword" });
+        CreateLobby(request);
     }
 
     public async Task<bool> StartServer(StartUpRequest request)
@@ -138,7 +136,7 @@ public class GameManagerService
         }
     }
 
-    public void CreateLobby(CreateLobbyRequest createLobbyRequest)
+    public string CreateLobby(CreateLobbyRequest createLobbyRequest)
     {
         Console.WriteLine($"{nameof(CreateLobby)}: Attempting to send lobby creation message to Dota 2 GC...");
 
@@ -146,16 +144,29 @@ public class GameManagerService
 
         createLobbyMsg.Body.lobby_details = new CMsgPracticeLobbySetDetails();
         createLobbyMsg.Body.lobby_details.game_name = createLobbyRequest.LobbyName;
+        createLobbyMsg.Body.lobby_details.pass_key = createLobbyRequest.LobbyPassword;
         createLobbyMsg.Body.lobby_details.game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP;
-        createLobbyMsg.Body.pass_key = createLobbyRequest.LobbyPassword;
         createLobbyMsg.Body.lobby_details.server_region = 2;
 
         Console.WriteLine($"{nameof(CreateLobby)}: Sending CMsgPracticeLobbyCreate for lobby: {createLobbyRequest.LobbyName}");
         steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
+
+        return $"{nameof(CreateLobby)}: Lobby created: {createLobbyRequest.LobbyName}";
     }
 
     public  async Task<RegisteredPlayer> RegisterPlayer(RegisterPlayerRequest request)
     {
-        return new RegisteredPlayer { SteamId = request.SteamId, UserId = request.UserId };
+        poolManager.RegisterPlayer(request.UserId, request.Username, request.SteamId.ToString() );
+        return new RegisteredPlayer { SteamId = request.SteamId.ToString(), Username = request.Username, UserId = request.UserId.ToString() };
+    }
+
+    public async Task<PlayerProfile> GetPlayerProfile(int playerId)
+    {
+        return new PlayerProfile { Id = playerId.ToString(), Name = $"Player {playerId}" };
+    }
+
+    internal async Task MarkPlayerAsReady(ulong id)
+    {
+        poolManager.MarkPlayerReady(id);
     }
 }
