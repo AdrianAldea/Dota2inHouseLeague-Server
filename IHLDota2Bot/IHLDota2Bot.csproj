@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IHLDota2Bot.Common\IHLDota2Bot.Common.csproj" />
     <ProjectReference Include="..\IHLDota2Bot.ServiceDefaults\IHLDota2Bot.ServiceDefaults.csproj" />
   </ItemGroup>
 

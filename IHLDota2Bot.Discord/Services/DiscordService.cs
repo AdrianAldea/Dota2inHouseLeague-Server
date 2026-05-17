@@ -1,8 +1,8 @@
 using Discord;
 using Discord.WebSocket;
+using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
 using IHLDota2Bot.Discord.Helpers;
-using IHLDota2Bot.Discord.Models;
 
 namespace IHLDota2Bot.Discord.Services;
 
@@ -15,9 +15,9 @@ public class DiscordService
     private readonly DiscordSocketClient discordClient;
 
     public DiscordService(SteamClient steamClient, ILogger<DiscordService> logger)
-    {
-        steamClient = steamClient;
-        logger = logger;
+        {
+        this.steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         var config = new DiscordSocketConfig
         {
@@ -42,24 +42,24 @@ public class DiscordService
             return;
 
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var command = parts[0];
+        var command = parts[0].ToString().ToUpper();
 
-        if (Enum.TryParse(command, out DiscordAction action))
+        if (Enum.TryParse(command, out Enums.DiscordAction action))
         {
             Console.WriteLine($"{nameof(HandleMessageAsync)}: Command - {action}");
 
             switch (action)
             {
-                case DiscordAction.REGISTER:
+                case Enums.DiscordAction.REGISTER:
                     await RegisterPlayerAsync(message, parts);
                     break;
-                case DiscordAction.PROFILE:
+                case Enums.DiscordAction.PROFILE:
                     await ShowProfileAsync(message);
                     break;
-                case DiscordAction.CREATE_LOBBY:
+                case Enums.DiscordAction.CREATE_LOBBY:
                     await CreateLobbyAsync(message);
                     break;
-                case DiscordAction.COMMANDS:
+                case Enums.DiscordAction.COMMANDS:
                     await ShowCommandsAsync(message);
                     break;
             }
@@ -68,17 +68,22 @@ public class DiscordService
 
     private async Task RegisterPlayerAsync(SocketMessage message, string[] parts)
     {
-        var steamIdOptional = StringSteamHelper.GetSteamIdIfValidMessageAsync(parts);
-        if (!steamIdOptional.IsSpecified) return;
+        //var steamIdOptional = StringSteamHelper.GetSteamIdIfValidMessageAsync(parts);
+        //if (!steamIdOptional.IsSpecified) return;
 
-        var steamId = steamIdOptional.Value;
+        var steamId = ulong.Parse(parts[1]);
         var userId = message.Author.Id;
 
         var request = new RegisterPlayerRequest { SteamId = steamId, UserId = userId };
-        await steamClient.RegisterPlayerAsync(request);
+        var registeredplayer = await steamClient.RegisterPlayerAsync(request);
+
+        var registerMessage = MessagesFormatter.FormatRegisterPlayer(
+            registeredplayer.UserId,
+            registeredplayer.SteamId
+        );
 
         Console.WriteLine($"{nameof(RegisterPlayerAsync)}: " + message.Content);
-        await message.Channel.SendMessageAsync($"You have successfully registered as {"TODO.PlayerUsername"} (SteamID: {steamId})!");
+        await message.Channel.SendMessageAsync($"You have successfully registered as {registeredplayer.SteamId} (SteamID: {steamId})!");
     }
 
     private async Task ShowProfileAsync(SocketMessage message)

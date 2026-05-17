@@ -5,10 +5,10 @@ var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL")
 
 var db = sql.AddDatabase("Dota2inHouseLeagueDB");
 
-builder.AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague")
-    .WithReference(db)
-    .WaitFor(db);
+builder.AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague");
+    //.WithReference(db)
+    //.WaitFor(db);
 
-builder.AddProject<Projects.IHLDota2Bot_Discord>("ihldota2bot-discord");
+builder.AddProject<Projects.IHLDota2Bot_Discord>("Dota2inHouseLeague-Discord");
 
 builder.Build().Run();

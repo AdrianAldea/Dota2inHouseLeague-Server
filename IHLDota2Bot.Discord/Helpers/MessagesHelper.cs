@@ -20,4 +20,10 @@ public static class MessagesFormatter
         return $"**Lobby Created: {lobbyName}**\n" +
                $"- Lobby ID: {lobbyId}";
     }
+
+    internal static string FormatRegisterPlayer(ulong userid, ulong steamId)
+    {
+        return $"**User Registered: {userid}**\n" +
+               $"- Steam ID: {steamId}";
+    }
 }

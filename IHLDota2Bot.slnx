@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="IHLDota2Bot.AppHost/IHLDota2Bot.AppHost.csproj" />
+  <Project Path="IHLDota2Bot.Common/IHLDota2Bot.Common.csproj" Id="948cb1a9-70d5-4242-b35f-ff599dedb7f1" />
   <Project Path="IHLDota2Bot.Discord/IHLDota2Bot.Discord.csproj" />
   <Project Path="IHLDota2Bot.ServiceDefaults/IHLDota2Bot.ServiceDefaults.csproj" />
   <Project Path="IHLDota2Bot/IHLDota2Bot.csproj" />

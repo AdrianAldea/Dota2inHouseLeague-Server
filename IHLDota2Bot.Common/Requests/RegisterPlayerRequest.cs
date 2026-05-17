@@ -1,4 +1,4 @@
-﻿namespace IHLDota2Bot.Discord.Models;
+﻿namespace IHLDota2Bot.Common.Requests;
 
 public record RegisterPlayerRequest
 {

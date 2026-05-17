@@ -1,4 +1,6 @@
-﻿using IHLDota2Bot.Endpoints.GameManager;
+﻿using IHLDota2Bot.Common.DTOs;
+using IHLDota2Bot.Common.Requests;
+using IHLDota2Bot.Endpoints.GameManager;
 using IHLDota2Bot.Endpoints.StartUp;
 using SteamKit2;
 using SteamKit2.GC;
@@ -150,5 +152,10 @@ public class GameManagerService
 
         Console.WriteLine($"{nameof(CreateLobby)}: Sending CMsgPracticeLobbyCreate for lobby: {createLobbyRequest.LobbyName}");
         steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
+    }
+
+    public  async Task<RegisteredPlayer> RegisterPlayer(RegisterPlayerRequest request)
+    {
+        return new RegisteredPlayer { SteamId = request.SteamId, UserId = request.UserId };
     }
 }
