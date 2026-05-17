@@ -202,7 +202,7 @@ namespace IHLDota2Bot
                 // Release the account back to pool
                 _accountPool.ReleaseAccount(session.AccountId);
                 var account = _accountPool.GetAccountById(session.AccountId);
-                
+
                 Console.WriteLine($"✅ GAME FINISHED: {lobbyId} | Account {account?.Username} released");
 
                 // Finish the lobby
@@ -260,7 +260,7 @@ namespace IHLDota2Bot
         public void PrintSystemStatus()
         {
             var status = GetSystemStatus();
-            
+
             Console.WriteLine("\n╔════════════════════════════════════════════════════════════╗");
             Console.WriteLine("║          POOL SYSTEM STATUS                              ║");
             Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");

@@ -13,14 +13,14 @@ public static class GameManagerEndpoints
     }
 
     private static Results<Ok<bool>, StatusCodeHttpResult> CreateLobby(
-        SteamService steamService,
+        GameManagerService service,
         [FromBody] CreateLobbyRequest request,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            steamService.CreateLobby(new CreateLobbyRequest
+            service.CreateLobby(new CreateLobbyRequest
             {
                 LobbyName = request.LobbyName,
                 LobbyPassword = request.LobbyPassword
@@ -37,14 +37,14 @@ public static class GameManagerEndpoints
     }
 
     private static Results<Ok<bool>, StatusCodeHttpResult> InvitePlayersToLobby(
-        SteamService steamService,
+        GameManagerService service,
         [FromBody] InviteRequest request,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            steamService.InvitePlayersToLobby(request.PlayersIds);
+            service.InvitePlayersToLobby(request.PlayersIds);
 
             return TypedResults.Ok(true);
         }

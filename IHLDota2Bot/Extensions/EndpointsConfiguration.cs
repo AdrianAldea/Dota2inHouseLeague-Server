@@ -9,7 +9,7 @@ public static class EndpointsConfiguration
     public static WebApplication ConfigureEndpoints(this WebApplication app)
     {
         app.MapGroup("/api/server").MapStartUpEndpoints();
-        app.MapGroup("/api/discord").MapDiscordStartUpEndpoints();
+        //app.MapGroup("/api/discord").MapDiscordStartUpEndpoints();
         app.MapGroup("/api/gamemanager").MapGameManagerEndpoints();
         
         return app;

@@ -55,7 +55,7 @@ namespace IHLDota2Bot
             lock (_lockObject)
             {
                 var available = _accounts.FirstOrDefault(a => a.State == AccountState.Ready);
-                
+
                 if (available != null)
                 {
                     available.State = AccountState.InUse;
@@ -192,7 +192,7 @@ namespace IHLDota2Bot
         public DateTime RegisteredAt { get; set; }
         public DateTime? LastUsedAt { get; set; }
         public string CurrentLobbyId { get; set; }
-        public SteamBot BotInstance { get; set; }
+        //public SteamBot BotInstance { get; set; }
 
         public override string ToString()
         {

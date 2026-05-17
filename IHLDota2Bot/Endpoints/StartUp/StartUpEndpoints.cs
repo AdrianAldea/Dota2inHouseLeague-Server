@@ -12,12 +12,12 @@ public static class StartUpEndpoints
     }
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(
-        SteamService steamService,
+        GameManagerService service,
         [FromBody] StartUpRequest request,
         CancellationToken cancellationToken
     )
     {
-        await steamService.StartServer(new StartUpRequest { Username = "dota2inhouseleague", Password = "Romania90." });
+        await service.StartServer(new StartUpRequest { Username = "dota2inhouseleague", Password = "Romania90." });
 
         return TypedResults.Ok(true);
     }

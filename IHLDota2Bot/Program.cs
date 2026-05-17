@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<SteamService>();
+builder.Services.AddSingleton<GameManagerService>();
 builder.Services.AddSingleton<DiscordService>();
 
 var app = builder.Build();

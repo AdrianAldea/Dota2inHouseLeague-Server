@@ -156,10 +156,10 @@ namespace IHLDota2Bot
             const int barLength = 20;
             var percentage = (double)current / total;
             var filled = (int)(percentage * barLength);
-            
+
             var bar = new string('█', filled) + new string('░', barLength - filled);
             var percentStr = (percentage * 100).ToString("F0");
-            
+
             return $"`[{bar}]` {percentStr}% ({current}/{total})";
         }
 

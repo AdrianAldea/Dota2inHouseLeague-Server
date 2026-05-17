@@ -12,6 +12,8 @@ internal enum DiscordAction
     PROFILE,
     MATCH,
     PICK,
+    CREATE_LOBBY,
+    INVITE_LOBBY,
     REPORT,
     LEADERBOARD,
     MATCHES,
@@ -170,24 +172,7 @@ public class DiscordService
 {
     // @TODO VERY IMPORTANT, REGENERATE THIS AND PUT IT IN A SECRETS FILE OR PASS BY CLI NOT STORED ON GITHUB
     private const string DiscordToken = "MTM3MzQwMTIxMjkzNzgzMDU3Mg.GwOJf5.ZBOX0Fm6od95W77Ow7XDiZVgJ8a9Bqh4EaFiWE";
-    private static readonly Dictionary<string, DiscordAction> ActionMap =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["register"] = DiscordAction.REGISTER,
-            ["profile"] = DiscordAction.PROFILE,
-            ["match"] = DiscordAction.MATCH,
-            ["pick"] = DiscordAction.PICK,
-            ["report"] = DiscordAction.REPORT,
-            ["leaderboard"] = DiscordAction.LEADERBOARD,
-            ["matches"] = DiscordAction.MATCHES,
-            ["mystats"] = DiscordAction.MYSTATS,
-            ["challenge"] = DiscordAction.CHALLENGE,
-            ["acceptmatch"] = DiscordAction.ACCEPT_MATCH,
-            ["declinematch"] = DiscordAction.DECLINE_MATCH,
-            ["reportmatch"] = DiscordAction.REPORT_MATCH,
-            ["creategame"] = DiscordAction.CREATE_GAME,
-            ["comenzi"] = DiscordAction.COMMANDS
-        };
+
     private static readonly Dictionary<DiscordResponse, string> ResponseMap =
         new()
         {
@@ -259,18 +244,18 @@ public class DiscordService
     private static List<Match> matches = [];
     private static List<(ulong ChallengerId, ulong OpponentId)> pendingChallenges = new();
     // END TODO
-    
+
     public DiscordService()
     {
         var config = new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent  
+            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
         };
         discordClient = new DiscordSocketClient(config);
         discordClient.MessageReceived += HandleMessageAsync;
     }
 
-    public async Task<bool> StartServer(DiscordStartUpRequest request)
+    public async Task<bool> ConnectToDiscord(DiscordStartUpRequest request)
     {
         isRunning = true;
 
@@ -296,16 +281,24 @@ public class DiscordService
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var command = parts[0];
 
-        if (!ActionMap.TryGetValue(command, out var action))
+        if (Enum.TryParse(command, out DiscordAction action))
         {
-            await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.UNKNOWN_COMMAND]);
-            return;
+            Console.WriteLine($"{nameof(HandleMessageAsync)}: Command - {action}");
         }
+
+        //if (!ActionMap.TryGetValue(command, out var action))
+        //{
+        //    await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.UNKNOWN_COMMAND]);
+        //    return;
+        //}
 
         switch (action)
         {
             case DiscordAction.REGISTER:
                 await RegisterPlayerAsync(message, parts);
+                break;
+            case DiscordAction.CREATE_LOBBY:
+                await CreateLobbyAsync(message);
                 break;
             case DiscordAction.PROFILE:
                 await ShowProfileAsync(message);
@@ -346,6 +339,11 @@ public class DiscordService
         }
     }
 
+    private async Task CreateLobbyAsync(SocketMessage message)
+    {
+        throw new NotImplementedException();
+    }
+
     // Utility function to make a message from a `DiscordFailure`
     private static string MakeMessageFromFailure(DiscordFailure failure)
     {
@@ -365,7 +363,7 @@ public class DiscordService
         Optional<DiscordFailure> failureOptional
     )
     {
-        if (!failureOptional.IsSpecified) 
+        if (!failureOptional.IsSpecified)
             return false;
 
         var failureReason = MakeMessageFromFailure(failureOptional.Value);
@@ -518,7 +516,7 @@ public class DiscordService
         if (!await TryReportError(message, nameof(HandlePickAsync), response.Failure)) return;
         var (success, data) = await TryGetData(message, nameof(HandlePickAsync), response.Data);
         if (!success) return;
-        
+
         // @TODO This logic should be handled by the game coordinator
         // if (!activeCaptainMatches.TryGetValue(userId, out var matchId))
         // {
@@ -705,12 +703,12 @@ public class DiscordService
 
     private async Task ChallengePlayerAsync(SocketMessage message)
     {
-        if (!players.TryGetValue(message.Author.Id, out _))
-        {
-            Console.WriteLine($"{nameof(ChallengePlayerAsync)}: " + message.Content);
-            await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.TRIED_TO_CHALLENGE_WHILE_UNREGISTERED]);
-            return;
-        }
+        //if (!players.TryGetValue(message.Author.Id, out _))
+        //{
+        //    Console.WriteLine($"{nameof(ChallengePlayerAsync)}: " + message.Content);
+        //    await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.TRIED_TO_CHALLENGE_WHILE_UNREGISTERED]);
+        //    return;
+        //}
 
         if (message.MentionedUsers.Count == 0)
         {
@@ -720,12 +718,12 @@ public class DiscordService
         }
 
         var opponent = message.MentionedUsers.First();
-        if (!players.ContainsKey(opponent.Id))
-        {
-            Console.WriteLine($"{nameof(ChallengePlayerAsync)}: " + message.Content);
-            await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.CHALLENGED_PLAYER_NOT_REGISTERED]);
-            return;
-        }
+        //if (!players.ContainsKey(opponent.Id))
+        //{
+        //    Console.WriteLine($"{nameof(ChallengePlayerAsync)}: " + message.Content);
+        //    await message.Channel.SendMessageAsync(ResponseMap[DiscordResponse.CHALLENGED_PLAYER_NOT_REGISTERED]);
+        //    return;
+        //}
 
         pendingChallenges.Add((message.Author.Id, opponent.Id));
         await message.Channel.SendMessageAsync($"{opponent.Username}, you have been challenged by {message.Author.Username}! Respond with `!acceptmatch @{message.Author.Username}` or `!declinematch @{message.Author.Username}`.");
@@ -755,10 +753,10 @@ public class DiscordService
         var match = new Match
         {
             Id = Guid.NewGuid(),
-            Captain1 = players[challenger.Id],
-            Captain2 = players[opponent.Id],
-            Team1 = new List<Player> { players[challenger.Id] },
-            Team2 = new List<Player> { players[opponent.Id] },
+            //Captain1 = players[challenger.Id],
+            //Captain2 = players[opponent.Id],
+            //Team1 = new List<Player> { players[challenger.Id] },
+            //Team2 = new List<Player> { players[opponent.Id] },
             DraftPool = new(),
             Picks = new(),
             CreatedAt = DateTime.UtcNow
@@ -827,12 +825,12 @@ public class DiscordService
 
         var loser = match.Team1.Concat(match.Team2).First(p => p.UserId != winnerId);
 
-        players[winner.UserId].Rating += 30;
-        players[winner.UserId].Wins++;
-        players[winner.UserId].Matches++;
+        //players[winner.UserId].Rating += 30;
+        //players[winner.UserId].Wins++;
+        //players[winner.UserId].Matches++;
 
-        players[loser.UserId].Rating -= 20;
-        players[loser.UserId].Matches++;
+        //players[loser.UserId].Rating -= 20;
+        //players[loser.UserId].Matches++;
 
         // SavePlayers();
         // SaveMatches();

@@ -51,14 +51,14 @@ namespace IHLDota2Bot
                 };
 
                 _registeredPlayers.Add(player);
-                
+
                 // Auto-add to current lobby if it's not full
                 if (_currentLobby.Players.Count < PLAYERS_PER_LOBBY)
                 {
                     _currentLobby.Players.Add(player);
                     player.CurrentLobbyId = _currentLobby.Id;
                     PlayerJoined?.Invoke(this, new PlayerJoinedEventArgs { Player = player, Lobby = _currentLobby });
-                    
+
                     // Check if lobby is full
                     if (_currentLobby.Players.Count == PLAYERS_PER_LOBBY)
                     {
@@ -124,7 +124,7 @@ namespace IHLDota2Bot
                 {
                     lobby.State = LobbyState.Finished;
                     lobby.FinishedAt = DateTime.UtcNow;
-                    
+
                     // Remove players from this lobby
                     foreach (var player in lobby.Players)
                     {
