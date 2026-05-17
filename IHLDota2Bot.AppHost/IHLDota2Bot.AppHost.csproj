@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IHLDota2Bot.Discord\IHLDota2Bot.Discord.csproj" />
     <ProjectReference Include="..\IHLDota2Bot\IHLDota2Bot.csproj" />
   </ItemGroup>
 

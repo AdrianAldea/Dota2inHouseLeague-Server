@@ -1,0 +1,6 @@
+@IHLDota2Bot.Discord_HostAddress = http://localhost:5087
+
+GET {{IHLDota2Bot.Discord_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
