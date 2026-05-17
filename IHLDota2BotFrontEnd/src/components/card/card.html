@@ -1,0 +1,41 @@
+<div class="card">
+  <h3 class="card-header">{{ title }}</h3>
+
+  <div class="card-body">
+
+    <div class="inputs" *ngIf="inputsTpl">
+        <ng-container
+        *ngTemplateOutlet="inputsTpl; context: {
+            send: send.bind(this),
+            startEndpoint: startEndpoint
+        }">
+        </ng-container>
+    </div>
+
+    <div class="actions">
+      <button *ngIf="startEndpoint"
+              class="primary"
+              (click)="send(startEndpoint, startPayload)">
+        {{ startLabel }}
+      </button>
+
+      <button *ngIf="stopEndpoint"
+              class="danger"
+              (click)="send(stopEndpoint, stopPayload)">
+        Stop
+      </button>
+
+      <span class="status">{{ statusMessage() }}</span>
+    </div>
+
+    <div class="response-box" *ngIf="response()">
+      <div class="response-header">
+        SERVER RESPONSE
+        <button (click)="response.set(null)">Clear</button>
+      </div>
+
+      <pre class="pretty-json">{{ response() | json }}</pre>
+    </div>
+
+  </div>
+</div>

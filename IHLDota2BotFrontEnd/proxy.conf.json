@@ -1,7 +1,12 @@
 {
-  "/api": {
+  "/discord": {
+    "target": "http://localhost:5087",
+    "secure": false,
+    "pathRewrite": { "^/discord": "" }
+  },
+  "/gamemanager": {
     "target": "http://localhost:5193",
     "secure": false,
-    "changeOrigin": true
+    "pathRewrite": { "^/gamemanager": "" }
   }
 }
