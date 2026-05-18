@@ -14,7 +14,7 @@ public class DiscordService
     private readonly ILogger<DiscordService> logger;
     private readonly DiscordSocketClient discordClient;
 
-    public DiscordService(SteamClient steamClient, ILogger<DiscordService> logger)
+    public DiscordService(SteamClient steamClient)
     {
         this.steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));

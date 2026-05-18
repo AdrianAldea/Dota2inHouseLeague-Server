@@ -10,8 +10,8 @@ public class LobbyQueue
 {
     public const int PLAYERS_PER_LOBBY = 10;
 
-    private List<Player> _registeredPlayers = [];
-    private List<Lobby> _lobbies = [];
+    private readonly List<Player> _registeredPlayers = [];
+    private readonly List<Lobby> _lobbies = [];
     private Lobby _currentLobby;
     private readonly Lock _lockObject = new();
 
@@ -41,7 +41,6 @@ public class LobbyQueue
             {
                 var registeredMessage = $"Player {username} already registered";
                 DiscordClient.SendMessageAsync(registeredMessage);
-                Console.WriteLine(registeredMessage);
                 return;
             }
 
@@ -72,7 +71,6 @@ public class LobbyQueue
 
             var message = $"Player {username} registered. Queue: {_currentLobby.Players.Count}/{PLAYERS_PER_LOBBY}";
             DiscordClient.SendMessageAsync(message);
-            Console.WriteLine(message);
         }
     }
 
@@ -88,7 +86,6 @@ public class LobbyQueue
             {
                 var notInLobbyMessage = $"Player {userId} not in a lobby";
                 DiscordClient.SendMessageAsync(notInLobbyMessage);
-                Console.WriteLine(notInLobbyMessage);
                 return;
             }
 
@@ -106,7 +103,6 @@ public class LobbyQueue
 
                     var readyMessage = $"Lobby {lobby.Id} is READY! All players ready.";
                     DiscordClient.SendMessageAsync(readyMessage);
-                    Console.WriteLine(readyMessage);
                 }
             }
         }
@@ -144,7 +140,6 @@ public class LobbyQueue
 
                 var finishedMessage = $"Lobby {lobby.Id} has finished. Players can now join the next lobby.";
                 DiscordClient.SendMessageAsync(finishedMessage);
-                Console.WriteLine(finishedMessage);
 
                 // Create new lobby for waiting players
                 CreateNewLobby();
@@ -186,7 +181,6 @@ public class LobbyQueue
 
             var createdMessage = $"New lobby created: {_currentLobby.Id} with {_currentLobby.Players.Count} players";
             DiscordClient.SendMessageAsync(createdMessage);
-            Console.WriteLine(createdMessage);
 
             // If we got exactly the required players, the lobby is full
             if (_currentLobby.Players.Count == PLAYERS_PER_LOBBY)

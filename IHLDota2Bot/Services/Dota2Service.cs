@@ -56,13 +56,13 @@ public class Dota2Service
         CreateLobby(request);
     }
 
-    public async Task<bool> StartServer(StartUpRequest request)
+    public async Task<bool> StartServer()
     {
         isRunning = true;
 
         try
         {
-            _ = Task.Run(() => ConnectToSteam());
+            _ = Task.Run(ConnectToSteam);
         }
         catch (Exception ex)
         {
@@ -105,7 +105,8 @@ public class Dota2Service
     {
         Console.WriteLine($"{nameof(OnConnected)}: Attempting authentication...");
 
-        var request = new StartUpRequest { Username = "dota2inhouseleague", Password = "Romania90." }; // TODO
+        // TODO: load credentials from secure configuration (user-secrets or key vault)
+        var request = new StartUpRequest { Username = "dota2inhouseleague", Password = "REDACTED" };
         steamUser.LogOn(new SteamUser.LogOnDetails
         {
             Username = request.Username,

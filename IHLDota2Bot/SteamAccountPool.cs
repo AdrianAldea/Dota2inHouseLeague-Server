@@ -1,8 +1,4 @@
 using IHLDota2Bot.Clients;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace IHLDota2Bot
 {
@@ -10,17 +6,12 @@ namespace IHLDota2Bot
     /// Manages a pool of Steam accounts for creating lobbies.
     /// Ensures accounts are properly recycled after use.
     /// </summary>
-    public class SteamAccountPool
+    public class SteamAccountPool(DiscordClient discordClient)
     {
-        private List<SteamAccount> _accounts = new();
-        private readonly object _lockObject = new object();
+        private List<SteamAccount> _accounts = [];
+        private readonly Lock _lockObject = new();
 
-        private DiscordClient DiscordClient { get; }
-
-        public SteamAccountPool(DiscordClient discordClient)
-        {
-            DiscordClient = discordClient;
-        }
+        private DiscordClient DiscordClient { get; } = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
 
         /// <summary>
         /// Register a Steam account in the pool
@@ -34,7 +25,6 @@ namespace IHLDota2Bot
                     var existing = _accounts.First(a => a.Username == username);
                     var message = $"Account {username} already exists in pool with state {existing.State}";
                     DiscordClient.SendMessageAsync(message);
-                    Console.WriteLine(message);
                     return;
                 }
 
@@ -52,7 +42,6 @@ namespace IHLDota2Bot
                 _accounts.Add(account);
                 var successMessage = $"Account {username} registered successfully.";
                 DiscordClient.SendMessageAsync(successMessage);
-                Console.WriteLine(successMessage);
             }
         }
 
@@ -72,13 +61,11 @@ namespace IHLDota2Bot
 
                     var message = $"Account {account.Username} is now in use.";
                     DiscordClient.SendMessageAsync(message);
-                    Console.WriteLine(message);
                 }
                 else
                 {
                     var message = "No available accounts in pool";
                     DiscordClient.SendMessageAsync(message);
-                    Console.WriteLine(message);
                 }
 
                 return available;
@@ -122,7 +109,6 @@ namespace IHLDota2Bot
                     account.CurrentLobbyId = null;
                     var message = $"Account {account.Username} released back to pool";
                     DiscordClient.SendMessageAsync(message);
-                    Console.WriteLine(message);
                 }
             }
         }
@@ -142,7 +128,6 @@ namespace IHLDota2Bot
                     account.LastUsedAt = DateTime.UtcNow;
                     var message = $"Account {account.Username} marked in use for lobby {lobbyId}";
                     DiscordClient.SendMessageAsync(message);
-                    Console.WriteLine(message);
                 }
             }
         }
