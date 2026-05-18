@@ -17,7 +17,7 @@ public static class StartUpEndpoints
         CancellationToken cancellationToken
     )
     {
-        await service.StartServer(new StartUpRequest { Username = "dota2inhouseleague", Password = "Romania90." });
+        await service.StartServer();
 
         return TypedResults.Ok(true);
     }
