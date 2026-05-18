@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot.Discord.Services;
 
-public class DiscordService : IAsyncDisposable
+public class DiscordService : IHostedService, IAsyncDisposable
 {
     private readonly SteamClient steamClient;
     private readonly ILogger<DiscordService> logger;
@@ -183,22 +183,23 @@ public class DiscordService : IAsyncDisposable
         await message.Channel.SendMessageAsync(commands);
     }
 
-    public async Task<bool> StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (isRunning) return true;
+        if (isRunning) return;
 
         if (string.IsNullOrWhiteSpace(options.Token))
         {
             logger.LogError("Discord token is not configured. Set Discord:Token in user-secrets.");
-            return false;
+            return;
         }
 
         logger.LogInformation("Starting Discord service...");
         await discordClient.LoginAsync(TokenType.Bot, options.Token);
         await discordClient.StartAsync();
         isRunning = true;
-        return true;
     }
+
+    public bool IsRunning => isRunning;
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {

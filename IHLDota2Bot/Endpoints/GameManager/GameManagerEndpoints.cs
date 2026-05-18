@@ -45,7 +45,7 @@ public static class GameManagerEndpoints
     {
         try
         {
-            var result = await service.GetPlayerProfileAsync(id);
+            var result = await service.GetPlayerProfileAsync(id, cancellationToken);
             return result == null ? TypedResults.NotFound() : TypedResults.Ok(result);
         }
         catch (Exception ex)
@@ -64,7 +64,7 @@ public static class GameManagerEndpoints
     {
         try
         {
-            var result = await service.RegisterPlayerAsync(request);
+            var result = await service.RegisterPlayerAsync(request, cancellationToken);
             return TypedResults.Ok(result);
         }
         catch (Exception ex)

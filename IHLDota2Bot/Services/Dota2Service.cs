@@ -2,6 +2,8 @@ using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Configuration;
+using IHLDota2Bot.Data.Entities;
+using IHLDota2Bot.Data.Repositories;
 using Microsoft.Extensions.Options;
 using SteamKit2;
 using SteamKit2.GC;
@@ -16,6 +18,7 @@ public class Dota2Service
 
     private readonly DiscordClient discordClient;
     private readonly LobbyPoolManager poolManager;
+    private readonly IPlayerRepository playerRepository;
     private readonly ILogger<Dota2Service> logger;
     private readonly SteamOptions steamOptions;
     private readonly SteamKit2.SteamClient steamClient;
@@ -28,16 +31,19 @@ public class Dota2Service
     public Dota2Service(
         DiscordClient discordClient,
         LobbyPoolManager poolManager,
+        IPlayerRepository playerRepository,
         IOptions<SteamOptions> steamOptions,
         ILogger<Dota2Service> logger)
     {
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(poolManager);
+        ArgumentNullException.ThrowIfNull(playerRepository);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.discordClient = discordClient;
         this.poolManager = poolManager;
+        this.playerRepository = playerRepository;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
@@ -145,27 +151,37 @@ public class Dota2Service
         await discordClient.SendMessageAsync(message);
     }
 
-    public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request)
+    public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {
-        await poolManager.RegisterPlayerAsync(request.UserId, request.Username, request.SteamId.ToString());
+        var steamIdString = request.SteamId.ToString();
+
+        var persisted = await playerRepository.UpsertAsync(new PlayerEntity
+        {
+            UserId = request.UserId,
+            Username = request.Username,
+            SteamId = steamIdString
+        }, cancellationToken);
+
+        await poolManager.RegisterPlayerAsync(request.UserId, request.Username, steamIdString);
+
         return new RegisteredPlayer
         {
-            SteamId = request.SteamId.ToString(),
-            Username = request.Username,
-            UserId = request.UserId.ToString()
+            SteamId = persisted.SteamId,
+            Username = persisted.Username,
+            UserId = persisted.UserId.ToString()
         };
     }
 
-    public Task<PlayerProfile?> GetPlayerProfileAsync(ulong playerId)
+    public async Task<PlayerProfile?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default)
     {
-        var player = poolManager.GetRegisteredPlayers().FirstOrDefault(p => p.UserId == playerId);
-        if (player == null) return Task.FromResult<PlayerProfile?>(null);
+        var player = await playerRepository.GetByUserIdAsync(playerId, cancellationToken);
+        if (player == null) return null;
 
-        return Task.FromResult<PlayerProfile?>(new PlayerProfile
+        return new PlayerProfile
         {
             Id = player.UserId.ToString(),
             Name = player.Username
-        });
+        };
     }
 
     public Task MarkPlayerAsReadyAsync(ulong id) => poolManager.MarkPlayerReadyAsync(id);

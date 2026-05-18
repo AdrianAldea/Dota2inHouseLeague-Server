@@ -21,6 +21,7 @@ builder.Services.AddHttpClient(SteamClient.HttpClientName, (sp, client) =>
 
 builder.Services.AddSingleton<SteamClient>();
 builder.Services.AddSingleton<DiscordService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
 
 var app = builder.Build();
 
