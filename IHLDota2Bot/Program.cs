@@ -1,8 +1,12 @@
 using IHLDota2Bot;
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
+using IHLDota2Bot.Data;
+using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Extensions;
 using IHLDota2Bot.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,9 +19,19 @@ builder.Services.Configure<DiscordClientOptions>(builder.Configuration.GetSectio
 
 builder.Services.AddHttpClient(DiscordClient.HttpClientName, (sp, client) =>
 {
-    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DiscordClientOptions>>().Value;
+    var options = sp.GetRequiredService<IOptions<DiscordClientOptions>>().Value;
     client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
 });
+
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("Dota2inHouseLeagueDB")
+        ?? throw new InvalidOperationException("Connection string 'Dota2inHouseLeagueDB' is not configured.");
+    options.UseSqlServer(connectionString);
+});
+
+builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
+builder.Services.AddHostedService<DatabaseInitializer>();
 
 builder.Services.AddSingleton<DiscordClient>();
 builder.Services.AddSingleton<SteamAccountPool>();

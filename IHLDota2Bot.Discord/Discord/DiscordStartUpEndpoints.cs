@@ -26,9 +26,8 @@ public static class DiscordStartUpEndpoints
         CancellationToken cancellationToken
     )
     {
-        var result = await service.StartAsync(cancellationToken);
-
-        return TypedResults.Ok(result);
+        await service.StartAsync(cancellationToken);
+        return TypedResults.Ok(service.IsRunning);
     }
 
     private static async Task<Results<Ok, StatusCodeHttpResult>> StopServer(
