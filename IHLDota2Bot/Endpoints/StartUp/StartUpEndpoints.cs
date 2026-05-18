@@ -1,6 +1,4 @@
-﻿using IHLDota2Bot.Services;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace IHLDota2Bot.Endpoints.StartUp;
 
@@ -13,12 +11,10 @@ public static class StartUpEndpoints
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(
         Services.Dota2Service service,
-        [FromBody] StartUpRequest request,
         CancellationToken cancellationToken
     )
     {
-        await service.StartServer();
-
-        return TypedResults.Ok(true);
+        var result = await service.StartServerAsync();
+        return TypedResults.Ok(result);
     }
 }

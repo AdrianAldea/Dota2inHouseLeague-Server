@@ -1,6 +1,6 @@
-﻿namespace IHLDota2Bot.Common.Requests;
+namespace IHLDota2Bot.Common.Requests;
 
-public class MessageRequest
+public record MessageRequest
 {
-    public string Message { get; set; }
+    public required string Message { get; init; }
 }

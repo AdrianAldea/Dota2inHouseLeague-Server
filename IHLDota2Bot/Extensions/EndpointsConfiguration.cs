@@ -1,7 +1,7 @@
-﻿﻿using IHLDota2Bot.Endpoints.GameManager;
+﻿using IHLDota2Bot.Endpoints.GameManager;
 using IHLDota2Bot.Endpoints.StartUp;
 
-namespace Dota2Bot.Extensions;
+namespace IHLDota2Bot.Extensions;
 
 public static class EndpointsConfiguration
 {

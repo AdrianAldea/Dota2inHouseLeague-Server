@@ -3,363 +3,333 @@ using IHLDota2Bot.Clients;
 namespace IHLDota2Bot;
 
 /// <summary>
-/// Manages the lobby queue and player registration
-/// Handles automatic lobby creation when enough players are ready
+/// Manages the lobby queue and player registration.
 /// </summary>
 public class LobbyQueue
 {
-    public const int PLAYERS_PER_LOBBY = 10;
+    public const int PlayersPerLobby = 10;
 
-    private readonly List<Player> _registeredPlayers = [];
-    private readonly List<Lobby> _lobbies = [];
-    private Lobby _currentLobby;
-    private readonly Lock _lockObject = new();
+    private readonly List<Player> registeredPlayers = [];
+    private readonly List<Lobby> lobbies = [];
+    private readonly Lock lockObject = new();
+    private readonly DiscordClient discordClient;
+    private readonly ILogger<LobbyQueue> logger;
+    private Lobby currentLobby;
 
-    public DiscordClient DiscordClient { get; }
+    public event EventHandler<LobbyCreatedEventArgs>? LobbyCreated;
+    public event EventHandler<PlayerJoinedEventArgs>? PlayerJoined;
+    public event EventHandler<PlayerReadyEventArgs>? PlayerReady;
+    public event EventHandler<LobbyFullEventArgs>? LobbyFull;
+    public event EventHandler<LobbyReadyEventArgs>? LobbyReady;
 
-    // Events
-    public event EventHandler<LobbyCreatedEventArgs> LobbyCreated;
-    public event EventHandler<PlayerJoinedEventArgs> PlayerJoined;
-    public event EventHandler<PlayerReadyEventArgs> PlayerReady;
-    public event EventHandler<LobbyFullEventArgs> LobbyFull;
-    public event EventHandler<LobbyReadyEventArgs> LobbyReady;
-
-    public LobbyQueue(DiscordClient discordClient)
+    public LobbyQueue(DiscordClient discordClient, ILogger<LobbyQueue> logger)
     {
-        DiscordClient = discordClient;
-        //CreateNewLobby();
+        ArgumentNullException.ThrowIfNull(discordClient);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        this.discordClient = discordClient;
+        this.logger = logger;
+        currentLobby = CreateLobbyUnlocked();
     }
 
-    /// <summary>
-    /// Register a player to the system
-    /// </summary>
-    public void RegisterPlayer(ulong userId, string username, string steamId)
+    public async Task RegisterPlayerAsync(ulong userId, string username, string steamId)
     {
-        lock (_lockObject)
+        string message;
+        bool lobbyFull = false;
+        Player? joinedPlayer = null;
+
+        lock (lockObject)
         {
-            if (_registeredPlayers.Any(p => p.UserId == userId))
+            if (registeredPlayers.Any(p => p.UserId == userId))
             {
-                var registeredMessage = $"Player {username} already registered";
-                DiscordClient.SendMessageAsync(registeredMessage);
-                return;
+                message = $"Player {username} already registered";
             }
-
-            var player = new Player
+            else
             {
-                UserId = userId,
-                Username = username,
-                SteamId = steamId,
-                RegisteredAt = DateTime.UtcNow
-            };
-
-            _registeredPlayers.Add(player);
-
-            // Auto-add to current lobby if it's not full
-            if (_currentLobby.Players.Count < PLAYERS_PER_LOBBY)
-            {
-                _currentLobby.Players.Add(player);
-                player.CurrentLobbyId = _currentLobby.Id;
-                PlayerJoined?.Invoke(this, new PlayerJoinedEventArgs { Player = player, Lobby = _currentLobby });
-
-                // Check if lobby is full
-                if (_currentLobby.Players.Count == PLAYERS_PER_LOBBY)
+                var player = new Player
                 {
-                    _currentLobby.State = LobbyState.Waiting;
-                    LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = _currentLobby });
-                }
-            }
+                    UserId = userId,
+                    Username = username,
+                    SteamId = steamId,
+                    RegisteredAt = DateTime.UtcNow
+                };
+                registeredPlayers.Add(player);
 
-            var message = $"Player {username} registered. Queue: {_currentLobby.Players.Count}/{PLAYERS_PER_LOBBY}";
-            DiscordClient.SendMessageAsync(message);
+                if (currentLobby.Players.Count < PlayersPerLobby)
+                {
+                    currentLobby.Players.Add(player);
+                    player.CurrentLobbyId = currentLobby.Id;
+                    joinedPlayer = player;
+
+                    if (currentLobby.Players.Count == PlayersPerLobby)
+                    {
+                        currentLobby.State = LobbyState.Waiting;
+                        lobbyFull = true;
+                    }
+                }
+
+                message = $"Player {username} registered. Queue: {currentLobby.Players.Count}/{PlayersPerLobby}";
+            }
         }
+
+        if (joinedPlayer != null)
+            PlayerJoined?.Invoke(this, new PlayerJoinedEventArgs { Player = joinedPlayer, Lobby = currentLobby });
+
+        if (lobbyFull)
+            LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = currentLobby });
+
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
     }
 
-    /// <summary>
-    /// Mark a player as ready in their current lobby
-    /// </summary>
-    public void MarkPlayerReady(ulong userId)
+    public async Task MarkPlayerReadyAsync(ulong userId)
     {
-        lock (_lockObject)
+        Player? player;
+        Lobby? readyLobby = null;
+        string message;
+
+        lock (lockObject)
         {
-            var player = _registeredPlayers.FirstOrDefault(p => p.UserId == userId);
+            player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
             if (player == null || player.CurrentLobbyId == null)
             {
-                var notInLobbyMessage = $"Player {userId} not in a lobby";
-                DiscordClient.SendMessageAsync(notInLobbyMessage);
-                return;
+                message = $"Player {userId} not in a lobby";
             }
+            else
+            {
+                player.IsReady = true;
+                if (CheckLobbyAllReadyUnlocked(player.CurrentLobbyId))
+                {
+                    readyLobby = lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
+                    if (readyLobby != null)
+                        readyLobby.State = LobbyState.Ready;
+                }
+                message = $"Player {player.Username} marked as ready";
+            }
+        }
 
-            player.IsReady = true;
+        if (player != null && player.IsReady)
             PlayerReady?.Invoke(this, new PlayerReadyEventArgs { Player = player });
 
-            // Check if all players in lobby are ready
-            if (CheckLobbyAllReady(player.CurrentLobbyId))
-            {
-                var lobby = _lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
-                if (lobby != null)
-                {
-                    lobby.State = LobbyState.Ready;
-                    LobbyReady?.Invoke(this, new LobbyReadyEventArgs { Lobby = lobby });
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
 
-                    var readyMessage = $"Lobby {lobby.Id} is READY! All players ready.";
-                    DiscordClient.SendMessageAsync(readyMessage);
-                }
-            }
+        if (readyLobby != null)
+        {
+            LobbyReady?.Invoke(this, new LobbyReadyEventArgs { Lobby = readyLobby });
+            var readyMessage = $"Lobby {readyLobby.Id} is READY! All players ready.";
+            logger.LogInformation("{Message}", readyMessage);
+            await discordClient.SendMessageAsync(readyMessage);
         }
     }
 
-    /// <summary>
-    /// Check if all players in a lobby are ready
-    /// </summary>
-    public bool CheckLobbyAllReady(string lobbyId)
+    private bool CheckLobbyAllReadyUnlocked(string lobbyId)
     {
-        var lobby = _lobbies.FirstOrDefault(l => l.Id == lobbyId);
+        var lobby = lobbies.FirstOrDefault(l => l.Id == lobbyId);
         if (lobby == null) return false;
-        return lobby.Players.Count == PLAYERS_PER_LOBBY && lobby.Players.All(p => p.IsReady);
+        return lobby.Players.Count == PlayersPerLobby && lobby.Players.All(p => p.IsReady);
     }
 
-    /// <summary>
-    /// Mark a lobby as finished and create a new one
-    /// </summary>
-    public void FinishLobby(string lobbyId)
+    public async Task FinishLobbyAsync(string lobbyId)
     {
-        lock (_lockObject)
+        Lobby? lobby;
+        Lobby? newLobby = null;
+
+        lock (lockObject)
         {
-            var lobby = _lobbies.FirstOrDefault(l => l.Id == lobbyId);
+            lobby = lobbies.FirstOrDefault(l => l.Id == lobbyId);
             if (lobby != null)
             {
                 lobby.State = LobbyState.Finished;
                 lobby.FinishedAt = DateTime.UtcNow;
 
-                // Remove players from this lobby
                 foreach (var player in lobby.Players)
                 {
                     player.CurrentLobbyId = null;
                     player.IsReady = false;
                 }
 
-                var finishedMessage = $"Lobby {lobby.Id} has finished. Players can now join the next lobby.";
-                DiscordClient.SendMessageAsync(finishedMessage);
-
-                // Create new lobby for waiting players
-                CreateNewLobby();
+                newLobby = CreateLobbyUnlocked();
+                currentLobby = newLobby;
             }
         }
-    }
 
-    /// <summary>
-    /// Create a new lobby and auto-fill with waiting players
-    /// </summary>
-    public void CreateNewLobby()
-    {
-        lock (_lockObject)
+        if (lobby == null) return;
+
+        var finishedMessage = $"Lobby {lobby.Id} has finished. Players can now join the next lobby.";
+        logger.LogInformation("{Message}", finishedMessage);
+        await discordClient.SendMessageAsync(finishedMessage);
+
+        if (newLobby != null)
         {
-            _currentLobby = new Lobby
-            {
-                Id = Guid.NewGuid().ToString(),
-                Players = new List<Player>(),
-                State = LobbyState.Waiting,
-                CreatedAt = DateTime.UtcNow
-            };
+            LobbyCreated?.Invoke(this, new LobbyCreatedEventArgs { Lobby = newLobby });
+            var createdMessage = $"New lobby created: {newLobby.Id} with {newLobby.Players.Count} players";
+            logger.LogInformation("{Message}", createdMessage);
+            await discordClient.SendMessageAsync(createdMessage);
 
-            _lobbies.Add(_currentLobby);
-
-            // Auto-fill with available registered players not in any lobby
-            var availablePlayers = _registeredPlayers
-                .Where(p => p.CurrentLobbyId == null)
-                .Take(PLAYERS_PER_LOBBY)
-                .ToList();
-
-            foreach (var player in availablePlayers)
-            {
-                _currentLobby.Players.Add(player);
-                player.CurrentLobbyId = _currentLobby.Id;
-                player.IsReady = false;
-            }
-
-            LobbyCreated?.Invoke(this, new LobbyCreatedEventArgs { Lobby = _currentLobby });
-
-            var createdMessage = $"New lobby created: {_currentLobby.Id} with {_currentLobby.Players.Count} players";
-            DiscordClient.SendMessageAsync(createdMessage);
-
-            // If we got exactly the required players, the lobby is full
-            if (_currentLobby.Players.Count == PLAYERS_PER_LOBBY)
-            {
-                _currentLobby.State = LobbyState.Waiting;
-                LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = _currentLobby });
-            }
+            if (newLobby.Players.Count == PlayersPerLobby)
+                LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = newLobby });
         }
     }
 
-    /// <summary>
-    /// Get the current active lobby
-    /// </summary>
+    private Lobby CreateLobbyUnlocked()
+    {
+        var lobby = new Lobby
+        {
+            Id = Guid.NewGuid().ToString(),
+            Players = [],
+            State = LobbyState.Waiting,
+            CreatedAt = DateTime.UtcNow
+        };
+        lobbies.Add(lobby);
+
+        var availablePlayers = registeredPlayers
+            .Where(p => p.CurrentLobbyId == null)
+            .Take(PlayersPerLobby)
+            .ToList();
+
+        foreach (var player in availablePlayers)
+        {
+            lobby.Players.Add(player);
+            player.CurrentLobbyId = lobby.Id;
+            player.IsReady = false;
+        }
+
+        return lobby;
+    }
+
     public Lobby GetCurrentLobby()
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
-            return _currentLobby;
+            return currentLobby;
         }
     }
 
-    /// <summary>
-    /// Get a specific lobby by ID
-    /// </summary>
-    public Lobby GetLobbyById(string lobbyId)
+    public Lobby? GetLobbyById(string lobbyId)
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
-            return _lobbies.FirstOrDefault(l => l.Id == lobbyId);
+            return lobbies.FirstOrDefault(l => l.Id == lobbyId);
         }
     }
 
-    /// <summary>
-    /// Get queue statistics
-    /// </summary>
     public QueueStats GetStats()
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
             return new QueueStats
             {
-                TotalRegisteredPlayers = _registeredPlayers.Count,
-                CurrentLobby = _currentLobby,
-                CurrentLobbyPlayerCount = _currentLobby.Players.Count,
-                PlayersReady = _currentLobby.Players.Count(p => p.IsReady),
-                WaitingPlayers = _registeredPlayers.Count(p => p.CurrentLobbyId == null),
-                TotalLobbiesCreated = _lobbies.Count,
-                FinishedLobbies = _lobbies.Count(l => l.State == LobbyState.Finished)
+                TotalRegisteredPlayers = registeredPlayers.Count,
+                CurrentLobby = currentLobby,
+                CurrentLobbyPlayerCount = currentLobby.Players.Count,
+                PlayersReady = currentLobby.Players.Count(p => p.IsReady),
+                WaitingPlayers = registeredPlayers.Count(p => p.CurrentLobbyId == null),
+                TotalLobbiesCreated = lobbies.Count,
+                FinishedLobbies = lobbies.Count(l => l.State == LobbyState.Finished)
             };
         }
     }
 
-    /// <summary>
-    /// Get all registered players
-    /// </summary>
     public List<Player> GetRegisteredPlayers()
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
-            return _registeredPlayers.ToList();
+            return registeredPlayers.ToList();
         }
     }
 
-    /// <summary>
-    /// Get all lobbies
-    /// </summary>
     public List<Lobby> GetAllLobbies()
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
-            return _lobbies.ToList();
+            return lobbies.ToList();
         }
     }
 
-    /// <summary>
-    /// Get number of waiting players (not in any lobby)
-    /// </summary>
     public int GetWaitingPlayerCount()
     {
-        lock (_lockObject)
+        lock (lockObject)
         {
-            return _registeredPlayers.Count(p => p.CurrentLobbyId == null);
+            return registeredPlayers.Count(p => p.CurrentLobbyId == null);
         }
     }
 }
 
-/// <summary>
-/// Represents a player in the queue
-/// </summary>
 public class Player
 {
     public ulong UserId { get; set; }
-    public string Username { get; set; }
-    public string SteamId { get; set; }
-    public string CurrentLobbyId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string SteamId { get; set; } = string.Empty;
+    public string? CurrentLobbyId { get; set; }
     public bool IsReady { get; set; }
     public DateTime RegisteredAt { get; set; }
 
-    public override string ToString()
-    {
-        return $"{Username} ({SteamId}) - Ready: {IsReady} - Lobby: {CurrentLobbyId ?? "None"}";
-    }
+    public override string ToString() =>
+        $"{Username} ({SteamId}) - Ready: {IsReady} - Lobby: {CurrentLobbyId ?? "None"}";
 }
 
-/// <summary>
-/// Represents a lobby
-/// </summary>
 public class Lobby
 {
-    public string Id { get; set; }
-    public List<Player> Players { get; set; } = new();
+    public string Id { get; set; } = string.Empty;
+    public List<Player> Players { get; set; } = [];
     public LobbyState State { get; set; }
-    public string SteamAccountId { get; set; }  // Assigned when game ready
+    public string? SteamAccountId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
 
     public int ReadyCount => Players.Count(p => p.IsReady);
     public int TotalCount => Players.Count;
 
-    public override string ToString()
-    {
-        return $"Lobby: {Id} | State: {State} | Players: {ReadyCount}/{TotalCount} Ready | Account: {SteamAccountId ?? "None"}";
-    }
+    public override string ToString() =>
+        $"Lobby: {Id} | State: {State} | Players: {ReadyCount}/{TotalCount} Ready | Account: {SteamAccountId ?? "None"}";
 }
 
-/// <summary>
-/// Lobby states
-/// </summary>
 public enum LobbyState
 {
-    Waiting,      // Waiting for players to join and ready
-    Ready,        // All players ready, waiting for game to start
-    InProgress,   // Game is running
-    Finished      // Game finished
+    Waiting,
+    Ready,
+    InProgress,
+    Finished
 }
 
-/// <summary>
-/// Queue statistics
-/// </summary>
 public class QueueStats
 {
     public int TotalRegisteredPlayers { get; set; }
-    public Lobby CurrentLobby { get; set; }
+    public Lobby? CurrentLobby { get; set; }
     public int CurrentLobbyPlayerCount { get; set; }
     public int PlayersReady { get; set; }
     public int WaitingPlayers { get; set; }
     public int TotalLobbiesCreated { get; set; }
     public int FinishedLobbies { get; set; }
 
-    public override string ToString()
-    {
-        return $"Queue: Registered={TotalRegisteredPlayers}, Waiting={WaitingPlayers}, " +
-               $"Current Lobby={CurrentLobbyPlayerCount}/{LobbyQueue.PLAYERS_PER_LOBBY} (Ready: {PlayersReady})";
-    }
+    public override string ToString() =>
+        $"Queue: Registered={TotalRegisteredPlayers}, Waiting={WaitingPlayers}, " +
+        $"Current Lobby={CurrentLobbyPlayerCount}/{LobbyQueue.PlayersPerLobby} (Ready: {PlayersReady})";
 }
 
-// Event Args
 public class LobbyCreatedEventArgs : EventArgs
 {
-    public Lobby Lobby { get; set; }
+    public required Lobby Lobby { get; set; }
 }
 
 public class PlayerJoinedEventArgs : EventArgs
 {
-    public Player Player { get; set; }
-    public Lobby Lobby { get; set; }
+    public required Player Player { get; set; }
+    public required Lobby Lobby { get; set; }
 }
 
 public class PlayerReadyEventArgs : EventArgs
 {
-    public Player Player { get; set; }
+    public required Player Player { get; set; }
 }
 
 public class LobbyFullEventArgs : EventArgs
 {
-    public Lobby Lobby { get; set; }
+    public required Lobby Lobby { get; set; }
 }
 
 public class LobbyReadyEventArgs : EventArgs
 {
-    public Lobby Lobby { get; set; }
+    public required Lobby Lobby { get; set; }
 }

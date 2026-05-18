@@ -2,22 +2,33 @@ using Discord;
 using Discord.WebSocket;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
+using IHLDota2Bot.Discord.Configuration;
+using IHLDota2Bot.Discord.Enums;
 using IHLDota2Bot.Discord.Helpers;
+using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot.Discord.Services;
 
-public class DiscordService
+public class DiscordService : IAsyncDisposable
 {
-    private bool isRunning;
-    private const string DiscordToken = "MTM3MzQwMTIxMjkzNzgzMDU3Mg.GwOJf5.ZBOX0Fm6od95W77Ow7XDiZVgJ8a9Bqh4EaFiWE";
     private readonly SteamClient steamClient;
     private readonly ILogger<DiscordService> logger;
+    private readonly DiscordOptions options;
     private readonly DiscordSocketClient discordClient;
+    private bool isRunning;
 
-    public DiscordService(SteamClient steamClient)
+    public DiscordService(
+        SteamClient steamClient,
+        IOptions<DiscordOptions> options,
+        ILogger<DiscordService> logger)
     {
-        this.steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(steamClient);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        this.steamClient = steamClient;
+        this.options = options.Value;
+        this.logger = logger;
 
         var config = new DiscordSocketConfig
         {
@@ -26,43 +37,60 @@ public class DiscordService
 
         discordClient = new DiscordSocketClient(config);
         discordClient.MessageReceived += HandleMessageAsync;
+        discordClient.Log += OnDiscordLogAsync;
+    }
+
+    private Task OnDiscordLogAsync(LogMessage message)
+    {
+        var level = message.Severity switch
+        {
+            LogSeverity.Critical => LogLevel.Critical,
+            LogSeverity.Error => LogLevel.Error,
+            LogSeverity.Warning => LogLevel.Warning,
+            LogSeverity.Info => LogLevel.Information,
+            LogSeverity.Verbose => LogLevel.Debug,
+            LogSeverity.Debug => LogLevel.Trace,
+            _ => LogLevel.Information
+        };
+        logger.Log(level, message.Exception, "[Discord] {Source}: {Message}", message.Source, message.Message);
+        return Task.CompletedTask;
     }
 
     private async Task HandleMessageAsync(SocketMessage message)
     {
-        // ensure we have a user message before touching Author
         if (message is not SocketUserMessage userMessage) return;
-
         if (userMessage.Author?.IsBot ?? false) return;
 
         var content = userMessage.Content?.Trim();
         if (string.IsNullOrEmpty(content)) return;
-
-        if (!content.StartsWith('!'))
-            return;
+        if (!content.StartsWith('!')) return;
 
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var command = parts[0].ToString().ToUpper();
+        if (parts.Length == 0) return;
 
-        if (Enum.TryParse(command, out Enums.DiscordAction action))
+        var command = parts[0].ToUpperInvariant();
+        if (!Enum.TryParse(command, out DiscordAction action))
         {
-            Console.WriteLine($"{nameof(HandleMessageAsync)}: Command - {action}");
+            logger.LogDebug("Unknown command received: {Command}", command);
+            return;
+        }
 
-            switch (action)
-            {
-                case Enums.DiscordAction.REGISTER:
-                    await RegisterPlayerAsync(userMessage, parts);
-                    break;
-                case Enums.DiscordAction.PROFILE:
-                    await ShowProfileAsync(userMessage);
-                    break;
-                case Enums.DiscordAction.CREATE_LOBBY:
-                    await CreateLobbyAsync(userMessage);
-                    break;
-                case Enums.DiscordAction.COMMANDS:
-                    await ShowCommandsAsync(userMessage);
-                    break;
-            }
+        logger.LogInformation("Received command: {Action}", action);
+
+        switch (action)
+        {
+            case DiscordAction.REGISTER:
+                await RegisterPlayerAsync(userMessage, parts);
+                break;
+            case DiscordAction.PROFILE:
+                await ShowProfileAsync(userMessage);
+                break;
+            case DiscordAction.CREATE_LOBBY:
+                await CreateLobbyAsync(userMessage);
+                break;
+            case DiscordAction.COMMANDS:
+                await ShowCommandsAsync(userMessage);
+                break;
         }
     }
 
@@ -83,9 +111,12 @@ public class DiscordService
         var author = message.Author;
         if (author == null) return;
 
-        var userId = author.Id;
-
-        var request = new RegisterPlayerRequest { SteamId = steamId, UserId = userId };
+        var request = new RegisterPlayerRequest
+        {
+            SteamId = steamId,
+            UserId = author.Id,
+            Username = author.Username
+        };
         var registeredPlayer = await steamClient.RegisterPlayerAsync(request);
 
         if (registeredPlayer == null)
@@ -94,13 +125,8 @@ public class DiscordService
             return;
         }
 
-        var registerMessage = MessagesFormatter.FormatRegisterPlayer(
-            registeredPlayer.UserId,
-            registeredPlayer.SteamId
-        );
-
-        Console.WriteLine($"{nameof(RegisterPlayerAsync)}: " + message.Content);
-        await message.Channel.SendMessageAsync($"You have successfully registered as {registeredPlayer.SteamId} (SteamID: {steamId})!");
+        await message.Channel.SendMessageAsync(
+            $"You have successfully registered as {registeredPlayer.Username} (SteamID: {registeredPlayer.SteamId})!");
     }
 
     private async Task ShowProfileAsync(SocketUserMessage message)
@@ -109,17 +135,19 @@ public class DiscordService
         if (author == null) return;
 
         var profileResponse = await steamClient.ShowProfileAsync(author.Id);
-        if (profileResponse == null) return;
+        if (profileResponse == null)
+        {
+            await message.Channel.SendMessageAsync("Profile not found.");
+            return;
+        }
 
         var profile = MessagesFormatter.FormatProfile(
             profileResponse.Username,
             profileResponse.SteamId,
             profileResponse.Rating,
             profileResponse.Matches,
-            profileResponse.Wins
-        );
+            profileResponse.Wins);
 
-        Console.WriteLine($"{nameof(ShowProfileAsync)}: " + message.Content);
         await message.Channel.SendMessageAsync(profile);
     }
 
@@ -129,47 +157,80 @@ public class DiscordService
         if (author == null) return;
 
         var lobbyResponse = await steamClient.CreateLobbyAsync(author.Id);
-        if (lobbyResponse == null) return;
+        if (lobbyResponse == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to create lobby.");
+            return;
+        }
 
         var createLobbyMessage = MessagesFormatter.FormatCreateLobby(
             lobbyResponse.LobbyName,
-            lobbyResponse.LobbyId
-        );
+            lobbyResponse.LobbyId);
 
         await message.Channel.SendMessageAsync(createLobbyMessage);
     }
 
-    private async Task ShowCommandsAsync(SocketUserMessage message)
+    private static async Task ShowCommandsAsync(SocketUserMessage message)
     {
-        throw new NotImplementedException();
+        var commands = string.Join("\n", new[]
+        {
+            "**Available commands**",
+            "`!register <steamId>` — register your Steam account",
+            "`!profile` — show your profile",
+            "`!create_lobby` — create a new lobby",
+            "`!commands` — show this list"
+        });
+        await message.Channel.SendMessageAsync(commands);
     }
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken)
     {
+        if (isRunning) return true;
+
+        if (string.IsNullOrWhiteSpace(options.Token))
+        {
+            logger.LogError("Discord token is not configured. Set Discord:Token in user-secrets.");
+            return false;
+        }
+
         logger.LogInformation("Starting Discord service...");
-
-        await discordClient.LoginAsync(TokenType.Bot, DiscordToken);
+        await discordClient.LoginAsync(TokenType.Bot, options.Token);
         await discordClient.StartAsync();
-
         isRunning = true;
-
-        return isRunning;
+        return true;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        logger.LogInformation("Stopping Discord service...");
+        if (!isRunning) return;
 
+        logger.LogInformation("Stopping Discord service...");
         await discordClient.LogoutAsync();
         await discordClient.StopAsync();
-        await discordClient.DisposeAsync();
+        isRunning = false;
     }
 
-    public async Task SendMessageAsync(string message,CancellationToken cancellationToken)
+    public async Task SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        if (discordClient.GetChannel(1373400451906666510) is IMessageChannel channel)
+        if (options.ChannelId == 0)
+        {
+            logger.LogWarning("Discord channel id is not configured; dropping message");
+            return;
+        }
+
+        if (discordClient.GetChannel(options.ChannelId) is IMessageChannel channel)
         {
             await channel.SendMessageAsync(message);
         }
+        else
+        {
+            logger.LogWarning("Discord channel {ChannelId} not found", options.ChannelId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await discordClient.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 }
