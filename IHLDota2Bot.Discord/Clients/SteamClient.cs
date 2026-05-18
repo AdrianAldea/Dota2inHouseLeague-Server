@@ -10,7 +10,7 @@ public class SteamClient(IHttpClientFactory httpClientFactory)
     private const string SteamClientName = "SteamClient";
     private const string SteamClientEndpoint = "https://localhost:7114/api/gamemanager/";
 
-    public async Task<RegisteredPlayer> RegisterPlayerAsync(
+    public async Task<RegisteredPlayer?> RegisterPlayerAsync(
         RegisterPlayerRequest request
     )
     {

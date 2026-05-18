@@ -3,7 +3,6 @@ using Discord.WebSocket;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
 using IHLDota2Bot.Discord.Helpers;
-using System.Threading.Channels;
 
 namespace IHLDota2Bot.Discord.Services;
 
@@ -16,7 +15,7 @@ public class DiscordService
     private readonly DiscordSocketClient discordClient;
 
     public DiscordService(SteamClient steamClient, ILogger<DiscordService> logger)
-        {
+    {
         this.steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -31,10 +30,10 @@ public class DiscordService
 
     private async Task HandleMessageAsync(SocketMessage message)
     {
-        if (message.Author.IsBot) return;
+        // ensure we have a user message before touching Author
+        if (message is not SocketUserMessage userMessage) return;
 
-        var userMessage = message as SocketUserMessage;
-        if (userMessage == null) return;
+        if (userMessage.Author?.IsBot ?? false) return;
 
         var content = userMessage.Content?.Trim();
         if (string.IsNullOrEmpty(content)) return;
@@ -52,44 +51,64 @@ public class DiscordService
             switch (action)
             {
                 case Enums.DiscordAction.REGISTER:
-                    await RegisterPlayerAsync(message, parts);
+                    await RegisterPlayerAsync(userMessage, parts);
                     break;
                 case Enums.DiscordAction.PROFILE:
-                    await ShowProfileAsync(message);
+                    await ShowProfileAsync(userMessage);
                     break;
                 case Enums.DiscordAction.CREATE_LOBBY:
-                    await CreateLobbyAsync(message);
+                    await CreateLobbyAsync(userMessage);
                     break;
                 case Enums.DiscordAction.COMMANDS:
-                    await ShowCommandsAsync(message);
+                    await ShowCommandsAsync(userMessage);
                     break;
             }
         }
     }
 
-    private async Task RegisterPlayerAsync(SocketMessage message, string[] parts)
+    private async Task RegisterPlayerAsync(SocketUserMessage message, string[] parts)
     {
-        //var steamIdOptional = StringSteamHelper.GetSteamIdIfValidMessageAsync(parts);
-        //if (!steamIdOptional.IsSpecified) return;
+        if (parts.Length < 2)
+        {
+            await message.Channel.SendMessageAsync("Usage: !register <steamId>");
+            return;
+        }
 
-        var steamId = ulong.Parse(parts[1]);
-        var userId = message.Author.Id;
+        if (!ulong.TryParse(parts[1], out var steamId))
+        {
+            await message.Channel.SendMessageAsync("Invalid SteamID format.");
+            return;
+        }
+
+        var author = message.Author;
+        if (author == null) return;
+
+        var userId = author.Id;
 
         var request = new RegisterPlayerRequest { SteamId = steamId, UserId = userId };
-        var registeredplayer = await steamClient.RegisterPlayerAsync(request);
+        var registeredPlayer = await steamClient.RegisterPlayerAsync(request);
+
+        if (registeredPlayer == null)
+        {
+            await message.Channel.SendMessageAsync("Registration failed. Please try again later.");
+            return;
+        }
 
         var registerMessage = MessagesFormatter.FormatRegisterPlayer(
-            registeredplayer.UserId,
-            registeredplayer.SteamId
+            registeredPlayer.UserId,
+            registeredPlayer.SteamId
         );
 
         Console.WriteLine($"{nameof(RegisterPlayerAsync)}: " + message.Content);
-        await message.Channel.SendMessageAsync($"You have successfully registered as {registeredplayer.SteamId} (SteamID: {steamId})!");
+        await message.Channel.SendMessageAsync($"You have successfully registered as {registeredPlayer.SteamId} (SteamID: {steamId})!");
     }
 
-    private async Task ShowProfileAsync(SocketMessage message)
+    private async Task ShowProfileAsync(SocketUserMessage message)
     {
-        var profileResponse = await steamClient.ShowProfileAsync(message.Author.Id);
+        var author = message.Author;
+        if (author == null) return;
+
+        var profileResponse = await steamClient.ShowProfileAsync(author.Id);
         if (profileResponse == null) return;
 
         var profile = MessagesFormatter.FormatProfile(
@@ -104,9 +123,12 @@ public class DiscordService
         await message.Channel.SendMessageAsync(profile);
     }
 
-    private async Task CreateLobbyAsync(SocketMessage message)
+    private async Task CreateLobbyAsync(SocketUserMessage message)
     {
-        var lobbyResponse = await steamClient.CreateLobbyAsync(message.Author.Id);
+        var author = message.Author;
+        if (author == null) return;
+
+        var lobbyResponse = await steamClient.CreateLobbyAsync(author.Id);
         if (lobbyResponse == null) return;
 
         var createLobbyMessage = MessagesFormatter.FormatCreateLobby(
@@ -117,7 +139,7 @@ public class DiscordService
         await message.Channel.SendMessageAsync(createLobbyMessage);
     }
 
-    private async Task ShowCommandsAsync(SocketMessage message)
+    private async Task ShowCommandsAsync(SocketUserMessage message)
     {
         throw new NotImplementedException();
     }

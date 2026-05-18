@@ -14,6 +14,8 @@ public class Dota2Service
 {
     private bool isRunning;
     private const uint DOTA_APP_ID = 570;
+    private readonly List<Player> playerList = [];
+    private readonly DiscordClient discordClient;
     private readonly SteamClient steamClient;
     private readonly SteamFriends steamFriends;
     private readonly SteamGameCoordinator steamGameCoordinator;
@@ -23,6 +25,8 @@ public class Dota2Service
 
     public Dota2Service(DiscordClient discordClient)
     {
+        discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+
         poolManager = new LobbyPoolManager(discordClient);
         steamClient = new SteamClient();
 
@@ -137,7 +141,7 @@ public class Dota2Service
         }
     }
 
-    public string CreateLobby(CreateLobbyRequest createLobbyRequest)
+    public void CreateLobby(CreateLobbyRequest createLobbyRequest)
     {
         Console.WriteLine($"{nameof(CreateLobby)}: Attempting to send lobby creation message to Dota 2 GC...");
 
@@ -152,7 +156,9 @@ public class Dota2Service
         Console.WriteLine($"{nameof(CreateLobby)}: Sending CMsgPracticeLobbyCreate for lobby: {createLobbyRequest.LobbyName}");
         steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
 
-        return $"{nameof(CreateLobby)}: Lobby created: {createLobbyRequest.LobbyName}";
+        var message = $"{nameof(CreateLobby)}: Lobby created: {createLobbyRequest.LobbyName}";
+        Console.WriteLine(message);
+        discordClient.SendMessageAsync(message);
     }
 
     public  async Task<RegisteredPlayer> RegisterPlayer(RegisterPlayerRequest request)
@@ -161,12 +167,19 @@ public class Dota2Service
         return new RegisteredPlayer { SteamId = request.SteamId.ToString(), Username = request.Username, UserId = request.UserId.ToString() };
     }
 
-    public async Task<PlayerProfile> GetPlayerProfile(int playerId)
+    public async Task<PlayerProfile?> GetPlayerProfile(ulong playerId)
     {
-        return new PlayerProfile { Id = playerId.ToString(), Name = $"Player {playerId}" };
+        var player = playerList.FirstOrDefault(p => p.UserId == playerId);
+        return player == null
+            ? null
+            : new PlayerProfile
+        {
+            Id = player.UserId.ToString(),
+            Name = player.Username
+        };
     }
 
-    internal async Task MarkPlayerAsReady(ulong id)
+    public async Task MarkPlayerAsReady(ulong id)
     {
         poolManager.MarkPlayerReady(id);
     }

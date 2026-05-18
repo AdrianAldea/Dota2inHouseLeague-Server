@@ -27,7 +27,7 @@ public class LobbyQueue
     public LobbyQueue(DiscordClient discordClient)
     {
         DiscordClient = discordClient;
-        CreateNewLobby();
+        //CreateNewLobby();
     }
 
     /// <summary>
