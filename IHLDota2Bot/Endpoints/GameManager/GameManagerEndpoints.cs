@@ -19,93 +19,83 @@ public static class GameManagerEndpoints
 
     private static async Task<Results<Ok, StatusCodeHttpResult>> MarkPlayerAsReady(
         Services.Dota2Service service,
-        [FromRoute] ulong id,
-        CancellationToken cancellationToken
-    )
-    {
-            try
-            {
-                await service.MarkPlayerAsReady(id);
-
-                return TypedResults.Ok();
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Error marking player as ready: {ex.Message}");
-                return TypedResults.StatusCode(500);
-            }
-        }
-
-    private static async Task<Results<Ok<PlayerProfile>, NotFound, StatusCodeHttpResult>> GetPlayerProfile(
-        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
         [FromRoute] ulong id,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            var result = await service.GetPlayerProfile(id);
-
-            if (result == null)
-            {
-                return TypedResults.NotFound();
-            }
-
-            return TypedResults.Ok(result);
+            await service.MarkPlayerAsReadyAsync(id);
+            return TypedResults.Ok();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error retriving player profile: {ex.Message}");
+            logger.LogError(ex, "Error marking player as ready");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<PlayerProfile>, NotFound, StatusCodeHttpResult>> GetPlayerProfile(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] ulong id,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.GetPlayerProfileAsync(id);
+            return result == null ? TypedResults.NotFound() : TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error retrieving player profile");
             return TypedResults.StatusCode(500);
         }
     }
 
     private static async Task<Results<Ok<RegisteredPlayer>, StatusCodeHttpResult>> RegisterPlayer(
         Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
         [FromBody] RegisterPlayerRequest request,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            var result = await service.RegisterPlayer(request);
-
+            var result = await service.RegisterPlayerAsync(request);
             return TypedResults.Ok(result);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error registering player: {ex.Message}");
+            logger.LogError(ex, "Error registering player");
             return TypedResults.StatusCode(500);
         }
     }
 
-    private static Results<Ok, StatusCodeHttpResult> CreateLobby(
+    private static async Task<Results<Ok, StatusCodeHttpResult>> CreateLobby(
         Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
         [FromBody] CreateLobbyRequest request,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            service.CreateLobby(
-                new CreateLobbyRequest
-                    {   AuthorId = "admin",
-                        LobbyName = Guid.NewGuid().ToString(),
-                        LobbyPassword = "dota2" 
-                    }
-            );
-
+            await service.CreateLobbyAsync(request);
             return TypedResults.Ok();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error creating lobby: {ex.Message}");
+            logger.LogError(ex, "Error creating lobby");
             return TypedResults.StatusCode(500);
         }
     }
 
     private static Results<Ok, StatusCodeHttpResult> InvitePlayersToLobby(
         Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
         [FromBody] InviteRequest request,
         CancellationToken cancellationToken
     )
@@ -113,12 +103,11 @@ public static class GameManagerEndpoints
         try
         {
             service.InvitePlayersToLobby(request.PlayersIds);
-
             return TypedResults.Ok();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error inviting players to lobby: {ex.Message}");
+            logger.LogError(ex, "Error inviting players to lobby");
             return TypedResults.StatusCode(500);
         }
     }

@@ -1,8 +1,8 @@
-﻿namespace IHLDota2Bot.Common.Requests;
+namespace IHLDota2Bot.Common.Requests;
 
-public class CreateLobbyRequest
+public record CreateLobbyRequest
 {
-    public required string AuthorId { get; set; }
-    public required string LobbyName { get; set; }
-    public required string LobbyPassword { get; set; }
+    public required string AuthorId { get; init; }
+    public required string LobbyName { get; init; }
+    public required string LobbyPassword { get; init; }
 }

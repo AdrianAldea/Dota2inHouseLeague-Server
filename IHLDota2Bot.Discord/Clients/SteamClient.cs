@@ -1,59 +1,66 @@
-﻿using IHLDota2Bot.Common.DTOs;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Models;
 using System.Text.Json;
 
 namespace IHLDota2Bot.Discord.Clients;
 
-public class SteamClient(IHttpClientFactory httpClientFactory)
+public class SteamClient
 {
-    private const string SteamClientName = "SteamClient";
-    private const string SteamClientEndpoint = "https://localhost:7114/api/gamemanager/";
+    public const string HttpClientName = "SteamClient";
 
-    public async Task<RegisteredPlayer?> RegisterPlayerAsync(
-        RegisterPlayerRequest request
-    )
+    private readonly HttpClient httpClient;
+    private readonly ILogger<SteamClient> logger;
+
+    public SteamClient(IHttpClientFactory httpClientFactory, ILogger<SteamClient> logger)
     {
-        var httpClient = httpClientFactory.CreateClient(SteamClientName);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        var response = await httpClient.PostAsJsonAsync(
-            SteamClientEndpoint + "register",
-            request,
-            JsonSerializerOptions.Web
-        );
-
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<RegisteredPlayer>();
+        httpClient = httpClientFactory.CreateClient(HttpClientName);
+        this.logger = logger;
     }
 
-    public async Task<CreateLobbyResponse?> CreateLobbyAsync(
-        ulong id
-    )
+    public async Task<RegisteredPlayer?> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {
-        var httpClient = httpClientFactory.CreateClient(SteamClientName);
-
-        var response = await httpClient.PostAsJsonAsync(
-            SteamClientEndpoint + "create",
-            id,
-            JsonSerializerOptions.Web
-        );
-
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<CreateLobbyResponse>();
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync("api/gamemanager/register", request, JsonSerializerOptions.Web, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<RegisteredPlayer>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to register player {UserId}", request.UserId);
+            return null;
+        }
     }
 
-    public async Task<ProfileResponse?> ShowProfileAsync(
-        ulong id
-    )
+    public async Task<CreateLobbyResponse?> CreateLobbyAsync(ulong id, CancellationToken cancellationToken = default)
     {
-        var httpClient = httpClientFactory.CreateClient(SteamClientName);
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync("api/gamemanager/create", id, JsonSerializerOptions.Web, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<CreateLobbyResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create lobby for user {UserId}", id);
+            return null;
+        }
+    }
 
-        var response = await httpClient.GetFromJsonAsync<ProfileResponse>(
-            SteamClientEndpoint + id
-        );
-
-        return response;
+    public async Task<ProfileResponse?> ShowProfileAsync(ulong id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await httpClient.GetFromJsonAsync<ProfileResponse>($"api/gamemanager/player/{id}", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to fetch profile for user {UserId}", id);
+            return null;
+        }
     }
 }

@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+namespace IHLDota2Bot.Common.DTOs;
 
-namespace IHLDota2Bot.Common.DTOs
+public record RegisteredPlayer
 {
-    public class RegisteredPlayer
-    {
-        public string SteamId {  get; set; }
-        public string Username {  get; set; }
-        public string UserId {  get; set; }
-    }
+    public required string SteamId { get; init; }
+    public required string Username { get; init; }
+    public required string UserId { get; init; }
 }

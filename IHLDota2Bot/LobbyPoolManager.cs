@@ -1,138 +1,93 @@
 using IHLDota2Bot.Clients;
+using IHLDota2Bot.Configuration;
+using Microsoft.Extensions.Options;
 
-namespace IHLDota2Bot
+namespace IHLDota2Bot;
+
+/// <summary>
+/// Main orchestrator for the pool system.
+/// </summary>
+public class LobbyPoolManager : IHostedService
 {
-    /// <summary>
-    /// Main orchestrator for the pool system
-    /// Manages Steam account pool and lobby queue
-    /// </summary>
-    public class LobbyPoolManager
+    private readonly SteamAccountPool accountPool;
+    private readonly LobbyQueue lobbyQueue;
+    private readonly DiscordClient discordClient;
+    private readonly ILogger<LobbyPoolManager> logger;
+    private readonly SteamOptions steamOptions;
+    private readonly Dictionary<string, LobbySession> activeSessions = new();
+    private readonly Lock lockObject = new();
+
+    public event EventHandler<GameReadyEventArgs>? GameReady;
+    public event EventHandler<GameStartedEventArgs>? GameStarted;
+    public event EventHandler<GameFinishedEventArgs>? GameFinished;
+
+    public LobbyPoolManager(
+        SteamAccountPool accountPool,
+        LobbyQueue lobbyQueue,
+        DiscordClient discordClient,
+        IOptions<SteamOptions> steamOptions,
+        ILogger<LobbyPoolManager> logger)
     {
-        public SteamAccountPool _accountPool;
-        private readonly DiscordClient _discordClient;
-        private readonly ILogger<LobbyPoolManager> _logger;
-        private readonly LobbyQueue _lobbyQueue;
-        public Dictionary<string, LobbySession> _activeSessions = new();
-        private readonly object _lockObject = new object();
+        ArgumentNullException.ThrowIfNull(accountPool);
+        ArgumentNullException.ThrowIfNull(lobbyQueue);
+        ArgumentNullException.ThrowIfNull(discordClient);
+        ArgumentNullException.ThrowIfNull(steamOptions);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        // Events
-        public event EventHandler<GameReadyEventArgs> GameReady;
-        public event EventHandler<GameStartedEventArgs> GameStarted;
-        public event EventHandler<GameFinishedEventArgs> GameFinished;
+        this.accountPool = accountPool;
+        this.lobbyQueue = lobbyQueue;
+        this.discordClient = discordClient;
+        this.steamOptions = steamOptions.Value;
+        this.logger = logger;
 
-        public LobbyPoolManager(DiscordClient discordClient)
+        this.lobbyQueue.LobbyReady += OnLobbyReady;
+        this.lobbyQueue.LobbyCreated += OnLobbyCreated;
+        this.lobbyQueue.PlayerReady += OnPlayerReady;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        foreach (var account in steamOptions.PoolAccounts)
         {
-            _accountPool = new SteamAccountPool(discordClient);
-            _discordClient = discordClient;
-            _lobbyQueue = new LobbyQueue(discordClient);
-
-            RegisterSteamAccount("dota2inhouseleague", "Romania10.");
-            RegisterSteamAccount("dota2inhouseleague2", "Romania10.");
-            RegisterSteamAccount("dota2inhouseleague3", "Romania10.");
-
-            _lobbyQueue.LobbyReady += OnLobbyReady;
-            _lobbyQueue.LobbyCreated += OnLobbyCreated;
-            _lobbyQueue.PlayerReady += OnPlayerReady;
+            await accountPool.RegisterAccountAsync(account.Username, account.Password);
         }
+    }
 
-        // ==================== Account Pool Management ====================
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        /// <summary>
-        /// Register a Steam account
-        /// </summary>
-        public void RegisterSteamAccount(string username, string password)
+    public AccountPoolStats GetAccountPoolStats() => accountPool.GetStats();
+    public List<SteamAccount> GetSteamAccounts() => accountPool.GetAllAccounts();
+    public int GetAvailableAccountCount() => accountPool.GetAvailableAccountCount();
+
+    public Task RegisterPlayerAsync(ulong userId, string username, string steamId) =>
+        lobbyQueue.RegisterPlayerAsync(userId, username, steamId);
+
+    public Task MarkPlayerReadyAsync(ulong userId) =>
+        lobbyQueue.MarkPlayerReadyAsync(userId);
+
+    public Lobby GetCurrentLobby() => lobbyQueue.GetCurrentLobby();
+    public QueueStats GetQueueStats() => lobbyQueue.GetStats();
+    public List<Player> GetRegisteredPlayers() => lobbyQueue.GetRegisteredPlayers();
+
+    private async void OnLobbyReady(object? sender, LobbyReadyEventArgs e)
+    {
+        try
         {
-            _accountPool.RegisterAccount(username, password);
-        }
+            var lobby = e.Lobby;
+            var account = await accountPool.GetAvailableAccountAsync();
 
-        /// <summary>
-        /// Get account pool statistics
-        /// </summary>
-        public AccountPoolStats GetAccountPoolStats()
-        {
-            return _accountPool.GetStats();
-        }
-
-        /// <summary>
-        /// Get all Steam accounts
-        /// </summary>
-        public List<SteamAccount> GetSteamAccounts()
-        {
-            return _accountPool.GetAllAccounts();
-        }
-
-        /// <summary>
-        /// Get number of available accounts
-        /// </summary>
-        public int GetAvailableAccountCount()
-        {
-            return _accountPool.GetAvailableAccountCount();
-        }
-
-        // ==================== Player & Lobby Management ====================
-
-        /// <summary>
-        /// Register a player to the system
-        /// </summary>
-        public void RegisterPlayer(ulong userId, string username, string steamId)
-        {
-            _lobbyQueue.RegisterPlayer(userId, username, steamId);
-        }
-
-        /// <summary>
-        /// Mark a player as ready
-        /// </summary>
-        public void MarkPlayerReady(ulong userId)
-        {
-            _lobbyQueue.MarkPlayerReady(userId);
-        }
-
-        /// <summary>
-        /// Get the current active lobby
-        /// </summary>
-        public Lobby GetCurrentLobby()
-        {
-            return _lobbyQueue.GetCurrentLobby();
-        }
-
-        /// <summary>
-        /// Get queue statistics
-        /// </summary>
-        public QueueStats GetQueueStats()
-        {
-            return _lobbyQueue.GetStats();
-        }
-
-        /// <summary>
-        /// Get all registered players
-        /// </summary>
-        public List<Player> GetRegisteredPlayers()
-        {
-            return _lobbyQueue.GetRegisteredPlayers();
-        }
-
-        // ==================== Game Session Management ====================
-
-        /// <summary>
-        /// Notify when a game is ready to start
-        /// </summary>
-        public void OnLobbyReady(object sender, LobbyReadyEventArgs e)
-        {
-            lock (_lockObject)
+            if (account == null)
             {
-                var lobby = e.Lobby;
-                var account = _accountPool.GetAvailableAccount();
+                var message = $"No available Steam accounts for lobby {lobby.Id}. Please wait...";
+                logger.LogWarning("{Message}", message);
+                await discordClient.SendMessageAsync(message);
+                return;
+            }
 
-                if (account == null)
-                {
-                    var message = $"❌ No available Steam accounts for lobby {lobby.Id}. Please wait...";
-                    _discordClient.SendMessageAsync(message);
-                    _logger.LogWarning(message);
-                    return;
-                }
-
-                // Create session
-                var session = new LobbySession
+            LobbySession session;
+            lock (lockObject)
+            {
+                session = new LobbySession
                 {
                     LobbyId = lobby.Id,
                     AccountId = account.Id,
@@ -140,250 +95,170 @@ namespace IHLDota2Bot
                     State = LobbySessionState.Ready,
                     StartedAt = DateTime.UtcNow
                 };
-
-                _activeSessions[lobby.Id] = session;
+                activeSessions[lobby.Id] = session;
                 lobby.SteamAccountId = account.Id;
-                _accountPool.MarkAccountInUse(account.Id, lobby.Id);
-
-                var readyMessage = $"✅ Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
-                _discordClient.SendMessageAsync(readyMessage);
-                _logger.LogInformation(readyMessage);
-                
-                GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
             }
+
+            await accountPool.MarkAccountInUseAsync(account.Id, lobby.Id);
+
+            var readyMessage = $"Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
+            logger.LogInformation("{Message}", readyMessage);
+            await discordClient.SendMessageAsync(readyMessage);
+
+            GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
         }
-
-        /// <summary>
-        /// Notify when lobby is created
-        /// </summary>
-        public void OnLobbyCreated(object sender, LobbyCreatedEventArgs e)
+        catch (Exception ex)
         {
-            var message = $"📋 New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)";
-            _discordClient.SendMessageAsync(message);
-            _logger.LogInformation(message);
+            logger.LogError(ex, "Error handling LobbyReady event");
         }
+    }
 
-        /// <summary>
-        /// Notify when player is ready
-        /// </summary>
-        public void OnPlayerReady(object sender, PlayerReadyEventArgs e)
+    private async void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e)
+    {
+        var message = $"New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)";
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
+    }
+
+    private async void OnPlayerReady(object? sender, PlayerReadyEventArgs e)
+    {
+        var lobby = lobbyQueue.GetCurrentLobby();
+        var message = $"{e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})";
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
+    }
+
+    public async Task NotifyGameStartedAsync(string lobbyId)
+    {
+        LobbySession? session;
+        lock (lockObject)
         {
-            var lobby = _lobbyQueue.GetCurrentLobby();
-            var message = $"✅ {e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})";
-            _discordClient.SendMessageAsync(message);
-            _logger.LogInformation(message);
-        }
-
-        /// <summary>
-        /// Notify when game has started
-        /// </summary>
-        public void NotifyGameStarted(string lobbyId)
-        {
-            lock (_lockObject)
-            {
-                if (!_activeSessions.TryGetValue(lobbyId, out var session))
-                {
-                var message = $"⚠️ Session {lobbyId} not found";
-                    _discordClient.SendMessageAsync(message);
-                    _logger.LogWarning(message);
-                    return;
-                }
-
-                session.State = LobbySessionState.InProgress;
-                session.GameStartedAt = DateTime.UtcNow;
-
-                var gameStartedMessage = $"🎮 GAME STARTED: {lobbyId}";
-                _discordClient.SendMessageAsync(gameStartedMessage);
-                _logger.LogInformation(gameStartedMessage);
-                GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
-            }
-        }
-
-        /// <summary>
-        /// Notify when game has finished
-        /// </summary>
-        public void NotifyGameFinished(string lobbyId)
-        {
-            lock (_lockObject)
-            {
-                if (!_activeSessions.TryGetValue(lobbyId, out var session))
-                {
-                var message = $"⚠️ Session {lobbyId} not found";
-                    _discordClient.SendMessageAsync(message);
-                    _logger.LogWarning(message);
-                    return;
-                }
-
-                session.State = LobbySessionState.Finished;
-                session.FinishedAt = DateTime.UtcNow;
-
-                // Release the account back to pool
-                _accountPool.ReleaseAccount(session.AccountId);
-                var account = _accountPool.GetAccountById(session.AccountId);
-
-                var gameFinishedMessage = $"✅ GAME FINISHED: {lobbyId} | Account {account?.Username} released";
-                _discordClient.SendMessageAsync(gameFinishedMessage);
-                _logger.LogInformation(gameFinishedMessage);
-
-                // Finish the lobby
-                _lobbyQueue.FinishLobby(lobbyId);
-
-                // Remove from active sessions
-                _activeSessions.Remove(lobbyId);
-
-                GameFinished?.Invoke(this, new GameFinishedEventArgs { Session = session });
-            }
-        }
-
-        /// <summary>
-        /// Get all active game sessions
-        /// </summary>
-        public List<LobbySession> GetActiveSessions()
-        {
-            lock (_lockObject)
-            {
-                return _activeSessions.Values.ToList();
-            }
-        }
-
-        /// <summary>
-        /// Get a specific session
-        /// </summary>
-        public LobbySession GetSession(string lobbyId)
-        {
-            lock (_lockObject)
-            {
-                _activeSessions.TryGetValue(lobbyId, out var session);
-                return session;
-            }
-        }
-
-        // ==================== System Status ====================
-
-        /// <summary>
-        /// Get complete system status
-        /// </summary>
-        public SystemStatus GetSystemStatus()
-        {
-            return new SystemStatus
-            {
-                PoolStats = GetAccountPoolStats(),
-                QueueStats = GetQueueStats(),
-                ActiveSessions = GetActiveSessions(),
-                Timestamp = DateTime.UtcNow
-            };
-        }
-
-        /// <summary>
-        /// Print system status to console
-        /// </summary>
-        public void PrintSystemStatus()
-        {
-            var status = GetSystemStatus();
-
-            string output = $@"
-                ╔════════════════════════════════════════════════════════════╗
-                ║          POOL SYSTEM STATUS                                ║
-                ╚════════════════════════════════════════════════════════════╝
-
-                📊 STEAM ACCOUNT POOL:
-                   Total: {status.PoolStats.TotalAccounts}
-                   Ready: {status.PoolStats.ReadyAccounts} ✅
-                   In Use: {status.PoolStats.InUseAccounts} 🎮
-                   Cooldown: {status.PoolStats.OnCooldownAccounts} ⏳
-
-                👥 QUEUE STATUS:
-                   Registered Players: {status.QueueStats.TotalRegisteredPlayers}
-                   Waiting: {status.QueueStats.WaitingPlayers}
-                   Current Lobby: {status.QueueStats.CurrentLobbyPlayerCount}/10
-                   Ready: {status.QueueStats.PlayersReady}/{status.QueueStats.CurrentLobbyPlayerCount}
-
-                🎮 ACTIVE GAMES:
-                ";
-            _discordClient.SendMessageAsync(output);
-            _logger.LogInformation(output);
-
-            if (status.ActiveSessions.Count == 0)
-            {
-                var noGamesMessage = "   No active games";
-                _discordClient.SendMessageAsync(noGamesMessage);
-                _logger.LogInformation(noGamesMessage);
-            }
+            if (!activeSessions.TryGetValue(lobbyId, out session))
+                session = null;
             else
             {
-                foreach (var session in status.ActiveSessions)
-                {
-                    var duration = DateTime.UtcNow - session.StartedAt;
-                    var gameFinishedMessage = $"   Lobby {session.LobbyId}: {session.State} - {PoolExtensions.FormatDuration(duration)}";
-                    _discordClient.SendMessageAsync(gameFinishedMessage);
-                    _logger.LogInformation(gameFinishedMessage);
-                }
+                session.State = LobbySessionState.InProgress;
+                session.GameStartedAt = DateTime.UtcNow;
             }
-
-            var timestampMessage = $"   Updated: {status.Timestamp:dd/MM/yyyy HH:mm:ss}";
-            _discordClient.SendMessageAsync(timestampMessage);
-            _logger.LogInformation(timestampMessage);
         }
-    }
 
-    // ==================== Data Structures ====================
-
-    /// <summary>
-    /// Represents a game session
-    /// </summary>
-    public class LobbySession
-    {
-        public string LobbyId { get; set; }
-        public string AccountId { get; set; }
-        public List<Player> Players { get; set; }
-        public LobbySessionState State { get; set; }
-        public DateTime StartedAt { get; set; }
-        public DateTime? GameStartedAt { get; set; }
-        public DateTime? FinishedAt { get; set; }
-
-        public override string ToString()
+        if (session == null)
         {
-            return $"Session: {LobbyId} | Account: {AccountId} | State: {State} | Players: {Players.Count}";
+            var warn = $"Session {lobbyId} not found";
+            logger.LogWarning("{Message}", warn);
+            await discordClient.SendMessageAsync(warn);
+            return;
+        }
+
+        var message = $"GAME STARTED: {lobbyId}";
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
+        GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
+    }
+
+    public async Task NotifyGameFinishedAsync(string lobbyId)
+    {
+        LobbySession? session;
+        lock (lockObject)
+        {
+            if (!activeSessions.TryGetValue(lobbyId, out session))
+                session = null;
+            else
+            {
+                session.State = LobbySessionState.Finished;
+                session.FinishedAt = DateTime.UtcNow;
+                activeSessions.Remove(lobbyId);
+            }
+        }
+
+        if (session == null)
+        {
+            var warn = $"Session {lobbyId} not found";
+            logger.LogWarning("{Message}", warn);
+            await discordClient.SendMessageAsync(warn);
+            return;
+        }
+
+        await accountPool.ReleaseAccountAsync(session.AccountId);
+        var account = accountPool.GetAccountById(session.AccountId);
+
+        var message = $"GAME FINISHED: {lobbyId} | Account {account?.Username} released";
+        logger.LogInformation("{Message}", message);
+        await discordClient.SendMessageAsync(message);
+
+        await lobbyQueue.FinishLobbyAsync(lobbyId);
+
+        GameFinished?.Invoke(this, new GameFinishedEventArgs { Session = session });
+    }
+
+    public List<LobbySession> GetActiveSessions()
+    {
+        lock (lockObject)
+        {
+            return activeSessions.Values.ToList();
         }
     }
 
-    /// <summary>
-    /// Game session state
-    /// </summary>
-    public enum LobbySessionState
+    public LobbySession? GetSession(string lobbyId)
     {
-        Ready,       // Ready to start
-        InProgress,  // Game is running
-        Finished     // Game finished
+        lock (lockObject)
+        {
+            activeSessions.TryGetValue(lobbyId, out var session);
+            return session;
+        }
     }
 
-    /// <summary>
-    /// Complete system status
-    /// </summary>
-    public class SystemStatus
+    public SystemStatus GetSystemStatus() => new()
     {
-        public AccountPoolStats PoolStats { get; set; }
-        public QueueStats QueueStats { get; set; }
-        public List<LobbySession> ActiveSessions { get; set; }
-        public DateTime Timestamp { get; set; }
-    }
+        PoolStats = GetAccountPoolStats(),
+        QueueStats = GetQueueStats(),
+        ActiveSessions = GetActiveSessions(),
+        Timestamp = DateTime.UtcNow
+    };
+}
 
-    // ==================== Event Args ====================
+public class LobbySession
+{
+    public string LobbyId { get; set; } = string.Empty;
+    public string AccountId { get; set; } = string.Empty;
+    public List<Player> Players { get; set; } = [];
+    public LobbySessionState State { get; set; }
+    public DateTime StartedAt { get; set; }
+    public DateTime? GameStartedAt { get; set; }
+    public DateTime? FinishedAt { get; set; }
 
-    public class GameReadyEventArgs : EventArgs
-    {
-        public Lobby Lobby { get; set; }
-        public SteamAccount Account { get; set; }
-        public LobbySession Session { get; set; }
-    }
+    public override string ToString() =>
+        $"Session: {LobbyId} | Account: {AccountId} | State: {State} | Players: {Players.Count}";
+}
 
-    public class GameStartedEventArgs : EventArgs
-    {
-        public LobbySession Session { get; set; }
-    }
+public enum LobbySessionState
+{
+    Ready,
+    InProgress,
+    Finished
+}
 
-    public class GameFinishedEventArgs : EventArgs
-    {
-        public LobbySession Session { get; set; }
-    }
+public class SystemStatus
+{
+    public AccountPoolStats PoolStats { get; set; } = new();
+    public QueueStats QueueStats { get; set; } = new();
+    public List<LobbySession> ActiveSessions { get; set; } = [];
+    public DateTime Timestamp { get; set; }
+}
+
+public class GameReadyEventArgs : EventArgs
+{
+    public required Lobby Lobby { get; set; }
+    public required SteamAccount Account { get; set; }
+    public required LobbySession Session { get; set; }
+}
+
+public class GameStartedEventArgs : EventArgs
+{
+    public required LobbySession Session { get; set; }
+}
+
+public class GameFinishedEventArgs : EventArgs
+{
+    public required LobbySession Session { get; set; }
 }
