@@ -17,6 +17,7 @@ export class CardComponent {
   @Input() startLabel: string = "Start";
   @Input() startPayload: any = {};
   @Input() stopPayload: any = {};
+  @Input() method: 'GET' | 'POST' = 'POST';
 
   @ContentChild('inputs', { read: TemplateRef })
   inputsTpl?: TemplateRef<any>;
@@ -30,7 +31,23 @@ export class CardComponent {
     this.statusMessage.set('Sending request...');
     this.response.set(null);
 
-    this.http.post(endpoint, payload).subscribe({
+    let request$;
+
+    if (this.method == 'GET') {
+      request$ = this.http.get(endpoint);
+    } else if(this.method == 'POST') {
+      // We pass the IDs as strings in the template, and strip the quotes in the raw JSON
+      // representation right before sending so they are dispatched as raw JSON 64-bit integers.
+      let json = JSON.stringify(payload);
+      json = json.replace(/"(\d{15,21})"/g, '$1');
+
+      const headers = { 'Content-Type': 'application/json' };
+      request$ = this.http.post(endpoint, json, { headers });
+    } else {
+      throw Error("Unimplemented Request type");
+    }
+
+    request$.subscribe({
       next: (res) => {
         this.statusMessage.set('Success ✅');
         this.response.set(res);

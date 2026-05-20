@@ -3,39 +3,36 @@
 
   <div class="card-body">
 
-    <div class="inputs" *ngIf="inputsTpl">
-        <ng-container
-        *ngTemplateOutlet="inputsTpl; context: {
-            send: send.bind(this),
-            startEndpoint: startEndpoint
-        }">
-        </ng-container>
-    </div>
+    @if (inputsTpl) {
+      <ng-container *ngTemplateOutlet="inputsTpl"></ng-container>
+    }
 
     <div class="actions">
-      <button *ngIf="startEndpoint"
-              class="primary"
-              (click)="send(startEndpoint, startPayload)">
-        {{ startLabel }}
-      </button>
+      @if (startEndpoint) {
+        <button class="primary" (click)="send(startEndpoint, startPayload)">
+          {{ startLabel }}
+        </button>
+      }
 
-      <button *ngIf="stopEndpoint"
-              class="danger"
-              (click)="send(stopEndpoint, stopPayload)">
-        Stop
-      </button>
+      @if (stopEndpoint) {
+        <button class="danger" (click)="send(stopEndpoint, stopPayload)">
+          Stop
+        </button>
+      }
 
       <span class="status">{{ statusMessage() }}</span>
     </div>
 
-    <div class="response-box" *ngIf="response()">
-      <div class="response-header">
-        SERVER RESPONSE
-        <button (click)="response.set(null)">Clear</button>
+    @if (response()) {
+      <div class="response-box">
+        <div class="response-header">
+          SERVER RESPONSE
+          <!-- FIX: was missing the btn-clear class -->
+          <button class="btn-clear" (click)="response.set(null)">Clear</button>
+        </div>
+        <pre class="pretty-json">{{ response() | json }}</pre>
       </div>
-
-      <pre class="pretty-json">{{ response() | json }}</pre>
-    </div>
+    }
 
   </div>
 </div>

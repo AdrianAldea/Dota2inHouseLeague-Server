@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { CardComponent } from '../../components/card/card';
 import { FormsModule } from '@angular/forms';
 
@@ -10,20 +10,21 @@ import { FormsModule } from '@angular/forms';
   styleUrl: './admin.css'
 })
 export class AdminPage {
-  discordUsername = '';
-  discordPassword = '';
+  discordMessage = signal('');
 
-  gameManagerUsername = '';
-  gameManagerPassword = '';
+  gameManagerCreateAuthorId = signal('');
+  gameManagerCreateLobbyName = signal('');
+  gameManagerCreateLobbyPassword = signal('');
 
-  createLobbyName = '';
-  createLobbyPassword = '';
+  gameManagerRegisterSteamId = signal('');
+  gameManagerRegisterUserId = signal('');
+  gameManagerRegisterUsername = signal('');
 
-  steamId = '';
-  userId = '';
+  gameManagerReadyId = signal('');
+  gameManagerPlayerId = signal('');
 
-  profileLobbyName = '';
-  profileLobbyPassword = '';
+  gameManagerInvite = signal('');
 
-  playerIdsInput = ''; // for now just a simple string
+  // Helper passed into [startPayload] for split and trim
+  readonly trim = (s: string) => s.trim();
 }

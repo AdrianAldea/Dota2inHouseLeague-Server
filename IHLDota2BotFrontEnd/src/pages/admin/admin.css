@@ -1,68 +1,85 @@
-* { 
-    box-sizing: border-box; 
-    margin: 0; 
-    padding: 0; 
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 :host {
-    display: block; 
-    min-height: 100vh; 
-    background: #0d1117; 
+    display: block;
+    min-height: 100vh;
+    background: #0d1117;
     color: #e6edf3;
-    font-family: 'Segoe UI', system-ui, sans-serif; 
+    font-family: 'Segoe UI', system-ui, sans-serif;
     padding: 2.5rem;
 }
 
-h1 { 
-    font-size: 1.6rem; 
-    font-weight: 700; 
-    color: #f0a500; 
-    margin-bottom: 0.25rem; 
+h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #f0a500;
+    margin-bottom: 0.25rem;
 }
 
-.subtitle { 
-    font-size: 0.9rem; 
-    color: #8b949e; 
-    margin-bottom: 2.5rem; 
+.subtitle {
+    font-size: 0.9rem;
+    color: #8b949e;
+    margin-bottom: 2.5rem;
 }
 
-.section-title { 
-    font-size: 1.15rem; 
-    font-weight: 600; 
-    color: #e6edf3; 
-    margin: 2rem 0 1rem; 
-    padding-bottom: 0.5rem; 
-    border-bottom: 1px solid #21262d; 
+.section-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #e6edf3;
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #21262d;
 }
 
-.grid-2 { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+.grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
     gap: 1.5rem;
     align-items: start;
 }
 
-.form-grid { 
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
+/* ── Form primitives used inside ng-template projected into CardComponent ── */
+
+/* Two-column grid for multi-field cards */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
 }
 
-input { 
-    background: #0d1117; 
-    border: 1px solid #30363d; 
-    border-radius: 6px; 
-    color: #e6edf3; 
-    padding: 0.5rem 0.75rem; 
-    font-size: 0.85rem; 
-    outline: none; 
-    width: 100%; 
-    box-sizing: border-box; 
-    transition: border-color 150ms;
-    margin-top: 5px;
-    margin-bottom: 5px;
+/* Single labelled field */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
 }
 
-input:focus { 
-    border-color: #f0a500; 
+.form-group label {
+    font-size: 0.75rem;
+    color: #8b949e;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Input styles — host-level so they cascade into projected templates */
+input {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 150ms;
+}
+
+input:focus {
+    border-color: #f0a500;
 }

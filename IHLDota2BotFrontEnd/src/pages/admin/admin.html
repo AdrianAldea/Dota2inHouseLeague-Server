@@ -1,144 +1,150 @@
 <h1>⚔️ IHL Dota 2 Bot</h1>
-    <p class="subtitle">Admin Dashboard — Control Panel</p>
+<p class="subtitle">Admin Dashboard — Control Panel</p>
 
-    <!-- SERVER CONTROLS -->
-    <h2 class="section-title">Core Servers</h2>
-    <div class="grid-2">
-        <card-component
-            title="Discord Bot Server"
-            startEndpoint="/discord/api/server/start"
-            stopEndpoint="/discord/api/server/stop"
-            [startPayload]="{ 
-                username: discordUsername,
-                password: discordPassword,
-            }"
-            [stopPayload]="{}"
-        >
-            
-            <ng-template #inputs let-send="send">
-                <div class="form-grid">
+<!-- SERVER CONTROLS -->
+<h2 class="section-title">Core Servers</h2>
+<div class="grid-2">
+    <card-component
+        title="Discord Bot Server"
+        startEndpoint="/discord/api/start"
+        stopEndpoint="/discord/api/stop"
+        [startPayload]="{}"
+        [stopPayload]="{}"
+    >
+    </card-component>
 
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input [(ngModel)]="discordUsername" placeholder="Username" />
-                    </div>
+    <card-component
+        title="Game Manager Server"
+        startEndpoint="/gamemanager/api/server/start"
+        [startPayload]="{}"
+    >
+    </card-component>
+</div>
 
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input [(ngModel)]="discordPassword" type="password" placeholder="Password" />
-                    </div>
+<!-- DISCORD ENDPOINTS -->
+<h2 class="section-title">Discord Tools</h2>
+<div class="grid-2">
+    <!-- MESSAGE -->
+    <card-component
+        title="Message"
+        startLabel="Send"
+        startEndpoint="/discord/api/message"
+        [startPayload]="{ message: discordMessage() }"
+    >
+        <ng-template #inputs>
+            <div class="form-group">
+                <label>Message</label>
+                <input [ngModel]="discordMessage()" (ngModelChange)="discordMessage.set($event)" placeholder="Discord Message" />
+            </div>
+        </ng-template>
+    </card-component>
+</div>
 
-                </div>
-            </ng-template>
+<!-- GAME MANAGER ENDPOINTS -->
+<h2 class="section-title">Game Manager Tools</h2>
+<div class="grid-2">
 
-        </card-component>
-
-        <card-component
-            title="Game Manager Server"
-            [startEndpoint]="'/gamemanager/api/server/start'"
-            [startPayload]="{ 
-                username: gameManagerUsername, 
-                password: gameManagerPassword
-            }"
-        >
-
-            <ng-template #inputs let-send="send">
+    <!-- CREATE LOBBY -->
+    <card-component
+        title="Create Lobby"
+        startLabel="Execute"
+        startEndpoint="/gamemanager/api/gamemanager/create"
+        [startPayload]="{
+            authorId: gameManagerCreateAuthorId(),
+            lobbyName: gameManagerCreateLobbyName(),
+            lobbyPassword: gameManagerCreateLobbyPassword()
+        }"
+    >
+        <ng-template #inputs>
             <div class="form-grid">
+                <div class="form-group">
+                    <label>Author Id</label>
+                    <input [ngModel]="gameManagerCreateAuthorId()" (ngModelChange)="gameManagerCreateAuthorId.set($event)" placeholder="938828..." />
+                </div>
+                <div class="form-group">
+                    <label>Lobby Name</label>
+                    <input [ngModel]="gameManagerCreateLobbyName()" (ngModelChange)="gameManagerCreateLobbyName.set($event)" placeholder="Dota 123" />
+                </div>
+                <div class="form-group">
+                    <label>Lobby Password</label>
+                    <input [ngModel]="gameManagerCreateLobbyPassword()" (ngModelChange)="gameManagerCreateLobbyPassword.set($event)" placeholder="Pass123" />
+                </div>
+            </div>
+        </ng-template>
+    </card-component>
 
+    <!-- REGISTER -->
+    <card-component
+        title="Register Player"
+        startLabel="Execute"
+        startEndpoint="/gamemanager/api/gamemanager/register"
+        [startPayload]="{
+            steamId: gameManagerRegisterSteamId(),
+            userId: gameManagerRegisterUserId(),
+            username: gameManagerRegisterUsername()
+        }"
+    >
+        <ng-template #inputs>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Steam ID (ulong)</label>
+                    <input [ngModel]="gameManagerRegisterSteamId()" (ngModelChange)="gameManagerRegisterSteamId.set($event)" placeholder="765611..." />
+                </div>
+                <div class="form-group">
+                    <label>User ID (ulong)</label>
+                    <input [ngModel]="gameManagerRegisterUserId()" (ngModelChange)="gameManagerRegisterUserId.set($event)" placeholder="123456..." />
+                </div>
                 <div class="form-group">
                     <label>Username</label>
-                    <input [(ngModel)]="gameManagerUsername" placeholder="Username" />
+                    <input [ngModel]="gameManagerRegisterUsername()" (ngModelChange)="gameManagerRegisterUsername.set($event)" placeholder="myusername" />
                 </div>
-
-                <div class="form-group">
-                    <label>Password</label>
-                    <input [(ngModel)]="gameManagerPassword" type="password" placeholder="Password" />
-                </div>
-
             </div>
-            </ng-template>
+        </ng-template>
+    </card-component>
 
-        </card-component>
-    </div>
+    <!-- READY -->
+    <card-component
+        title="Ready"
+        startLabel="Execute"
+        [startEndpoint]="'/gamemanager/api/gamemanager/ready/' + gameManagerReadyId()"
+        [startPayload]="{}"
+    >
+        <ng-template #inputs>
+            <div class="form-group">
+                <label>User ID (ulong)</label>
+                <input [ngModel]="gameManagerReadyId()" (ngModelChange)="gameManagerReadyId.set($event)" placeholder="123456" />
+            </div>
+        </ng-template>
+    </card-component>
 
-    <!-- GAME MANAGER ENDPOINTS -->
-    <h2 class="section-title">Game Manager Tools</h2>
-    <div class="grid-2">
-        <!-- CREATE LOBBY -->
-        <card-component
-            title="Create Lobby"
-            startLabel="Execute"
-            startEndpoint="/gamemanager/api/gamemanager/create"
-            [startPayload]="{ lobbyName: createLobbyName, lobbyPassword: createLobbyPassword }"
-        >
-            <ng-template #inputs>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Lobby Name</label>
-                        <input [(ngModel)]="createLobbyName" placeholder="Dota 123" />
-                    </div>
-                    <div class="form-group">
-                        <label>Lobby Password</label>
-                        <input [(ngModel)]="createLobbyPassword" placeholder="Pass123" />
-                    </div>
-                </div>
-            </ng-template>
-        </card-component>
+    <!-- GET PLAYER PROFILE -->
+    <card-component
+        title="Get Player Profile"
+        startLabel="Fetch"
+        method="GET"
+        [startEndpoint]="'/gamemanager/api/gamemanager/player/' + gameManagerPlayerId()"
+    >
+        <ng-template #inputs>
+            <div class="form-group">
+                <label>Player ID (ulong)</label>
+                <input [ngModel]="gameManagerPlayerId()" (ngModelChange)="gameManagerPlayerId.set($event)" placeholder="123456" />
+            </div>
+        </ng-template>
+    </card-component>
 
-        <!-- REGISTER PLAYER -->
-        <card-component
-            title="Register Player"
-            startLabel="Execute"
-            startEndpoint="/gamemanager/api/gamemanager/register"
-            [startPayload]="{ steamId: steamId, userId: userId }"
-        >
-            <ng-template #inputs>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Steam ID (ulong)</label>
-                        <input [(ngModel)]="steamId" placeholder="765611..." />
-                    </div>
-                    <div class="form-group">
-                        <label>User ID (ulong)</label>
-                        <input [(ngModel)]="userId" placeholder="123456..." />
-                    </div>
-                </div>
-            </ng-template>
-        </card-component>
+    <!-- INVITE -->
+    <card-component
+        title="Invite Players"
+        startLabel="Execute"
+        startEndpoint="/gamemanager/api/gamemanager/invite"
+        [startPayload]="{ playersIds: gameManagerInvite() ? gameManagerInvite().split(',').map(trim) : [] }"
+    >
+        <ng-template #inputs>
+            <div class="form-group" style="grid-column: span 2;">
+                <label>Player IDs (comma-separated ulongs)</label>
+                <input [ngModel]="gameManagerInvite()" (ngModelChange)="gameManagerInvite.set($event)" placeholder="ID1, ID2, ID3" />
+            </div>
+        </ng-template>
+    </card-component>
 
-        <!-- GET PROFILE -->
-        <card-component
-            title="Lobby Profile"
-            startLabel="Execute"
-            startEndpoint="/gamemanager/api/gamemanager/profile"
-            [startPayload]="{ lobbyName: profileLobbyName, lobbyPassword: profileLobbyPassword }"
-        >
-            <ng-template #inputs>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Lobby Name</label>
-                        <input [(ngModel)]="profileLobbyName" placeholder="Dota 123" />
-                    </div>
-                    <div class="form-group">
-                        <label>Lobby Password</label>
-                        <input [(ngModel)]="profileLobbyPassword" placeholder="Pass123" />
-                    </div>
-                </div>
-            </ng-template>
-        </card-component>
-
-        <!-- INVITE PLAYERS -->
-        <card-component
-            title="Invite Players"
-            startLabel="Execute"
-            startEndpoint="/gamemanager/api/gamemanager/invite"
-            [startPayload]="{ playerIds: playerIdsInput.split(',') }"
-        >
-            <ng-template #inputs>
-                <div class="form-group" style="grid-column: span 2;">
-                    <label>Player IDs (Comma separated)</label>
-                    <input [(ngModel)]="playerIdsInput" placeholder="ID1, ID2, ID3" />
-                </div>
-            </ng-template>
-        </card-component>
-    </div>
+</div>
