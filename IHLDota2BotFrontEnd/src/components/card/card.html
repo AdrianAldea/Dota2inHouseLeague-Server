@@ -1,0 +1,38 @@
+<div class="card">
+  <h3 class="card-header">{{ title }}</h3>
+
+  <div class="card-body">
+
+    @if (inputsTpl) {
+      <ng-container *ngTemplateOutlet="inputsTpl"></ng-container>
+    }
+
+    <div class="actions">
+      @if (startEndpoint) {
+        <button class="primary" (click)="send(startEndpoint, startPayload)">
+          {{ startLabel }}
+        </button>
+      }
+
+      @if (stopEndpoint) {
+        <button class="danger" (click)="send(stopEndpoint, stopPayload)">
+          Stop
+        </button>
+      }
+
+      <span class="status">{{ statusMessage() }}</span>
+    </div>
+
+    @if (response()) {
+      <div class="response-box">
+        <div class="response-header">
+          SERVER RESPONSE
+          <!-- FIX: was missing the btn-clear class -->
+          <button class="btn-clear" (click)="response.set(null)">Clear</button>
+        </div>
+        <pre class="pretty-json">{{ response() | json }}</pre>
+      </div>
+    }
+
+  </div>
+</div>
