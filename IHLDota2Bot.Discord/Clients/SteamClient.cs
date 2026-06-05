@@ -206,4 +206,56 @@ public class SteamClient
             return null;
         }
     }
+
+    public Task<QueueOperationResponse?> BanPlayerAsync(ulong id, string? reason, CancellationToken cancellationToken = default)
+    {
+        var path = $"api/gamemanager/admin/ban/{id}";
+        if (!string.IsNullOrEmpty(reason))
+            path += $"?reason={Uri.EscapeDataString(reason)}";
+        return PostOperationAsync(path, "ban player", id, cancellationToken);
+    }
+
+    public Task<QueueOperationResponse?> UnbanPlayerAsync(ulong id, CancellationToken cancellationToken = default) =>
+        PostOperationAsync($"api/gamemanager/admin/unban/{id}", "unban player", id, cancellationToken);
+
+    public Task<QueueOperationResponse?> KickPlayerAsync(ulong id, CancellationToken cancellationToken = default) =>
+        PostOperationAsync($"api/gamemanager/admin/kick/{id}", "kick player", id, cancellationToken);
+
+    public Task<QueueOperationResponse?> ForceStartLobbyAsync(CancellationToken cancellationToken = default) =>
+        PostOperationAsync("api/gamemanager/admin/force_start", "force start", 0, cancellationToken);
+
+    public Task<QueueOperationResponse?> ResetQueueAsync(CancellationToken cancellationToken = default) =>
+        PostOperationAsync("api/gamemanager/admin/reset_queue", "reset queue", 0, cancellationToken);
+
+    public async Task<QueueOperationResponse?> AddSteamAccountAsync(string username, string password, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync(
+                "api/gamemanager/admin/add_account",
+                new AddSteamAccountRequest { Username = username, Password = password },
+                JsonSerializerOptions.Web,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<QueueOperationResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to add Steam account {Username}", username);
+            return null;
+        }
+    }
+
+    public async Task<PoolStatusResponse?> GetPoolStatusAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await httpClient.GetFromJsonAsync<PoolStatusResponse>("api/gamemanager/admin/pool_status", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to fetch pool status");
+            return null;
+        }
+    }
 }

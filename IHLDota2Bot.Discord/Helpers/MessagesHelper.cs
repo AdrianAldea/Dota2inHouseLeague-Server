@@ -30,6 +30,25 @@ public static class MessagesFormatter
         return sb.ToString();
     }
 
+    public static string FormatPoolStatus(PoolStatusResponse status)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("**Steam account pool**");
+        sb.AppendLine($"Total: `{status.Total}` · Ready: `{status.Ready}` · InUse: `{status.InUse}` · Cooldown: `{status.OnCooldown}`");
+        if (status.Accounts.Count == 0)
+        {
+            sb.AppendLine("_No accounts registered._");
+            return sb.ToString();
+        }
+        foreach (var a in status.Accounts)
+        {
+            var lastUsed = a.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "never";
+            var lobby = string.IsNullOrEmpty(a.CurrentLobbyId) ? "—" : a.CurrentLobbyId;
+            sb.AppendLine($"`{a.State,-8}` **{a.Username}** · lobby `{lobby}` · last used `{lastUsed}`");
+        }
+        return sb.ToString();
+    }
+
     public static string FormatMatch(MatchSummary match, ulong viewerUserId)
     {
         var sb = new StringBuilder();

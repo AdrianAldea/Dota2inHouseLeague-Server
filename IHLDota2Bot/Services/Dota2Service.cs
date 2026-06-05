@@ -208,6 +208,16 @@ public class Dota2Service
             };
         }
 
+        if (player.IsBanned)
+        {
+            var reason = string.IsNullOrEmpty(player.BanReason) ? "" : $" Reason: {player.BanReason}";
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = $"You are banned from queuing.{reason}"
+            };
+        }
+
         return await poolManager.JoinQueueAsync(player.UserId, player.Username, player.SteamId);
     }
 
@@ -365,6 +375,50 @@ public class Dota2Service
             Message = "Challenge declined."
         };
     }
+
+    // ==================== Admin operations ====================
+
+    public async Task<QueueOperationResponse> BanPlayerAsync(ulong userId, string? reason, CancellationToken cancellationToken = default)
+    {
+        var updated = await playerRepository.SetBanAsync(userId, banned: true, reason, cancellationToken);
+        if (updated == null)
+        {
+            return new QueueOperationResponse { Success = false, Message = "Player is not registered." };
+        }
+
+        // also remove from queue if they're in it
+        poolManager.RemovePlayerCompletely(userId);
+
+        var msg = $"{updated.Username} has been banned." + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}");
+        logger.LogInformation("Player {UserId} banned. Reason={Reason}", userId, reason);
+        await discordClient.SendMessageAsync($"<@{userId}> has been banned." + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}"));
+        return new QueueOperationResponse { Success = true, Message = msg };
+    }
+
+    public async Task<QueueOperationResponse> UnbanPlayerAsync(ulong userId, CancellationToken cancellationToken = default)
+    {
+        var updated = await playerRepository.SetBanAsync(userId, banned: false, reason: null, cancellationToken);
+        if (updated == null)
+        {
+            return new QueueOperationResponse { Success = false, Message = "Player is not registered." };
+        }
+
+        var msg = $"{updated.Username} has been unbanned.";
+        logger.LogInformation("Player {UserId} unbanned", userId);
+        await discordClient.SendMessageAsync($"<@{userId}> has been unbanned.");
+        return new QueueOperationResponse { Success = true, Message = msg };
+    }
+
+    public Task<QueueOperationResponse> KickPlayerAsync(ulong userId) => poolManager.KickFromLobbyAsync(userId);
+
+    public Task<QueueOperationResponse> ForceStartLobbyAsync() => poolManager.ForceLobbyReadyAsync();
+
+    public Task<QueueOperationResponse> ResetQueueAsync() => poolManager.ResetCurrentLobbyAsync();
+
+    public Task<QueueOperationResponse> AddSteamAccountAsync(string username, string password) =>
+        poolManager.AddSteamAccountAsync(username, password);
+
+    public PoolStatusResponse GetPoolStatus() => poolManager.GetPoolStatusResponse();
 
     private async Task<ChallengeResponse> ToResponseAsync(ChallengeEntity challenge, string? challengerUsername = null, string? challengedUsername = null)
     {

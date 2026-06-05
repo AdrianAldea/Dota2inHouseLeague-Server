@@ -83,6 +83,12 @@ public class DiscordService : IHostedService, IAsyncDisposable
             return;
         }
 
+        if (IsAdminAction(action) && !IsAdmin(userMessage))
+        {
+            await userMessage.Channel.SendMessageAsync("You don't have permission to use that command.");
+            return;
+        }
+
         logger.LogInformation("Received command: {Action}", action);
 
         switch (action)
@@ -151,7 +157,134 @@ public class DiscordService : IHostedService, IAsyncDisposable
             case DiscordAction.DECLINE_MATCH:
                 await DeclineChallengeAsync(userMessage);
                 break;
+            case DiscordAction.BAN:
+                await BanPlayerAsync(userMessage, parts);
+                break;
+            case DiscordAction.UNBAN:
+                await UnbanPlayerAsync(userMessage);
+                break;
+            case DiscordAction.KICK:
+                await KickPlayerAsync(userMessage);
+                break;
+            case DiscordAction.FORCE_START:
+                await ForceStartAsync(userMessage);
+                break;
+            case DiscordAction.RESET_QUEUE:
+                await ResetQueueAsync(userMessage);
+                break;
+            case DiscordAction.ADD_ACCOUNT:
+                await AddSteamAccountAsync(userMessage, parts);
+                break;
+            case DiscordAction.POOL_STATUS:
+                await ShowPoolStatusAsync(userMessage);
+                break;
         }
+    }
+
+    private static bool IsAdminAction(DiscordAction action) => action is
+        DiscordAction.BAN or
+        DiscordAction.UNBAN or
+        DiscordAction.KICK or
+        DiscordAction.FORCE_START or
+        DiscordAction.RESET_QUEUE or
+        DiscordAction.ADD_ACCOUNT or
+        DiscordAction.POOL_STATUS;
+
+    private bool IsAdmin(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return false;
+
+        if (options.AdminUserIds.Contains(author.Id)) return true;
+
+        if (!string.IsNullOrWhiteSpace(options.AdminRoleName) && author is SocketGuildUser guildUser)
+        {
+            return guildUser.Roles.Any(r => string.Equals(r.Name, options.AdminRoleName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
+    }
+
+    private async Task BanPlayerAsync(SocketUserMessage message, string[] parts)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!ban @user [reason]`");
+            return;
+        }
+
+        // Reason = everything after the mention. Easiest: skip parts[0] (cmd) and parts[1] (mention raw).
+        var reason = parts.Length > 2 ? string.Join(' ', parts.Skip(2)) : null;
+
+        var result = await steamClient.BanPlayerAsync(target.Id, reason);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to ban player.");
+    }
+
+    private async Task UnbanPlayerAsync(SocketUserMessage message)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!unban @user`");
+            return;
+        }
+
+        var result = await steamClient.UnbanPlayerAsync(target.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to unban player.");
+    }
+
+    private async Task KickPlayerAsync(SocketUserMessage message)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!kick @user`");
+            return;
+        }
+
+        var result = await steamClient.KickPlayerAsync(target.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to kick player.");
+    }
+
+    private async Task ForceStartAsync(SocketUserMessage message)
+    {
+        var result = await steamClient.ForceStartLobbyAsync();
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to force start.");
+    }
+
+    private async Task ResetQueueAsync(SocketUserMessage message)
+    {
+        var result = await steamClient.ResetQueueAsync();
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to reset queue.");
+    }
+
+    private async Task AddSteamAccountAsync(SocketUserMessage message, string[] parts)
+    {
+        if (parts.Length < 3)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!add_account <username> <password>` (delete the message after — it contains a password)");
+            return;
+        }
+
+        var result = await steamClient.AddSteamAccountAsync(parts[1], parts[2]);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to add account.");
+
+        // Try to delete the original message so the password doesn't sit in chat history.
+        try { await message.DeleteAsync(); }
+        catch (Exception ex) { logger.LogWarning(ex, "Could not delete add_account message"); }
+    }
+
+    private async Task ShowPoolStatusAsync(SocketUserMessage message)
+    {
+        var status = await steamClient.GetPoolStatusAsync();
+        if (status == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to fetch pool status.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPoolStatus(status));
     }
 
     private async Task ChallengePlayerAsync(SocketUserMessage message)
@@ -476,7 +609,12 @@ public class DiscordService : IHostedService, IAsyncDisposable
             "`!decline_match` — decline your latest pending challenge",
             "`!create_lobby` — create a new lobby",
             "`!ping` — bot health and gateway latency",
-            "`!commands` / `!help` — show this list"
+            "`!commands` / `!help` — show this list",
+            "",
+            "**Admin only**",
+            "`!ban @user [reason]` · `!unban @user` · `!kick @user`",
+            "`!force_start` · `!reset_queue` · `!pool_status`",
+            "`!add_account <username> <password>` (delete the message after!)"
         });
         await message.Channel.SendMessageAsync(commands);
     }

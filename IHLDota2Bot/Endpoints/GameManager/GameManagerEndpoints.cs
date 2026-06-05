@@ -28,6 +28,13 @@ public static class GameManagerEndpoints
         group.MapPost("/challenge/{challengerId}/{challengedId}", ChallengePlayer);
         group.MapPost("/challenge/accept/{userId}", AcceptChallenge);
         group.MapPost("/challenge/decline/{userId}", DeclineChallenge);
+        group.MapPost("/admin/ban/{id}", BanPlayer);
+        group.MapPost("/admin/unban/{id}", UnbanPlayer);
+        group.MapPost("/admin/kick/{id}", KickPlayer);
+        group.MapPost("/admin/force_start", ForceStartLobby);
+        group.MapPost("/admin/reset_queue", ResetQueue);
+        group.MapPost("/admin/add_account", AddSteamAccount);
+        group.MapGet("/admin/pool_status", GetPoolStatus);
         group.MapPost("/invite", InvitePlayersToLobby);
     }
 
@@ -375,6 +382,135 @@ public static class GameManagerEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "Error declining challenge");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> BanPlayer(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] ulong id,
+        [FromQuery] string? reason,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.BanPlayerAsync(id, reason, cancellationToken);
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error banning player");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> UnbanPlayer(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] ulong id,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.UnbanPlayerAsync(id, cancellationToken);
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error unbanning player");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> KickPlayer(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] ulong id,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.KickPlayerAsync(id);
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error kicking player");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> ForceStartLobby(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.ForceStartLobbyAsync();
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error force-starting lobby");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> ResetQueue(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.ResetQueueAsync();
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error resetting queue");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<QueueOperationResponse>, StatusCodeHttpResult>> AddSteamAccount(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromBody] AddSteamAccountRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await service.AddSteamAccountAsync(request.Username, request.Password);
+            return TypedResults.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error adding Steam account");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static Results<Ok<PoolStatusResponse>, StatusCodeHttpResult> GetPoolStatus(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger
+    )
+    {
+        try
+        {
+            return TypedResults.Ok(service.GetPoolStatus());
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error retrieving pool status");
             return TypedResults.StatusCode(500);
         }
     }

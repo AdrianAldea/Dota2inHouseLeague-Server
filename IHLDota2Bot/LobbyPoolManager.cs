@@ -86,6 +86,45 @@ public class LobbyPoolManager : IHostedService
 
     public bool UpdatePlayerSteamId(ulong userId, string steamId) => lobbyQueue.UpdatePlayerSteamId(userId, steamId);
 
+    public Task<QueueOperationResponse> KickFromLobbyAsync(ulong userId) => lobbyQueue.KickFromLobbyAsync(userId);
+
+    public Task<QueueOperationResponse> ForceLobbyReadyAsync() => lobbyQueue.ForceLobbyReadyAsync();
+
+    public Task<QueueOperationResponse> ResetCurrentLobbyAsync() => lobbyQueue.ResetCurrentLobbyAsync();
+
+    public async Task<QueueOperationResponse> AddSteamAccountAsync(string username, string password)
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return new QueueOperationResponse { Success = false, Message = "Username and password are required." };
+
+        if (accountPool.GetAccountByUsername(username) != null)
+            return new QueueOperationResponse { Success = false, Message = $"Account {username} already exists." };
+
+        await accountPool.RegisterAccountAsync(username, password);
+        return new QueueOperationResponse { Success = true, Message = $"Steam account {username} registered." };
+    }
+
+    public PoolStatusResponse GetPoolStatusResponse()
+    {
+        var stats = accountPool.GetStats();
+        return new PoolStatusResponse
+        {
+            Total = stats.TotalAccounts,
+            Ready = stats.ReadyAccounts,
+            InUse = stats.InUseAccounts,
+            OnCooldown = stats.OnCooldownAccounts,
+            Accounts = stats.Accounts
+                .Select(a => new PoolAccountSummary
+                {
+                    Username = a.Username,
+                    State = (PoolAccountState)a.State,
+                    CurrentLobbyId = a.CurrentLobbyId,
+                    LastUsedAt = a.LastUsedAt
+                })
+                .ToList()
+        };
+    }
+
     public Lobby GetCurrentLobby() => lobbyQueue.GetCurrentLobby();
     public QueueStats GetQueueStats() => lobbyQueue.GetStats();
     public List<Player> GetRegisteredPlayers() => lobbyQueue.GetRegisteredPlayers();

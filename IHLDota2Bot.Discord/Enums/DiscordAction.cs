@@ -26,5 +26,12 @@ internal enum DiscordAction
     STATUS,
     UNREGISTER,
     LINK,
-    STATS
+    STATS,
+    BAN,
+    UNBAN,
+    KICK,
+    FORCE_START,
+    RESET_QUEUE,
+    ADD_ACCOUNT,
+    POOL_STATUS
 }
