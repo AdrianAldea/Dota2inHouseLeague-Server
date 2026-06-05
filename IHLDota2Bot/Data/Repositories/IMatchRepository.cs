@@ -7,6 +7,7 @@ public interface IMatchRepository
 {
     Task<MatchEntity> CreateMatchAsync(string? lobbyId, IEnumerable<(ulong UserId, MatchTeam Team)> players, CancellationToken cancellationToken = default);
     Task<MatchSummary?> GetCurrentMatchForPlayerAsync(ulong userId, CancellationToken cancellationToken = default);
+    Task<MatchSummary?> GetByIdAsync(Guid matchId, CancellationToken cancellationToken = default);
     Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(ulong userId, int top, CancellationToken cancellationToken = default);
 
     /// <summary>

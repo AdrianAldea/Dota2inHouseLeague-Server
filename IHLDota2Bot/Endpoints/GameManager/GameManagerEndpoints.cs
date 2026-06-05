@@ -24,7 +24,9 @@ public static class GameManagerEndpoints
         group.MapGet("/leaderboard", GetLeaderboard);
         group.MapGet("/match/current/{id}", GetCurrentMatch);
         group.MapGet("/match/recent/{id}", GetRecentMatches);
+        group.MapGet("/match/{matchId:guid}", GetMatchById);
         group.MapPost("/match/report/{id}/{winner}", ReportMatch);
+        group.MapGet("/rank/{id}", GetPlayerRank);
         group.MapPost("/challenge/{challengerId}/{challengedId}", ChallengePlayer);
         group.MapPost("/challenge/accept/{userId}", AcceptChallenge);
         group.MapPost("/challenge/decline/{userId}", DeclineChallenge);
@@ -382,6 +384,44 @@ public static class GameManagerEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "Error declining challenge");
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<MatchSummary>, NotFound, StatusCodeHttpResult>> GetMatchById(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] Guid matchId,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var match = await service.GetMatchByIdAsync(matchId, cancellationToken);
+            return match == null ? TypedResults.NotFound() : TypedResults.Ok(match);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting match {MatchId}", matchId);
+            return TypedResults.StatusCode(500);
+        }
+    }
+
+    private static async Task<Results<Ok<RankResponse>, NotFound, StatusCodeHttpResult>> GetPlayerRank(
+        Services.Dota2Service service,
+        ILogger<Services.Dota2Service> logger,
+        [FromRoute] ulong id,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var rank = await service.GetPlayerRankAsync(id, cancellationToken);
+            return rank == null ? TypedResults.NotFound() : TypedResults.Ok(rank);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting rank for {UserId}", id);
             return TypedResults.StatusCode(500);
         }
     }

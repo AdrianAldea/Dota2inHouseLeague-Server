@@ -246,6 +246,38 @@ public class SteamClient
         }
     }
 
+    public async Task<RankResponse?> GetPlayerRankAsync(ulong id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await httpClient.GetAsync($"api/gamemanager/rank/{id}", cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<RankResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to fetch rank for user {UserId}", id);
+            return null;
+        }
+    }
+
+    public async Task<MatchSummary?> GetMatchByIdAsync(Guid matchId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await httpClient.GetAsync($"api/gamemanager/match/{matchId}", cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<MatchSummary>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to fetch match {MatchId}", matchId);
+            return null;
+        }
+    }
+
     public async Task<PoolStatusResponse?> GetPoolStatusAsync(CancellationToken cancellationToken = default)
     {
         try

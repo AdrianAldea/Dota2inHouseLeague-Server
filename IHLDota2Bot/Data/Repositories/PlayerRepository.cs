@@ -122,6 +122,49 @@ public class PlayerRepository : IPlayerRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<RankResponse?> GetRankAsync(ulong userId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var player = await context.Players
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Select(p => new PlayerStatsResponse
+            {
+                UserId = p.UserId,
+                Username = p.Username,
+                SteamId = p.SteamId,
+                Rating = p.Rating,
+                Wins = p.Wins,
+                Losses = p.Losses
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (player == null) return null;
+
+        // Rank by rating desc, ties broken by wins desc, losses asc, username asc — same as leaderboard.
+        var higherCount = await context.Players
+            .AsNoTracking()
+            .Where(p => p.UserId != userId && (
+                p.Rating > player.Rating ||
+                (p.Rating == player.Rating && p.Wins > player.Wins) ||
+                (p.Rating == player.Rating && p.Wins == player.Wins && p.Losses < player.Losses)))
+            .CountAsync(cancellationToken);
+
+        var total = await context.Players.AsNoTracking().CountAsync(cancellationToken);
+
+        var rank = higherCount + 1;
+        var percentile = total <= 1 ? 0d : (double)rank / total * 100d;
+
+        return new RankResponse
+        {
+            Rank = rank,
+            TotalPlayers = total,
+            Percentile = percentile,
+            Stats = player
+        };
+    }
+
     public async Task<LeaderboardResponse> GetLeaderboardAsync(int topN, CancellationToken cancellationToken = default)
     {
         if (topN <= 0) topN = 10;

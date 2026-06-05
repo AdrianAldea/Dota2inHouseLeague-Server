@@ -62,6 +62,18 @@ public class MatchRepository : IMatchRepository
         return match == null ? null : await ToSummaryAsync(context, match, cancellationToken);
     }
 
+    public async Task<MatchSummary?> GetByIdAsync(Guid matchId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var match = await context.Matches
+            .AsNoTracking()
+            .Include(m => m.Players)
+            .FirstOrDefaultAsync(m => m.Id == matchId, cancellationToken);
+
+        return match == null ? null : await ToSummaryAsync(context, match, cancellationToken);
+    }
+
     public async Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(ulong userId, int top, CancellationToken cancellationToken = default)
     {
         if (top <= 0) top = 5;

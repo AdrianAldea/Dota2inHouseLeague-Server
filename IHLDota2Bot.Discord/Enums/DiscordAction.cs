@@ -33,5 +33,8 @@ internal enum DiscordAction
     FORCE_START,
     RESET_QUEUE,
     ADD_ACCOUNT,
-    POOL_STATUS
+    POOL_STATUS,
+    RANK,
+    VERSION,
+    SCORE
 }

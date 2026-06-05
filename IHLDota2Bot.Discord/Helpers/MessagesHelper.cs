@@ -5,6 +5,16 @@ namespace IHLDota2Bot.Discord.Helpers;
 
 public static class MessagesFormatter
 {
+    public static string FormatRank(RankResponse rank)
+    {
+        var stats = rank.Stats;
+        var winRate = stats.MatchesPlayed == 0 ? "—" : $"{stats.WinRate * 100:F1}%";
+        var percentile = rank.TotalPlayers <= 1 ? "—" : $"top {rank.Percentile:F1}%";
+        return $"**{stats.Username}** — `#{rank.Rank}` of `{rank.TotalPlayers}` ({percentile})\n" +
+               $"- Rating: `{stats.Rating}`\n" +
+               $"- W-L: `{stats.Wins}-{stats.Losses}` · Win rate: `{winRate}`";
+    }
+
     public static string FormatPlayerStats(PlayerStatsResponse stats)
     {
         var winRate = stats.MatchesPlayed == 0 ? "—" : $"{stats.WinRate * 100:F1}%";

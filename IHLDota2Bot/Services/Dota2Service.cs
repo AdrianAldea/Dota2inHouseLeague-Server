@@ -255,6 +255,12 @@ public class Dota2Service
     public Task<MatchSummary?> GetCurrentMatchAsync(ulong userId, CancellationToken cancellationToken = default) =>
         matchRepository.GetCurrentMatchForPlayerAsync(userId, cancellationToken);
 
+    public Task<MatchSummary?> GetMatchByIdAsync(Guid matchId, CancellationToken cancellationToken = default) =>
+        matchRepository.GetByIdAsync(matchId, cancellationToken);
+
+    public Task<RankResponse?> GetPlayerRankAsync(ulong userId, CancellationToken cancellationToken = default) =>
+        playerRepository.GetRankAsync(userId, cancellationToken);
+
     public Task<RecentMatchesResponse> GetRecentMatchesAsync(ulong userId, int top, CancellationToken cancellationToken = default) =>
         matchRepository.GetRecentMatchesForPlayerAsync(userId, top, cancellationToken);
 

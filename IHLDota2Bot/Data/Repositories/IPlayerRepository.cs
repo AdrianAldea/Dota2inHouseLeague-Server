@@ -16,4 +16,5 @@ public interface IPlayerRepository
 
     Task<PlayerStatsResponse?> GetStatsAsync(ulong userId, CancellationToken cancellationToken = default);
     Task<LeaderboardResponse> GetLeaderboardAsync(int topN, CancellationToken cancellationToken = default);
+    Task<RankResponse?> GetRankAsync(ulong userId, CancellationToken cancellationToken = default);
 }
