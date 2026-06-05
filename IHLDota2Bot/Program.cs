@@ -31,6 +31,8 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 });
 
 builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
+builder.Services.AddSingleton<IMatchRepository, MatchRepository>();
+builder.Services.AddSingleton<IChallengeRepository, ChallengeRepository>();
 builder.Services.AddHostedService<DatabaseInitializer>();
 
 builder.Services.AddSingleton<DiscordClient>();

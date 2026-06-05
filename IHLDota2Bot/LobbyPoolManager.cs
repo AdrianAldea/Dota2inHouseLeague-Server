@@ -1,5 +1,7 @@
 using IHLDota2Bot.Clients;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Configuration;
+using IHLDota2Bot.Data.Repositories;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot;
@@ -12,6 +14,7 @@ public class LobbyPoolManager : IHostedService
     private readonly SteamAccountPool accountPool;
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
+    private readonly IMatchRepository matchRepository;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
     private readonly Dictionary<string, LobbySession> activeSessions = new();
@@ -25,18 +28,21 @@ public class LobbyPoolManager : IHostedService
         SteamAccountPool accountPool,
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
+        IMatchRepository matchRepository,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
     {
         ArgumentNullException.ThrowIfNull(accountPool);
         ArgumentNullException.ThrowIfNull(lobbyQueue);
         ArgumentNullException.ThrowIfNull(discordClient);
+        ArgumentNullException.ThrowIfNull(matchRepository);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.accountPool = accountPool;
         this.lobbyQueue = lobbyQueue;
         this.discordClient = discordClient;
+        this.matchRepository = matchRepository;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
@@ -62,8 +68,23 @@ public class LobbyPoolManager : IHostedService
     public Task RegisterPlayerAsync(ulong userId, string username, string steamId) =>
         lobbyQueue.RegisterPlayerAsync(userId, username, steamId);
 
-    public Task MarkPlayerReadyAsync(ulong userId) =>
+    public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId) =>
+        lobbyQueue.JoinQueueAsync(userId, username, steamId);
+
+    public Task<QueueOperationResponse> LeaveQueueAsync(ulong userId) =>
+        lobbyQueue.LeaveQueueAsync(userId);
+
+    public Task<QueueOperationResponse> MarkPlayerReadyAsync(ulong userId) =>
         lobbyQueue.MarkPlayerReadyAsync(userId);
+
+    public Task<QueueOperationResponse> MarkPlayerUnreadyAsync(ulong userId) =>
+        lobbyQueue.MarkPlayerUnreadyAsync(userId);
+
+    public QueueStatusResponse GetQueueStatus() => lobbyQueue.GetQueueStatus();
+
+    public bool RemovePlayerCompletely(ulong userId) => lobbyQueue.RemovePlayerCompletely(userId);
+
+    public bool UpdatePlayerSteamId(ulong userId, string steamId) => lobbyQueue.UpdatePlayerSteamId(userId, steamId);
 
     public Lobby GetCurrentLobby() => lobbyQueue.GetCurrentLobby();
     public QueueStats GetQueueStats() => lobbyQueue.GetStats();
@@ -100,6 +121,22 @@ public class LobbyPoolManager : IHostedService
             }
 
             await accountPool.MarkAccountInUseAsync(account.Id, lobby.Id);
+
+            try
+            {
+                var shuffled = lobby.Players.OrderBy(_ => Guid.NewGuid()).ToList();
+                var half = shuffled.Count / 2;
+                var teamAssignments = shuffled
+                    .Select((p, idx) => (p.UserId, Team: idx < half ? MatchTeam.Radiant : MatchTeam.Dire))
+                    .ToList();
+
+                var match = await matchRepository.CreateMatchAsync(lobby.Id, teamAssignments);
+                logger.LogInformation("Match {MatchId} created for lobby {LobbyId}", match.Id, lobby.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to persist match for lobby {LobbyId}", lobby.Id);
+            }
 
             var readyMessage = $"Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
             logger.LogInformation("{Message}", readyMessage);
