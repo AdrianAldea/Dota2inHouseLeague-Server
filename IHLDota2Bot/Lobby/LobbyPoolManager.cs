@@ -1,7 +1,9 @@
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.DTOs;
+using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Repositories;
+using IHLDota2Bot.Services;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot;
@@ -15,6 +17,7 @@ public class LobbyPoolManager : IHostedService
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
+    private readonly SteamGcClient steamGc;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
     private readonly Dictionary<string, LobbySession> activeSessions = new();
@@ -29,6 +32,7 @@ public class LobbyPoolManager : IHostedService
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
         IMatchRepository matchRepository,
+        SteamGcClient steamGc,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
     {
@@ -36,6 +40,7 @@ public class LobbyPoolManager : IHostedService
         ArgumentNullException.ThrowIfNull(lobbyQueue);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(matchRepository);
+        ArgumentNullException.ThrowIfNull(steamGc);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -43,6 +48,7 @@ public class LobbyPoolManager : IHostedService
         this.lobbyQueue = lobbyQueue;
         this.discordClient = discordClient;
         this.matchRepository = matchRepository;
+        this.steamGc = steamGc;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
@@ -177,7 +183,43 @@ public class LobbyPoolManager : IHostedService
                 logger.LogError(ex, "Failed to persist match for lobby {LobbyId}", lobby.Id);
             }
 
-            var readyMessage = $"Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
+            // Tell Steam to spin up the actual Dota 2 practice lobby and invite the 10 players.
+            // The current implementation uses the singleton bot account in SteamGcClient,
+            // not the reserved pool account — see PR #11 description for the strategic
+            // multi-bot pool follow-up.
+            var lobbyShortId = lobby.Id.Length >= 8 ? lobby.Id[..8] : lobby.Id;
+            var lobbyName = $"IHL-{lobbyShortId}";
+            var lobbyPassword = $"ihl-{lobbyShortId}";
+
+            try
+            {
+                await steamGc.CreateLobbyAsync(new CreateLobbyRequest
+                {
+                    AuthorId = account.Id,
+                    LobbyName = lobbyName,
+                    LobbyPassword = lobbyPassword
+                });
+
+                var steamIds = lobby.Players
+                    .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
+                    .Where(id => id > 0)
+                    .ToList();
+
+                if (steamIds.Count > 0)
+                {
+                    steamGc.InvitePlayersToLobby(steamIds);
+                }
+                else
+                {
+                    logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players", lobby.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}", lobby.Id);
+            }
+
+            var readyMessage = $"Lobby {lobby.Id} is ready! Steam lobby `{lobbyName}` (password `{lobbyPassword}`). Assigned account: {account.Username}";
             logger.LogInformation("{Message}", readyMessage);
             await discordClient.SendMessageAsync(readyMessage);
 
