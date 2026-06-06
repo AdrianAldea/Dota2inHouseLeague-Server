@@ -2,12 +2,10 @@ namespace IHLDota2Bot.Data.Entities;
 
 public class PlayerEntity
 {
-    public const int DefaultRating = 1000;
-
     public ulong UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string SteamId { get; set; } = string.Empty;
-    public int Rating { get; set; } = DefaultRating;
+    public int Rating { get; set; } = LeagueConstants.DefaultRating;
     public int Wins { get; set; }
     public int Losses { get; set; }
     public bool IsBanned { get; set; }

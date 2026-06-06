@@ -6,8 +6,6 @@ namespace IHLDota2Bot.Data.Repositories;
 
 public class MatchRepository : IMatchRepository
 {
-    private const int EloKFactor = 32;
-
     private readonly IDbContextFactory<AppDbContext> contextFactory;
 
     public MatchRepository(IDbContextFactory<AppDbContext> contextFactory)
@@ -138,7 +136,7 @@ public class MatchRepository : IMatchRepository
             var avgDire = direRatings.Average();
             var expectedRadiant = 1.0 / (1.0 + Math.Pow(10, (avgDire - avgRadiant) / 400.0));
             var actualRadiant = winningTeam == MatchTeam.Radiant ? 1.0 : 0.0;
-            radiantDelta = (int)Math.Round(EloKFactor * (actualRadiant - expectedRadiant));
+            radiantDelta = (int)Math.Round(LeagueConstants.EloKFactor * (actualRadiant - expectedRadiant));
             direDelta = -radiantDelta;
         }
 

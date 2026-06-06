@@ -296,8 +296,6 @@ public class Dota2Service
         return new QueueOperationResponse { Success = true, Message = message };
     }
 
-    private static readonly TimeSpan ChallengeTtl = TimeSpan.FromMinutes(15);
-
     public async Task<ChallengeOperationResponse> ChallengePlayerAsync(ulong challengerUserId, ulong challengedUserId, CancellationToken cancellationToken = default)
     {
         if (challengerUserId == challengedUserId)
@@ -317,10 +315,10 @@ public class Dota2Service
             return new ChallengeOperationResponse { Success = false, Message = "Opponent is not registered." };
         }
 
-        var challenge = await challengeRepository.CreateAsync(challengerUserId, challengedUserId, ChallengeTtl, cancellationToken);
+        var challenge = await challengeRepository.CreateAsync(challengerUserId, challengedUserId, LeagueConstants.ChallengeTtl, cancellationToken);
         var response = await ToResponseAsync(challenge, challenger.Username, challenged.Username);
 
-        var message = $"<@{challengerUserId}> challenges <@{challengedUserId}> to a 1v1! Reply with `!accept_match` or `!decline_match` within {(int)ChallengeTtl.TotalMinutes} min.";
+        var message = $"<@{challengerUserId}> challenges <@{challengedUserId}> to a 1v1! Reply with `!accept_match` or `!decline_match` within {(int)LeagueConstants.ChallengeTtl.TotalMinutes} min.";
         await discordClient.SendMessageAsync(message);
 
         return new ChallengeOperationResponse

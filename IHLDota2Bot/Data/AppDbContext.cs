@@ -33,7 +33,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasIndex(p => p.SteamId).IsUnique();
 
-            entity.Property(p => p.Rating).HasDefaultValue(PlayerEntity.DefaultRating);
+            entity.Property(p => p.Rating).HasDefaultValue(LeagueConstants.DefaultRating);
             entity.Property(p => p.Wins).HasDefaultValue(0);
             entity.Property(p => p.Losses).HasDefaultValue(0);
             entity.Property(p => p.IsBanned).HasDefaultValue(false);
