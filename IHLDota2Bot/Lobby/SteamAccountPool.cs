@@ -172,36 +172,3 @@ public class SteamAccountPool
         }
     }
 }
-
-public class SteamAccount
-{
-    public string Id { get; set; } = string.Empty;
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public AccountState State { get; set; }
-    public DateTime RegisteredAt { get; set; }
-    public DateTime? LastUsedAt { get; set; }
-    public string? CurrentLobbyId { get; set; }
-
-    public override string ToString() =>
-        $"Account: {Username} | State: {State} | Lobby: {CurrentLobbyId ?? "None"} | Last Used: {LastUsedAt?.ToString("dd/MM/yyyy HH:mm") ?? "Never"}";
-}
-
-public enum AccountState
-{
-    Ready,
-    InUse,
-    Cooldown
-}
-
-public class AccountPoolStats
-{
-    public int TotalAccounts { get; set; }
-    public int ReadyAccounts { get; set; }
-    public int InUseAccounts { get; set; }
-    public int OnCooldownAccounts { get; set; }
-    public List<SteamAccount> Accounts { get; set; } = [];
-
-    public override string ToString() =>
-        $"Pool Stats: Total={TotalAccounts}, Ready={ReadyAccounts}, InUse={InUseAccounts}, Cooldown={OnCooldownAccounts}";
-}
