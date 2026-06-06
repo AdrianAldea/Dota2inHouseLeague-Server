@@ -83,3 +83,47 @@ input {
 input:focus {
     border-color: #f0a500;
 }
+
+/* Select inherits the input look so the Report Match winner picker doesn't
+   look out of place next to a text input. */
+select {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 150ms;
+    font-family: inherit;
+}
+
+select:focus {
+    border-color: #f0a500;
+}
+
+/* Inline warning banner used above the Admin section to flag that the
+   server endpoints are not auth-gated. */
+.warning {
+    background: #2a1d1d;
+    border: 1px solid #5a1d1d;
+    color: #ff9a8a;
+    padding: 0.7rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.warning em { font-style: italic; color: #ffb380; }
+
+.warning code {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-family: ui-monospace, Consolas, monospace;
+}
