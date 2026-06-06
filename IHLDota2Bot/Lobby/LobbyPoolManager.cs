@@ -182,6 +182,18 @@ public class LobbyPoolManager : IHostedService
             await discordClient.SendMessageAsync(readyMessage);
 
             GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
+
+            // Flip the session to InProgress immediately. Some leagues might delay this
+            // until a real "game started" callback from the Steam GC, but for now there's
+            // no such trigger, so we treat "lobby ready" as "game started".
+            try
+            {
+                await NotifyGameStartedAsync(lobby.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to auto-start game session for lobby {LobbyId}", lobby.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -272,6 +284,29 @@ public class LobbyPoolManager : IHostedService
         lock (lockObject)
         {
             return activeSessions.Values.ToList();
+        }
+    }
+
+    /// <summary>
+    /// Returns the active sessions as a Common DTO list so the API can serialise
+    /// them without exposing the server-side Player/Lobby types.
+    /// </summary>
+    public List<ActiveSessionSummary> GetActiveSessionSummaries()
+    {
+        lock (lockObject)
+        {
+            return activeSessions.Values
+                .Select(s => new ActiveSessionSummary
+                {
+                    LobbyId = s.LobbyId,
+                    AccountId = s.AccountId,
+                    PlayerCount = s.Players.Count,
+                    State = (PoolSessionState)s.State,
+                    StartedAt = s.StartedAt,
+                    GameStartedAt = s.GameStartedAt,
+                    FinishedAt = s.FinishedAt
+                })
+                .ToList();
         }
     }
 

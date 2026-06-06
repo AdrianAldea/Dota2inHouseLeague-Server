@@ -270,9 +270,33 @@ public class Dota2Service
         if (result.Success && result.Match != null)
         {
             await discordClient.SendMessageAsync(result.Message);
+
+            // Close the loop with LobbyPoolManager so the Steam account is released back
+            // to the pool and a new lobby is spawned for the next 10 players. Matches
+            // created from 1v1 challenges have LobbyId == null and are skipped here —
+            // they never reserved a pool account in the first place.
+            if (!string.IsNullOrEmpty(result.Match.LobbyId))
+            {
+                try
+                {
+                    await poolManager.NotifyGameFinishedAsync(result.Match.LobbyId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to notify game finished for lobby {LobbyId}", result.Match.LobbyId);
+                }
+            }
         }
         return new QueueOperationResponse { Success = result.Success, Message = result.Message };
     }
+
+    // ── Direct exposure of pool-manager session controls (admin endpoints) ──
+
+    public List<ActiveSessionSummary> GetActiveSessions() => poolManager.GetActiveSessionSummaries();
+
+    public Task NotifyGameStartedAsync(string lobbyId) => poolManager.NotifyGameStartedAsync(lobbyId);
+
+    public Task NotifyGameFinishedAsync(string lobbyId) => poolManager.NotifyGameFinishedAsync(lobbyId);
 
     public async Task<QueueOperationResponse> LinkSteamIdAsync(ulong userId, ulong steamId, CancellationToken cancellationToken = default)
     {
