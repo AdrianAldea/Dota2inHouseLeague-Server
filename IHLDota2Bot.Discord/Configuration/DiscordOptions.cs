@@ -6,4 +6,6 @@ public class DiscordOptions
 
     public string Token { get; set; } = string.Empty;
     public ulong ChannelId { get; set; }
+    public List<ulong> AdminUserIds { get; set; } = [];
+    public string? AdminRoleName { get; set; }
 }

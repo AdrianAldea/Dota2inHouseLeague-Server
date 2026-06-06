@@ -1,4 +1,4 @@
-﻿namespace IHLDota2Bot.Discord.Enums;
+namespace IHLDota2Bot.Discord.Enums;
 
 internal enum DiscordAction
 {
@@ -16,5 +16,25 @@ internal enum DiscordAction
     DECLINE_MATCH,
     REPORT_MATCH,
     CREATE_GAME,
-    COMMANDS
-};
+    COMMANDS,
+    HELP,
+    PING,
+    QUEUE,
+    LEAVE,
+    READY,
+    UNREADY,
+    STATUS,
+    UNREGISTER,
+    LINK,
+    STATS,
+    BAN,
+    UNBAN,
+    KICK,
+    FORCE_START,
+    RESET_QUEUE,
+    ADD_ACCOUNT,
+    POOL_STATUS,
+    RANK,
+    VERSION,
+    SCORE
+}

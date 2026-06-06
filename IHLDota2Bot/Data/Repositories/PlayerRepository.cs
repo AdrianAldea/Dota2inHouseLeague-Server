@@ -1,3 +1,4 @@
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -65,5 +66,138 @@ public class PlayerRepository : IPlayerRepository
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.Players.AnyAsync(p => p.UserId == userId, cancellationToken);
+    }
+
+    public async Task<PlayerEntity?> UpdateSteamIdAsync(ulong userId, string steamId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var player = await context.Players.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+        if (player == null) return null;
+
+        player.SteamId = steamId;
+        player.LastSeenAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+        return player;
+    }
+
+    public async Task<bool> DeleteAsync(ulong userId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var player = await context.Players.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+        if (player == null) return false;
+
+        context.Players.Remove(player);
+        await context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<PlayerEntity?> SetBanAsync(ulong userId, bool banned, string? reason, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var player = await context.Players.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+        if (player == null) return null;
+
+        player.IsBanned = banned;
+        player.BanReason = banned ? reason : null;
+        player.BannedAt = banned ? DateTime.UtcNow : null;
+        await context.SaveChangesAsync(cancellationToken);
+        return player;
+    }
+
+    public async Task<PlayerStatsResponse?> GetStatsAsync(ulong userId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Players
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Select(p => new PlayerStatsResponse
+            {
+                UserId = p.UserId,
+                Username = p.Username,
+                SteamId = p.SteamId,
+                Rating = p.Rating,
+                Wins = p.Wins,
+                Losses = p.Losses
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<RankResponse?> GetRankAsync(ulong userId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var player = await context.Players
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Select(p => new PlayerStatsResponse
+            {
+                UserId = p.UserId,
+                Username = p.Username,
+                SteamId = p.SteamId,
+                Rating = p.Rating,
+                Wins = p.Wins,
+                Losses = p.Losses
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (player == null) return null;
+
+        // Rank by rating desc, ties broken by wins desc, losses asc, username asc — same as leaderboard.
+        var higherCount = await context.Players
+            .AsNoTracking()
+            .Where(p => p.UserId != userId && (
+                p.Rating > player.Rating ||
+                (p.Rating == player.Rating && p.Wins > player.Wins) ||
+                (p.Rating == player.Rating && p.Wins == player.Wins && p.Losses < player.Losses)))
+            .CountAsync(cancellationToken);
+
+        var total = await context.Players.AsNoTracking().CountAsync(cancellationToken);
+
+        var rank = higherCount + 1;
+        var percentile = total <= 1 ? 0d : (double)rank / total * 100d;
+
+        return new RankResponse
+        {
+            Rank = rank,
+            TotalPlayers = total,
+            Percentile = percentile,
+            Stats = player
+        };
+    }
+
+    public async Task<LeaderboardResponse> GetLeaderboardAsync(int topN, CancellationToken cancellationToken = default)
+    {
+        if (topN <= 0) topN = 10;
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var rows = await context.Players
+            .AsNoTracking()
+            .OrderByDescending(p => p.Rating)
+            .ThenByDescending(p => p.Wins)
+            .ThenBy(p => p.Losses)
+            .ThenBy(p => p.Username)
+            .Take(topN)
+            .Select(p => new
+            {
+                p.UserId,
+                p.Username,
+                p.Rating,
+                p.Wins,
+                p.Losses
+            })
+            .ToListAsync(cancellationToken);
+
+        var entries = rows.Select((row, index) => new LeaderboardEntry
+        {
+            Rank = index + 1,
+            UserId = row.UserId,
+            Username = row.Username,
+            Rating = row.Rating,
+            Wins = row.Wins,
+            Losses = row.Losses
+        }).ToList();
+
+        return new LeaderboardResponse { TopN = topN, Entries = entries };
     }
 }

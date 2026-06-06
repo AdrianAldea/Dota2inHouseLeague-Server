@@ -1,5 +1,6 @@
 using Discord;
 using Discord.WebSocket;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
 using IHLDota2Bot.Discord.Configuration;
@@ -68,10 +69,23 @@ public class DiscordService : IHostedService, IAsyncDisposable
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return;
 
-        var command = parts[0].ToUpperInvariant();
+        var rawCommand = parts[0].ToUpperInvariant();
+        var command = rawCommand switch
+        {
+            "Q" => "QUEUE",
+            "HELP" => "COMMANDS",
+            _ => rawCommand
+        };
+
         if (!Enum.TryParse(command, out DiscordAction action))
         {
-            logger.LogDebug("Unknown command received: {Command}", command);
+            logger.LogDebug("Unknown command received: {Command}", rawCommand);
+            return;
+        }
+
+        if (IsAdminAction(action) && !IsAdmin(userMessage))
+        {
+            await userMessage.Channel.SendMessageAsync("You don't have permission to use that command.");
             return;
         }
 
@@ -89,9 +103,463 @@ public class DiscordService : IHostedService, IAsyncDisposable
                 await CreateLobbyAsync(userMessage);
                 break;
             case DiscordAction.COMMANDS:
-                await ShowCommandsAsync(userMessage);
+            case DiscordAction.HELP:
+                await ShowCommandsAsync(userMessage, parts);
+                break;
+            case DiscordAction.PING:
+                await PingAsync(userMessage);
+                break;
+            case DiscordAction.QUEUE:
+                await JoinQueueAsync(userMessage);
+                break;
+            case DiscordAction.LEAVE:
+                await LeaveQueueAsync(userMessage);
+                break;
+            case DiscordAction.READY:
+                await MarkReadyAsync(userMessage);
+                break;
+            case DiscordAction.UNREADY:
+                await MarkUnreadyAsync(userMessage);
+                break;
+            case DiscordAction.STATUS:
+                await ShowQueueStatusAsync(userMessage);
+                break;
+            case DiscordAction.UNREGISTER:
+                await UnregisterAsync(userMessage);
+                break;
+            case DiscordAction.LINK:
+                await LinkSteamIdAsync(userMessage, parts);
+                break;
+            case DiscordAction.MYSTATS:
+                await ShowStatsAsync(userMessage, userMessage.Author?.Id);
+                break;
+            case DiscordAction.STATS:
+                await ShowStatsAsync(userMessage, ResolveTargetUserId(userMessage));
+                break;
+            case DiscordAction.LEADERBOARD:
+                await ShowLeaderboardAsync(userMessage, parts);
+                break;
+            case DiscordAction.MATCH:
+                await ShowCurrentMatchAsync(userMessage);
+                break;
+            case DiscordAction.MATCHES:
+                await ShowRecentMatchesAsync(userMessage, parts);
+                break;
+            case DiscordAction.REPORT:
+                await ReportMatchAsync(userMessage, parts);
+                break;
+            case DiscordAction.CHALLENGE:
+                await ChallengePlayerAsync(userMessage);
+                break;
+            case DiscordAction.ACCEPT_MATCH:
+                await AcceptChallengeAsync(userMessage);
+                break;
+            case DiscordAction.DECLINE_MATCH:
+                await DeclineChallengeAsync(userMessage);
+                break;
+            case DiscordAction.BAN:
+                await BanPlayerAsync(userMessage, parts);
+                break;
+            case DiscordAction.UNBAN:
+                await UnbanPlayerAsync(userMessage);
+                break;
+            case DiscordAction.KICK:
+                await KickPlayerAsync(userMessage);
+                break;
+            case DiscordAction.FORCE_START:
+                await ForceStartAsync(userMessage);
+                break;
+            case DiscordAction.RESET_QUEUE:
+                await ResetQueueAsync(userMessage);
+                break;
+            case DiscordAction.ADD_ACCOUNT:
+                await AddSteamAccountAsync(userMessage, parts);
+                break;
+            case DiscordAction.POOL_STATUS:
+                await ShowPoolStatusAsync(userMessage);
+                break;
+            case DiscordAction.RANK:
+                await ShowRankAsync(userMessage);
+                break;
+            case DiscordAction.VERSION:
+                await ShowVersionAsync(userMessage);
+                break;
+            case DiscordAction.SCORE:
+                await ShowMatchScoreAsync(userMessage, parts);
                 break;
         }
+    }
+
+    private async Task ShowRankAsync(SocketUserMessage message)
+    {
+        var target = ResolveTargetUserId(message);
+        if (target is null)
+        {
+            await message.Channel.SendMessageAsync("Could not resolve target user.");
+            return;
+        }
+
+        var rank = await steamClient.GetPlayerRankAsync(target.Value);
+        if (rank == null)
+        {
+            await message.Channel.SendMessageAsync("Player is not registered.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatRank(rank));
+    }
+
+    private async Task ShowVersionAsync(SocketUserMessage message)
+    {
+        var asm = typeof(DiscordService).Assembly;
+        var version = asm.GetName().Version?.ToString() ?? "unknown";
+        var commit = Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "unknown";
+        await message.Channel.SendMessageAsync($"**IHLDota2Bot**\nVersion: `{version}`\nCommit: `{commit}`");
+    }
+
+    private async Task ShowMatchScoreAsync(SocketUserMessage message, string[] parts)
+    {
+        if (parts.Length < 2 || !Guid.TryParse(parts[1], out var matchId))
+        {
+            await message.Channel.SendMessageAsync("Usage: `!score <matchId>`");
+            return;
+        }
+
+        var match = await steamClient.GetMatchByIdAsync(matchId);
+        if (match == null)
+        {
+            await message.Channel.SendMessageAsync("Match not found.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, message.Author?.Id ?? 0));
+    }
+
+    private static bool IsAdminAction(DiscordAction action) => action is
+        DiscordAction.BAN or
+        DiscordAction.UNBAN or
+        DiscordAction.KICK or
+        DiscordAction.FORCE_START or
+        DiscordAction.RESET_QUEUE or
+        DiscordAction.ADD_ACCOUNT or
+        DiscordAction.POOL_STATUS;
+
+    private bool IsAdmin(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return false;
+
+        if (options.AdminUserIds.Contains(author.Id)) return true;
+
+        if (!string.IsNullOrWhiteSpace(options.AdminRoleName) && author is SocketGuildUser guildUser)
+        {
+            return guildUser.Roles.Any(r => string.Equals(r.Name, options.AdminRoleName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
+    }
+
+    private async Task BanPlayerAsync(SocketUserMessage message, string[] parts)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!ban @user [reason]`");
+            return;
+        }
+
+        // Reason = everything after the mention. Easiest: skip parts[0] (cmd) and parts[1] (mention raw).
+        var reason = parts.Length > 2 ? string.Join(' ', parts.Skip(2)) : null;
+
+        var result = await steamClient.BanPlayerAsync(target.Id, reason);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to ban player.");
+    }
+
+    private async Task UnbanPlayerAsync(SocketUserMessage message)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!unban @user`");
+            return;
+        }
+
+        var result = await steamClient.UnbanPlayerAsync(target.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to unban player.");
+    }
+
+    private async Task KickPlayerAsync(SocketUserMessage message)
+    {
+        var target = message.MentionedUsers?.FirstOrDefault();
+        if (target == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!kick @user`");
+            return;
+        }
+
+        var result = await steamClient.KickPlayerAsync(target.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to kick player.");
+    }
+
+    private async Task ForceStartAsync(SocketUserMessage message)
+    {
+        var result = await steamClient.ForceStartLobbyAsync();
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to force start.");
+    }
+
+    private async Task ResetQueueAsync(SocketUserMessage message)
+    {
+        var result = await steamClient.ResetQueueAsync();
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to reset queue.");
+    }
+
+    private async Task AddSteamAccountAsync(SocketUserMessage message, string[] parts)
+    {
+        if (parts.Length < 3)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!add_account <username> <password>` (delete the message after — it contains a password)");
+            return;
+        }
+
+        var result = await steamClient.AddSteamAccountAsync(parts[1], parts[2]);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to add account.");
+
+        // Try to delete the original message so the password doesn't sit in chat history.
+        try { await message.DeleteAsync(); }
+        catch (Exception ex) { logger.LogWarning(ex, "Could not delete add_account message"); }
+    }
+
+    private async Task ShowPoolStatusAsync(SocketUserMessage message)
+    {
+        var status = await steamClient.GetPoolStatusAsync();
+        if (status == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to fetch pool status.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPoolStatus(status));
+    }
+
+    private async Task ChallengePlayerAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var opponent = message.MentionedUsers?.FirstOrDefault(u => u.Id != author.Id);
+        if (opponent == null)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!challenge @user`");
+            return;
+        }
+
+        var result = await steamClient.ChallengePlayerAsync(author.Id, opponent.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to send challenge.");
+    }
+
+    private async Task AcceptChallengeAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.AcceptChallengeAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to accept challenge.");
+    }
+
+    private async Task DeclineChallengeAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.DeclineChallengeAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to decline challenge.");
+    }
+
+    private async Task ShowCurrentMatchAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var match = await steamClient.GetCurrentMatchAsync(author.Id);
+        if (match == null)
+        {
+            await message.Channel.SendMessageAsync("You don't have an active match.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, author.Id));
+    }
+
+    private async Task ShowRecentMatchesAsync(SocketUserMessage message, string[] parts)
+    {
+        var top = 5;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var parsed) && parsed > 0)
+        {
+            top = Math.Min(parsed, 20);
+        }
+
+        var targetUserId = ResolveTargetUserId(message);
+        if (targetUserId is null)
+        {
+            await message.Channel.SendMessageAsync("Could not resolve target user.");
+            return;
+        }
+
+        var recent = await steamClient.GetRecentMatchesAsync(targetUserId.Value, top);
+        if (recent == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to fetch recent matches.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatRecentMatches(recent, targetUserId.Value));
+    }
+
+    private async Task ReportMatchAsync(SocketUserMessage message, string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!report radiant` | `!report dire`");
+            return;
+        }
+
+        if (!Enum.TryParse<MatchTeam>(parts[1], ignoreCase: true, out var winner))
+        {
+            await message.Channel.SendMessageAsync("Winner must be `radiant` or `dire`.");
+            return;
+        }
+
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.ReportMatchAsync(author.Id, winner);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to report match.");
+    }
+
+    private static ulong? ResolveTargetUserId(SocketUserMessage message)
+    {
+        // First mention wins; otherwise fall back to the message author
+        var mentioned = message.MentionedUsers?.FirstOrDefault();
+        return mentioned?.Id ?? message.Author?.Id;
+    }
+
+    private async Task ShowStatsAsync(SocketUserMessage message, ulong? userId)
+    {
+        if (userId is null)
+        {
+            await message.Channel.SendMessageAsync("Could not resolve target user.");
+            return;
+        }
+
+        var stats = await steamClient.GetPlayerStatsAsync(userId.Value);
+        if (stats == null)
+        {
+            await message.Channel.SendMessageAsync("Player is not registered.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
+    }
+
+    private async Task ShowLeaderboardAsync(SocketUserMessage message, string[] parts)
+    {
+        var top = 10;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var parsed) && parsed > 0)
+        {
+            top = Math.Min(parsed, 50);
+        }
+
+        var leaderboard = await steamClient.GetLeaderboardAsync(top);
+        if (leaderboard == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to fetch leaderboard.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatLeaderboard(leaderboard));
+    }
+
+    private async Task UnregisterAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.UnregisterAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to unregister.");
+    }
+
+    private async Task LinkSteamIdAsync(SocketUserMessage message, string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            await message.Channel.SendMessageAsync("Usage: `!link <steamId>`");
+            return;
+        }
+
+        if (!ulong.TryParse(parts[1], out var steamId))
+        {
+            await message.Channel.SendMessageAsync("Invalid SteamID format.");
+            return;
+        }
+
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.LinkSteamIdAsync(author.Id, steamId);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to link Steam ID.");
+    }
+
+    private async Task PingAsync(SocketUserMessage message)
+    {
+        await message.Channel.SendMessageAsync($"Pong! Gateway latency: {discordClient.Latency}ms");
+    }
+
+    private async Task JoinQueueAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.JoinQueueAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to join queue.");
+    }
+
+    private async Task LeaveQueueAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.LeaveQueueAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to leave queue.");
+    }
+
+    private async Task MarkReadyAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.MarkReadyAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to mark ready.");
+    }
+
+    private async Task MarkUnreadyAsync(SocketUserMessage message)
+    {
+        var author = message.Author;
+        if (author == null) return;
+
+        var result = await steamClient.MarkUnreadyAsync(author.Id);
+        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to mark unready.");
+    }
+
+    private async Task ShowQueueStatusAsync(SocketUserMessage message)
+    {
+        var status = await steamClient.GetQueueStatusAsync();
+        if (status == null)
+        {
+            await message.Channel.SendMessageAsync("Failed to fetch queue status.");
+            return;
+        }
+
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatQueueStatus(status));
     }
 
     private async Task RegisterPlayerAsync(SocketUserMessage message, string[] parts)
@@ -170,15 +638,53 @@ public class DiscordService : IHostedService, IAsyncDisposable
         await message.Channel.SendMessageAsync(createLobbyMessage);
     }
 
-    private static async Task ShowCommandsAsync(SocketUserMessage message)
+    private static async Task ShowCommandsAsync(SocketUserMessage message, string[] parts)
     {
+        if (parts.Length >= 2)
+        {
+            var lookup = parts[1].TrimStart('!').ToLowerInvariant();
+            if (CommandHelpText.TryGet(lookup, out var detail))
+            {
+                await message.Channel.SendMessageAsync(detail);
+                return;
+            }
+
+            await message.Channel.SendMessageAsync($"No help available for `!{lookup}`. Try `!help` for the full list.");
+            return;
+        }
+
         var commands = string.Join("\n", new[]
         {
-            "**Available commands**",
+            "**Available commands** — use `!help <command>` for details",
             "`!register <steamId>` — register your Steam account",
+            "`!link <steamId>` — update your linked Steam ID",
+            "`!unregister` — leave the league",
             "`!profile` — show your profile",
+            "`!queue` / `!q` — join the matchmaking queue",
+            "`!leave` — leave the queue",
+            "`!ready` — mark yourself ready in the current lobby",
+            "`!unready` — undo ready",
+            "`!status` — show the current queue/lobby state",
+            "`!mystats` — your rating / W-L",
+            "`!stats @user` — stats for another player",
+            "`!leaderboard [N]` — top N (default 10, max 50)",
+            "`!match` — show your current active match",
+            "`!matches [N]` / `!matches @user [N]` — recent completed matches (default 5)",
+            "`!report radiant|dire` — report the winner of your current match",
+            "`!challenge @user` — 1v1 duel invite (expires in 15 min)",
+            "`!accept_match` — accept your latest pending challenge",
+            "`!decline_match` — decline your latest pending challenge",
             "`!create_lobby` — create a new lobby",
-            "`!commands` — show this list"
+            "`!rank` / `!rank @user` — leaderboard rank + percentile",
+            "`!score <matchId>` — show a finished match by id",
+            "`!ping` — bot health and gateway latency",
+            "`!version` — bot version + build sha",
+            "`!commands` / `!help` — show this list (`!help <command>` for details)",
+            "",
+            "**Admin only**",
+            "`!ban @user [reason]` · `!unban @user` · `!kick @user`",
+            "`!force_start` · `!reset_queue` · `!pool_status`",
+            "`!add_account <username> <password>` (delete the message after!)"
         });
         await message.Channel.SendMessageAsync(commands);
     }
