@@ -1,7 +1,5 @@
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.Requests;
-using IHLDota2Bot.Configuration;
-using Microsoft.Extensions.Options;
 using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
@@ -10,18 +8,21 @@ using SteamKit2.Internal;
 namespace IHLDota2Bot.Services;
 
 /// <summary>
-/// Owns the single SteamKit2 connection to Steam. Hosts the callback loop
-/// and exposes the Dota 2 GC operations (create lobby, invite players) so
-/// that both <see cref="Dota2Service"/> and the <see cref="LobbyPoolManager"/>
-/// can drive Steam-side actions without a DI cycle.
+/// One SteamKit2 connection for a single Steam account. Owns the callback
+/// loop and exposes the Dota 2 GC operations (create lobby, invite players).
+///
+/// Instances are created and owned by <see cref="SteamGcClientPool"/>, which
+/// holds one client per configured bot/pool account so the league can run
+/// concurrent Dota lobbies.
 /// </summary>
 public sealed class SteamGcClient
 {
     private const uint DotaAppId = 570;
 
+    private readonly string username;
+    private readonly string password;
     private readonly DiscordClient discordClient;
-    private readonly ILogger<SteamGcClient> logger;
-    private readonly SteamOptions steamOptions;
+    private readonly ILogger logger;
 
     private readonly SteamKit2.SteamClient steamClient;
     private readonly SteamUser steamUser;
@@ -30,18 +31,18 @@ public sealed class SteamGcClient
     private readonly CallbackManager callbackManager;
 
     private bool isRunning;
+    private bool isLoggedOn;
 
-    public SteamGcClient(
-        DiscordClient discordClient,
-        IOptions<SteamOptions> steamOptions,
-        ILogger<SteamGcClient> logger)
+    public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
         ArgumentNullException.ThrowIfNull(discordClient);
-        ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
+        this.username = username;
+        this.password = password;
         this.discordClient = discordClient;
-        this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
         steamClient = new SteamKit2.SteamClient();
@@ -55,7 +56,9 @@ public sealed class SteamGcClient
         callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
     }
 
+    public string Username => username;
     public bool IsRunning => isRunning;
+    public bool IsLoggedOn => isLoggedOn;
 
     public Task<bool> StartAsync()
     {
@@ -64,6 +67,14 @@ public sealed class SteamGcClient
         isRunning = true;
         _ = Task.Run(ConnectAndPumpCallbacks);
         return Task.FromResult(true);
+    }
+
+    public Task StopAsync()
+    {
+        isRunning = false;
+        isLoggedOn = false;
+        steamClient.Disconnect();
+        return Task.CompletedTask;
     }
 
     private void ConnectAndPumpCallbacks()
@@ -77,7 +88,7 @@ public sealed class SteamGcClient
 
     public async Task CreateLobbyAsync(CreateLobbyRequest req)
     {
-        logger.LogInformation("Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", req.LobbyName);
+        logger.LogInformation("[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", username, req.LobbyName);
 
         var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
         createLobbyMsg.Body.lobby_details = new CMsgPracticeLobbySetDetails
@@ -90,7 +101,7 @@ public sealed class SteamGcClient
 
         steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
 
-        var message = $"Lobby created: {req.LobbyName}";
+        var message = $"[{username}] Lobby created: {req.LobbyName}";
         logger.LogInformation("{Message}", message);
         await discordClient.SendMessageAsync(message);
     }
@@ -102,30 +113,23 @@ public sealed class SteamGcClient
             var inviteMsg = new ClientGCMsgProtobuf<CMsgInviteToLobby>((uint)EGCBaseMsg.k_EMsgGCInviteToLobby);
             inviteMsg.Body.steam_id = steamId;
 
-            logger.LogInformation("Invite sent to SteamID: {SteamId}", steamId);
+            logger.LogInformation("[{Username}] Invite sent to SteamID {SteamId}", username, steamId);
             steamGameCoordinator.Send(inviteMsg, DotaAppId);
         }
     }
 
     private void OnGCMessage(SteamGameCoordinator.MessageCallback callback)
     {
-        logger.LogInformation("GC message received. AppID: {AppId} Message: {EMsg}", callback.AppID, callback.EMsg);
+        logger.LogInformation("[{Username}] GC message: AppID {AppId} EMsg {EMsg}", username, callback.AppID, callback.EMsg);
     }
 
     private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
     {
-        var bot = steamOptions.BotAccount;
-        if (string.IsNullOrEmpty(bot.Username) || string.IsNullOrEmpty(bot.Password))
-        {
-            logger.LogError("Steam bot credentials are not configured. Set Steam:BotAccount in user-secrets.");
-            return;
-        }
-
-        logger.LogInformation("Attempting Steam authentication as {Username}", bot.Username);
+        logger.LogInformation("[{Username}] Attempting Steam authentication", username);
         steamUser.LogOn(new SteamUser.LogOnDetails
         {
-            Username = bot.Username,
-            Password = bot.Password
+            Username = username,
+            Password = password
         });
     }
 
@@ -133,11 +137,12 @@ public sealed class SteamGcClient
     {
         if (callback.Result != EResult.OK)
         {
-            logger.LogError("Steam authentication failed: {Result}", callback.Result);
+            logger.LogError("[{Username}] Steam authentication failed: {Result}", username, callback.Result);
             return;
         }
 
-        logger.LogInformation("Steam authentication successful");
+        isLoggedOn = true;
+        logger.LogInformation("[{Username}] Steam authentication successful", username);
         steamFriends.SetPersonaState(EPersonaState.Online);
 
         var hello = new ClientGCMsgProtobuf<SteamKit2.GC.Dota.Internal.CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
@@ -147,6 +152,6 @@ public sealed class SteamGcClient
         gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = DotaAppId });
         steamClient.Send(gamePlayed);
 
-        logger.LogInformation("Notified Steam that we are 'playing' Dota 2.");
+        logger.LogInformation("[{Username}] Notified Steam that we are 'playing' Dota 2", username);
     }
 }

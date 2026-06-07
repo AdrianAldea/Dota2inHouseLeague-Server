@@ -10,7 +10,7 @@ public class Dota2Service
 {
     private readonly DiscordClient discordClient;
     private readonly LobbyPoolManager poolManager;
-    private readonly SteamGcClient steamGc;
+    private readonly SteamGcClientPool steamGcPool;
     private readonly IPlayerRepository playerRepository;
     private readonly IMatchRepository matchRepository;
     private readonly IChallengeRepository challengeRepository;
@@ -19,7 +19,7 @@ public class Dota2Service
     public Dota2Service(
         DiscordClient discordClient,
         LobbyPoolManager poolManager,
-        SteamGcClient steamGc,
+        SteamGcClientPool steamGcPool,
         IPlayerRepository playerRepository,
         IMatchRepository matchRepository,
         IChallengeRepository challengeRepository,
@@ -27,7 +27,7 @@ public class Dota2Service
     {
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(poolManager);
-        ArgumentNullException.ThrowIfNull(steamGc);
+        ArgumentNullException.ThrowIfNull(steamGcPool);
         ArgumentNullException.ThrowIfNull(playerRepository);
         ArgumentNullException.ThrowIfNull(matchRepository);
         ArgumentNullException.ThrowIfNull(challengeRepository);
@@ -35,18 +35,47 @@ public class Dota2Service
 
         this.discordClient = discordClient;
         this.poolManager = poolManager;
-        this.steamGc = steamGc;
+        this.steamGcPool = steamGcPool;
         this.playerRepository = playerRepository;
         this.matchRepository = matchRepository;
         this.challengeRepository = challengeRepository;
         this.logger = logger;
     }
 
-    public Task<bool> StartServerAsync() => steamGc.StartAsync();
+    /// <summary>
+    /// Connects every configured Steam bot. With one BotAccount + N PoolAccounts,
+    /// this opens N+1 SteamKit connections.
+    /// </summary>
+    public Task<bool> StartServerAsync() => steamGcPool.StartAllAsync();
 
-    public void InvitePlayersToLobby(IList<ulong> steamIds) => steamGc.InvitePlayersToLobby(steamIds);
+    /// <summary>
+    /// Admin passthrough — uses the default (BotAccount) client. The queue-driven
+    /// flow in LobbyPoolManager picks a per-match client from the pool instead.
+    /// </summary>
+    public void InvitePlayersToLobby(IList<ulong> steamIds)
+    {
+        var client = steamGcPool.Default;
+        if (client == null)
+        {
+            logger.LogError("InvitePlayersToLobby called but no Steam clients are configured.");
+            return;
+        }
+        client.InvitePlayersToLobby(steamIds);
+    }
 
-    public Task CreateLobbyAsync(CreateLobbyRequest createLobbyRequest) => steamGc.CreateLobbyAsync(createLobbyRequest);
+    /// <summary>
+    /// Admin passthrough — uses the default (BotAccount) client.
+    /// </summary>
+    public Task CreateLobbyAsync(CreateLobbyRequest createLobbyRequest)
+    {
+        var client = steamGcPool.Default;
+        if (client == null)
+        {
+            logger.LogError("CreateLobbyAsync called but no Steam clients are configured.");
+            return Task.CompletedTask;
+        }
+        return client.CreateLobbyAsync(createLobbyRequest);
+    }
 
     public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {

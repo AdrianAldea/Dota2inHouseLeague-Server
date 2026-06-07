@@ -17,7 +17,7 @@ public class LobbyPoolManager : IHostedService
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
-    private readonly SteamGcClient steamGc;
+    private readonly SteamGcClientPool steamGcPool;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
     private readonly Dictionary<string, LobbySession> activeSessions = new();
@@ -32,7 +32,7 @@ public class LobbyPoolManager : IHostedService
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
         IMatchRepository matchRepository,
-        SteamGcClient steamGc,
+        SteamGcClientPool steamGcPool,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
     {
@@ -40,7 +40,7 @@ public class LobbyPoolManager : IHostedService
         ArgumentNullException.ThrowIfNull(lobbyQueue);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(matchRepository);
-        ArgumentNullException.ThrowIfNull(steamGc);
+        ArgumentNullException.ThrowIfNull(steamGcPool);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -48,7 +48,7 @@ public class LobbyPoolManager : IHostedService
         this.lobbyQueue = lobbyQueue;
         this.discordClient = discordClient;
         this.matchRepository = matchRepository;
-        this.steamGc = steamGc;
+        this.steamGcPool = steamGcPool;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
@@ -181,39 +181,49 @@ public class LobbyPoolManager : IHostedService
             }
 
             // Tell Steam to spin up the actual Dota 2 practice lobby and invite the 10 players.
-            // The current implementation uses the singleton bot account in SteamGcClient,
-            // not the reserved pool account — see PR #11 description for the strategic
-            // multi-bot pool follow-up.
+            // The Steam GC operations run on the *specific* SteamGcClient for the reserved
+            // pool account, so multiple concurrent lobbies can co-exist on distinct bots.
             var lobbyShortId = lobby.Id.Length >= 8 ? lobby.Id[..8] : lobby.Id;
             var lobbyName = $"IHL-{lobbyShortId}";
             var lobbyPassword = $"ihl-{lobbyShortId}";
 
-            try
+            var botClient = steamGcPool.GetByUsername(account.Username);
+            if (botClient == null)
             {
-                await steamGc.CreateLobbyAsync(new CreateLobbyRequest
-                {
-                    AuthorId = account.Id,
-                    LobbyName = lobbyName,
-                    LobbyPassword = lobbyPassword
-                });
-
-                var steamIds = lobby.Players
-                    .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
-                    .Where(id => id > 0)
-                    .ToList();
-
-                if (steamIds.Count > 0)
-                {
-                    steamGc.InvitePlayersToLobby(steamIds);
-                }
-                else
-                {
-                    logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players", lobby.Id);
-                }
+                logger.LogError(
+                    "Lobby {LobbyId} reserved pool account {Username}, but no SteamGcClient is registered for that name. " +
+                    "Add the account to Steam:PoolAccounts (or Steam:BotAccount) in configuration.",
+                    lobby.Id, account.Username);
             }
-            catch (Exception ex)
+            else
             {
-                logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}", lobby.Id);
+                try
+                {
+                    await botClient.CreateLobbyAsync(new CreateLobbyRequest
+                    {
+                        AuthorId = account.Id,
+                        LobbyName = lobbyName,
+                        LobbyPassword = lobbyPassword
+                    });
+
+                    var steamIds = lobby.Players
+                        .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
+                        .Where(id => id > 0)
+                        .ToList();
+
+                    if (steamIds.Count > 0)
+                    {
+                        botClient.InvitePlayersToLobby(steamIds);
+                    }
+                    else
+                    {
+                        logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players", lobby.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}", lobby.Id);
+                }
             }
 
             var readyMessage = $"Lobby {lobby.Id} is ready! Steam lobby `{lobbyName}` (password `{lobbyPassword}`). Assigned account: {account.Username}";
