@@ -52,9 +52,17 @@ public class LobbyPoolManager : IHostedService
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
+        // LobbyQueue is pure domain. We own the Discord-facing translation of its events.
         this.lobbyQueue.LobbyReady += OnLobbyReady;
         this.lobbyQueue.LobbyCreated += OnLobbyCreated;
+        this.lobbyQueue.PlayerJoined += OnPlayerJoined;
+        this.lobbyQueue.PlayerLeft += OnPlayerLeft;
         this.lobbyQueue.PlayerReady += OnPlayerReady;
+        this.lobbyQueue.PlayerUnready += OnPlayerUnready;
+        this.lobbyQueue.PlayerKicked += OnPlayerKicked;
+        this.lobbyQueue.LobbyReset += OnLobbyReset;
+        this.lobbyQueue.LobbyFinished += OnLobbyFinished;
+        this.lobbyQueue.LobbyFull += OnLobbyFull;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -275,16 +283,73 @@ public class LobbyPoolManager : IHostedService
     private async void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e)
     {
         var message = $"New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)";
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e)
+    {
+        var message = $"{e.Player.Username} joined the queue ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnPlayerLeft(object? sender, PlayerLeftEventArgs e)
+    {
+        var message = $"{e.Player.Username} left the queue ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+        await SafeBroadcastAsync(message);
     }
 
     private async void OnPlayerReady(object? sender, PlayerReadyEventArgs e)
     {
         var lobby = lobbyQueue.GetCurrentLobby();
         var message = $"{e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e)
+    {
+        var message = $"{e.Player.Username} is no longer ready";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnPlayerKicked(object? sender, PlayerKickedEventArgs e)
+    {
+        var message = $"{e.Player.Username} was kicked from the lobby ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnLobbyReset(object? sender, LobbyResetEventArgs e)
+    {
+        var message = $"Queue reset. {e.RemovedPlayerCount} player(s) removed from the current lobby.";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e)
+    {
+        var message = $"Lobby {e.Lobby.Id} has finished. Players can now join the next lobby.";
+        await SafeBroadcastAsync(message);
+    }
+
+    private async void OnLobbyFull(object? sender, LobbyFullEventArgs e)
+    {
+        var message = $"Lobby {e.Lobby.Id} is full ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby}). Waiting for everyone to !ready.";
+        await SafeBroadcastAsync(message);
+    }
+
+    /// <summary>
+    /// Wraps a Discord broadcast so a transport failure can't kill the event-handler
+    /// thread (these are async void handlers).
+    /// </summary>
+    private async Task SafeBroadcastAsync(string message)
+    {
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        try
+        {
+            await discordClient.SendMessageAsync(message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to broadcast to Discord: {Message}", message);
+        }
     }
 
     public async Task NotifyGameStartedAsync(string lobbyId)

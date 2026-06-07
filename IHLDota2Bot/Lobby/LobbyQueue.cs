@@ -1,37 +1,43 @@
-using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.DTOs;
 
 namespace IHLDota2Bot;
 
 /// <summary>
 /// Manages the lobby queue and player registration.
+///
+/// Notification: this class is pure domain — it does not depend on Discord
+/// (or any other UI/transport). It exposes events that subscribers (e.g.
+/// <see cref="LobbyPoolManager"/>) translate into Discord broadcasts or any
+/// other side effect. Tests can drive the queue without mocking I/O.
 /// </summary>
 public class LobbyQueue
 {
     private readonly List<Player> registeredPlayers = [];
     private readonly List<Lobby> lobbies = [];
     private readonly Lock lockObject = new();
-    private readonly DiscordClient discordClient;
     private readonly ILogger<LobbyQueue> logger;
     private Lobby currentLobby;
 
     public event EventHandler<LobbyCreatedEventArgs>? LobbyCreated;
     public event EventHandler<PlayerJoinedEventArgs>? PlayerJoined;
+    public event EventHandler<PlayerLeftEventArgs>? PlayerLeft;
     public event EventHandler<PlayerReadyEventArgs>? PlayerReady;
+    public event EventHandler<PlayerUnreadyEventArgs>? PlayerUnready;
+    public event EventHandler<PlayerKickedEventArgs>? PlayerKicked;
     public event EventHandler<LobbyFullEventArgs>? LobbyFull;
     public event EventHandler<LobbyReadyEventArgs>? LobbyReady;
+    public event EventHandler<LobbyResetEventArgs>? LobbyReset;
+    public event EventHandler<LobbyFinishedEventArgs>? LobbyFinished;
 
-    public LobbyQueue(DiscordClient discordClient, ILogger<LobbyQueue> logger)
+    public LobbyQueue(ILogger<LobbyQueue> logger)
     {
-        ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(logger);
 
-        this.discordClient = discordClient;
         this.logger = logger;
         currentLobby = CreateLobbyUnlocked();
     }
 
-    public async Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId)
+    public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId)
     {
         bool added = false;
         bool lobbyFull = false;
@@ -90,26 +96,26 @@ public class LobbyQueue
             LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = currentLobby });
 
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
-
-        return new QueueOperationResponse { Success = added, Message = message };
+        return Task.FromResult(new QueueOperationResponse { Success = added, Message = message });
     }
 
-    public async Task<QueueOperationResponse> LeaveQueueAsync(ulong userId)
+    public Task<QueueOperationResponse> LeaveQueueAsync(ulong userId)
     {
         bool removed = false;
+        Player? player;
+        Lobby? lobby = null;
         string message;
 
         lock (lockObject)
         {
-            var player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
+            player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
             if (player == null || player.CurrentLobbyId == null)
             {
                 message = "You are not in the queue";
             }
             else
             {
-                var lobby = lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
+                lobby = lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
                 lobby?.Players.Remove(player);
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
@@ -118,20 +124,22 @@ public class LobbyQueue
             }
         }
 
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        if (removed && player != null && lobby != null)
+            PlayerLeft?.Invoke(this, new PlayerLeftEventArgs { Player = player, Lobby = lobby });
 
-        return new QueueOperationResponse { Success = removed, Message = message };
+        logger.LogInformation("{Message}", message);
+        return Task.FromResult(new QueueOperationResponse { Success = removed, Message = message });
     }
 
-    public async Task<QueueOperationResponse> MarkPlayerUnreadyAsync(ulong userId)
+    public Task<QueueOperationResponse> MarkPlayerUnreadyAsync(ulong userId)
     {
         bool changed = false;
+        Player? player;
         string message;
 
         lock (lockObject)
         {
-            var player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
+            player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
             if (player == null || player.CurrentLobbyId == null)
             {
                 message = "You are not in a lobby";
@@ -148,27 +156,30 @@ public class LobbyQueue
             }
         }
 
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        if (changed && player != null)
+            PlayerUnready?.Invoke(this, new PlayerUnreadyEventArgs { Player = player });
 
-        return new QueueOperationResponse { Success = changed, Message = message };
+        logger.LogInformation("{Message}", message);
+        return Task.FromResult(new QueueOperationResponse { Success = changed, Message = message });
     }
 
-    public async Task<QueueOperationResponse> KickFromLobbyAsync(ulong userId)
+    public Task<QueueOperationResponse> KickFromLobbyAsync(ulong userId)
     {
         bool kicked = false;
+        Player? player;
+        Lobby? lobby = null;
         string message;
 
         lock (lockObject)
         {
-            var player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
+            player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
             if (player == null || player.CurrentLobbyId == null)
             {
                 message = "User is not in a lobby.";
             }
             else
             {
-                var lobby = lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
+                lobby = lobbies.FirstOrDefault(l => l.Id == player.CurrentLobbyId);
                 lobby?.Players.Remove(player);
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
@@ -177,12 +188,14 @@ public class LobbyQueue
             }
         }
 
+        if (kicked && player != null && lobby != null)
+            PlayerKicked?.Invoke(this, new PlayerKickedEventArgs { Player = player, Lobby = lobby });
+
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
-        return new QueueOperationResponse { Success = kicked, Message = message };
+        return Task.FromResult(new QueueOperationResponse { Success = kicked, Message = message });
     }
 
-    public async Task<QueueOperationResponse> ForceLobbyReadyAsync()
+    public Task<QueueOperationResponse> ForceLobbyReadyAsync()
     {
         Lobby lobby;
         int count;
@@ -190,7 +203,7 @@ public class LobbyQueue
         lock (lockObject)
         {
             if (currentLobby.Players.Count == 0)
-                return new QueueOperationResponse { Success = false, Message = "Current lobby is empty." };
+                return Task.FromResult(new QueueOperationResponse { Success = false, Message = "Current lobby is empty." });
 
             foreach (var p in currentLobby.Players) p.IsReady = true;
             currentLobby.State = LobbyState.Ready;
@@ -202,13 +215,13 @@ public class LobbyQueue
 
         var message = $"Lobby {lobby.Id} force-started with {count} player(s).";
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
-        return new QueueOperationResponse { Success = true, Message = message };
+        return Task.FromResult(new QueueOperationResponse { Success = true, Message = message });
     }
 
-    public async Task<QueueOperationResponse> ResetCurrentLobbyAsync()
+    public Task<QueueOperationResponse> ResetCurrentLobbyAsync()
     {
         int count;
+        Lobby resetLobby;
 
         lock (lockObject)
         {
@@ -220,12 +233,14 @@ public class LobbyQueue
             }
             currentLobby.Players.Clear();
             currentLobby.State = LobbyState.Waiting;
+            resetLobby = currentLobby;
         }
+
+        LobbyReset?.Invoke(this, new LobbyResetEventArgs { Lobby = resetLobby, RemovedPlayerCount = count });
 
         var message = $"Queue reset. {count} player(s) removed from the current lobby.";
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
-        return new QueueOperationResponse { Success = true, Message = message };
+        return Task.FromResult(new QueueOperationResponse { Success = true, Message = message });
     }
 
     public bool RemovePlayerCompletely(ulong userId)
@@ -276,7 +291,7 @@ public class LobbyQueue
         }
     }
 
-    public async Task<QueueOperationResponse> MarkPlayerReadyAsync(ulong userId)
+    public Task<QueueOperationResponse> MarkPlayerReadyAsync(ulong userId)
     {
         Player? player;
         Lobby? readyLobby = null;
@@ -312,17 +327,14 @@ public class LobbyQueue
             PlayerReady?.Invoke(this, new PlayerReadyEventArgs { Player = player! });
 
         logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
 
         if (readyLobby != null)
         {
             LobbyReady?.Invoke(this, new LobbyReadyEventArgs { Lobby = readyLobby });
-            var readyMessage = $"Lobby {readyLobby.Id} is READY! All players ready.";
-            logger.LogInformation("{Message}", readyMessage);
-            await discordClient.SendMessageAsync(readyMessage);
+            logger.LogInformation("Lobby {LobbyId} is READY! All players ready.", readyLobby.Id);
         }
 
-        return new QueueOperationResponse { Success = changed, Message = message };
+        return Task.FromResult(new QueueOperationResponse { Success = changed, Message = message });
     }
 
     private bool CheckLobbyAllReadyUnlocked(string lobbyId)
@@ -332,7 +344,7 @@ public class LobbyQueue
         return lobby.Players.Count == LeagueConstants.PlayersPerLobby && lobby.Players.All(p => p.IsReady);
     }
 
-    public async Task FinishLobbyAsync(string lobbyId)
+    public Task FinishLobbyAsync(string lobbyId)
     {
         Lobby? lobby;
         Lobby? newLobby = null;
@@ -356,22 +368,21 @@ public class LobbyQueue
             }
         }
 
-        if (lobby == null) return;
+        if (lobby == null) return Task.CompletedTask;
 
-        var finishedMessage = $"Lobby {lobby.Id} has finished. Players can now join the next lobby.";
-        logger.LogInformation("{Message}", finishedMessage);
-        await discordClient.SendMessageAsync(finishedMessage);
+        LobbyFinished?.Invoke(this, new LobbyFinishedEventArgs { Lobby = lobby });
+        logger.LogInformation("Lobby {LobbyId} has finished.", lobby.Id);
 
         if (newLobby != null)
         {
             LobbyCreated?.Invoke(this, new LobbyCreatedEventArgs { Lobby = newLobby });
-            var createdMessage = $"New lobby created: {newLobby.Id} with {newLobby.Players.Count} players";
-            logger.LogInformation("{Message}", createdMessage);
-            await discordClient.SendMessageAsync(createdMessage);
+            logger.LogInformation("New lobby created: {LobbyId} with {Count} players", newLobby.Id, newLobby.Players.Count);
 
             if (newLobby.Players.Count == LeagueConstants.PlayersPerLobby)
                 LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = newLobby });
         }
+
+        return Task.CompletedTask;
     }
 
     private Lobby CreateLobbyUnlocked()
