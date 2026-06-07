@@ -99,9 +99,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
             case DiscordAction.PROFILE:
                 await ShowProfileAsync(userMessage);
                 break;
-            case DiscordAction.CREATE_LOBBY:
-                await CreateLobbyAsync(userMessage);
-                break;
             case DiscordAction.COMMANDS:
             case DiscordAction.HELP:
                 await ShowCommandsAsync(userMessage, parts);
@@ -602,40 +599,17 @@ public class DiscordService : IHostedService, IAsyncDisposable
         var author = message.Author;
         if (author == null) return;
 
-        var profileResponse = await steamClient.ShowProfileAsync(author.Id);
-        if (profileResponse == null)
+        // /player/{id} used to be a separate shape; it now returns PlayerStatsResponse
+        // (same data as !mystats / !stats @user). Reuse the same formatter so the
+        // !profile and !stats output stays in sync.
+        var stats = await steamClient.GetPlayerStatsAsync(author.Id);
+        if (stats == null)
         {
-            await message.Channel.SendMessageAsync("Profile not found.");
+            await message.Channel.SendMessageAsync("Profile not found. Register with `!register <steamId>` first.");
             return;
         }
 
-        var profile = MessagesFormatter.FormatProfile(
-            profileResponse.Username,
-            profileResponse.SteamId,
-            profileResponse.Rating,
-            profileResponse.Matches,
-            profileResponse.Wins);
-
-        await message.Channel.SendMessageAsync(profile);
-    }
-
-    private async Task CreateLobbyAsync(SocketUserMessage message)
-    {
-        var author = message.Author;
-        if (author == null) return;
-
-        var lobbyResponse = await steamClient.CreateLobbyAsync(author.Id);
-        if (lobbyResponse == null)
-        {
-            await message.Channel.SendMessageAsync("Failed to create lobby.");
-            return;
-        }
-
-        var createLobbyMessage = MessagesFormatter.FormatCreateLobby(
-            lobbyResponse.LobbyName,
-            lobbyResponse.LobbyId);
-
-        await message.Channel.SendMessageAsync(createLobbyMessage);
+        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
     }
 
     private static async Task ShowCommandsAsync(SocketUserMessage message, string[] parts)
@@ -674,7 +648,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
             "`!challenge @user` — 1v1 duel invite (expires in 15 min)",
             "`!accept_match` — accept your latest pending challenge",
             "`!decline_match` — decline your latest pending challenge",
-            "`!create_lobby` — create a new lobby",
             "`!rank` / `!rank @user` — leaderboard rank + percentile",
             "`!score <matchId>` — show a finished match by id",
             "`!ping` — bot health and gateway latency",

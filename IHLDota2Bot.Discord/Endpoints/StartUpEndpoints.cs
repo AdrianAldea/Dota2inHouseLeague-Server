@@ -1,11 +1,12 @@
 using IHLDota2Bot.Common.Requests;
+using IHLDota2Bot.Discord.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 
-namespace IHLDota2Bot.Discord.Discord;
+namespace IHLDota2Bot.Discord.Endpoints;
 
-public static class DiscordStartUpEndpoints
+public static class StartUpEndpoints
 {
-    public static void MapDiscordStartUpEndpoints(this RouteGroupBuilder group)
+    public static void MapStartUpEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/start", StartServer);
         group.MapPost("/stop", StopServer);
@@ -14,29 +15,25 @@ public static class DiscordStartUpEndpoints
 
     private static async Task HandleMessage(
         MessageRequest messageRequest,
-        Services.DiscordService service,
-        CancellationToken cancellationToken
-    )
+        DiscordService service,
+        CancellationToken cancellationToken)
     {
         await service.SendMessageAsync(messageRequest.Message, cancellationToken);
     }
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(
-        Services.DiscordService service,
-        CancellationToken cancellationToken
-    )
+        DiscordService service,
+        CancellationToken cancellationToken)
     {
         await service.StartAsync(cancellationToken);
         return TypedResults.Ok(service.IsRunning);
     }
 
     private static async Task<Results<Ok, StatusCodeHttpResult>> StopServer(
-        Services.DiscordService service,
-        CancellationToken cancellationToken
-    )
+        DiscordService service,
+        CancellationToken cancellationToken)
     {
         await service.StopAsync(cancellationToken);
-
         return TypedResults.Ok();
     }
 }

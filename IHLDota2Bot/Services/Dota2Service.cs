@@ -50,6 +50,9 @@ public class Dota2Service
 
     public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {
+        // Register only persists the player. Opt-in to matchmaking happens via JoinQueueAsync
+        // (the `!queue` command). Coupling these two would mean every !register surprises the
+        // user with an immediate queue entry they didn't ask for.
         var steamIdString = request.SteamId.ToString();
 
         var persisted = await playerRepository.UpsertAsync(new PlayerEntity
@@ -59,8 +62,6 @@ public class Dota2Service
             SteamId = steamIdString
         }, cancellationToken);
 
-        await poolManager.RegisterPlayerAsync(request.UserId, request.Username, steamIdString);
-
         return new RegisteredPlayer
         {
             SteamId = persisted.SteamId,
@@ -69,17 +70,11 @@ public class Dota2Service
         };
     }
 
-    public async Task<PlayerProfile?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default)
-    {
-        var player = await playerRepository.GetByUserIdAsync(playerId, cancellationToken);
-        if (player == null) return null;
-
-        return new PlayerProfile
-        {
-            Id = player.UserId.ToString(),
-            Name = player.Username
-        };
-    }
+    public Task<PlayerStatsResponse?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default) =>
+        // /player/{id} used to return a sparse {Id, Name} DTO that the Discord !profile
+        // formatter then expanded with missing fields (Rating, Wins, …) the server never
+        // sent. Just delegate to the stats query so both endpoints return identical data.
+        playerRepository.GetStatsAsync(playerId, cancellationToken);
 
     public Task<QueueOperationResponse> MarkPlayerAsReadyAsync(ulong id) => poolManager.MarkPlayerReadyAsync(id);
 

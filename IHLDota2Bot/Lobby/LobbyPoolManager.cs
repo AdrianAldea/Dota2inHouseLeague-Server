@@ -71,9 +71,6 @@ public class LobbyPoolManager : IHostedService
     public List<SteamAccount> GetSteamAccounts() => accountPool.GetAllAccounts();
     public int GetAvailableAccountCount() => accountPool.GetAvailableAccountCount();
 
-    public Task RegisterPlayerAsync(ulong userId, string username, string steamId) =>
-        lobbyQueue.RegisterPlayerAsync(userId, username, steamId);
-
     public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId) =>
         lobbyQueue.JoinQueueAsync(userId, username, steamId);
 
