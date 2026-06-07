@@ -52,7 +52,9 @@ public sealed class SteamGcClient
 
         callbackManager = new CallbackManager(steamClient);
         callbackManager.Subscribe<SteamKit2.SteamClient.ConnectedCallback>(OnConnected);
+        callbackManager.Subscribe<SteamKit2.SteamClient.DisconnectedCallback>(OnDisconnected);
         callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
+        callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
         callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
 
         StartAsync();
@@ -81,11 +83,36 @@ public sealed class SteamGcClient
 
     private void ConnectAndPumpCallbacks()
     {
-        steamClient.Connect();
+        logger.LogInformation("[{Username}] Steam connection task starting", username);
+
+        try
+        {
+            steamClient.Connect();
+            logger.LogDebug("[{Username}] steamClient.Connect() returned, entering callback pump", username);
+        }
+        catch (Exception ex)
+        {
+            // Don't bail — the loop below will keep RunWaitCallbacks alive, and OnDisconnected
+            // (when SteamKit eventually realises) will trigger the reconnect path.
+            logger.LogError(ex, "[{Username}] Initial Connect() threw; loop will continue and retry via OnDisconnected", username);
+        }
+
         while (isRunning)
         {
-            callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(1));
+            try
+            {
+                callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(1));
+            }
+            catch (Exception ex)
+            {
+                // Without this catch, one bad packet would terminate the loop forever
+                // and leave isRunning=true (so StartAsync wouldn't even retry).
+                logger.LogError(ex, "[{Username}] Exception in RunWaitCallbacks; continuing", username);
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+            }
         }
+
+        logger.LogInformation("[{Username}] Steam connection task exiting (clean shutdown)", username);
     }
 
     public async Task CreateLobbyAsync(CreateLobbyRequest req)
@@ -127,13 +154,56 @@ public sealed class SteamGcClient
 
     private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
     {
-        logger.LogInformation("[{Username}] Attempting Steam authentication", username);
+        logger.LogInformation("[{Username}] Connected to Steam; attempting authentication", username);
         steamUser.LogOn(new SteamUser.LogOnDetails
         {
             Username = username,
             Password = password
         });
     }
+
+    private void OnDisconnected(SteamKit2.SteamClient.DisconnectedCallback callback)
+    {
+        isLoggedOn = false;
+
+        if (!isRunning)
+        {
+            logger.LogInformation("[{Username}] Disconnected from Steam (clean shutdown)", username);
+            return;
+        }
+
+        // Reconnect with a short fixed backoff. SteamKit's RunWaitCallbacks loop
+        // is still pumping (we never set isRunning=false here) so when Connect()
+        // succeeds the ConnectedCallback will fire again and re-trigger LogOn.
+        logger.LogWarning(
+            "[{Username}] Disconnected from Steam (UserInitiated={UserInitiated}); reconnecting in {Delay}s",
+            username, callback.UserInitiated, ReconnectDelay.TotalSeconds);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(ReconnectDelay);
+                if (!isRunning) return;
+                logger.LogInformation("[{Username}] Reconnecting to Steam", username);
+                steamClient.Connect();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[{Username}] Reconnect attempt threw", username);
+            }
+        });
+    }
+
+    private void OnLoggedOff(SteamUser.LoggedOffCallback callback)
+    {
+        isLoggedOn = false;
+        // SteamKit will fire a DisconnectedCallback right after — that path
+        // owns the reconnect logic. Just record the reason here.
+        logger.LogWarning("[{Username}] Logged off Steam: {Result}", username, callback.Result);
+    }
+
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
 
     private void OnLoggedOn(SteamUser.LoggedOnCallback callback)
     {
