@@ -56,8 +56,6 @@ public sealed class SteamGcClient
         callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
         callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
         callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
-
-        StartAsync();
     }
 
     public string Username => username;
