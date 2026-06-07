@@ -199,8 +199,8 @@ public class LobbyPoolManager : IHostedService
             // The Steam GC operations run on the *specific* SteamGcClient for the reserved
             // pool account, so multiple concurrent lobbies can co-exist on distinct bots.
             var lobbyShortId = lobby.Id.Length >= 8 ? lobby.Id[..8] : lobby.Id;
-            var lobbyName = $"IHL-{lobbyShortId}";
-            var lobbyPassword = $"ihl-{lobbyShortId}";
+            var lobbyName = $"Dota2IHL-{lobbyShortId}";
+            var lobbyPassword = $"Dota2IHL-{lobbyShortId}";
 
             var botClient = steamGcPool.GetByUsername(account.Username);
             if (botClient == null)

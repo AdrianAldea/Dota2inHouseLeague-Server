@@ -1,6 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL")
+var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", port: 52001)
     .WithLifetime(ContainerLifetime.Persistent);
 
 var db = sql.AddDatabase("Dota2inHouseLeagueDB");
