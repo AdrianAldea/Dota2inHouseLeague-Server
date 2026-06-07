@@ -103,8 +103,23 @@ public class LobbyPoolManager : IHostedService
         if (accountPool.GetAccountByUsername(username) != null)
             return new QueueOperationResponse { Success = false, Message = $"Account {username} already exists." };
 
+        // Register the Steam connection FIRST. If we don't have a real Steam
+        // client for this account, reserving it from the bookkeeping pool later
+        // would silently fail to create a Dota lobby. Better to refuse the add
+        // outright than leave a half-wired account behind.
+        var (gcAdded, gcMessage) = await steamGcPool.TryAddAccountAsync(username, password);
+        if (!gcAdded)
+        {
+            logger.LogWarning("Refusing AddSteamAccount({Username}): SteamGcClientPool refused — {Message}", username, gcMessage);
+            return new QueueOperationResponse { Success = false, Message = gcMessage };
+        }
+
         await accountPool.RegisterAccountAsync(username, password);
-        return new QueueOperationResponse { Success = true, Message = $"Steam account {username} registered." };
+        return new QueueOperationResponse
+        {
+            Success = true,
+            Message = $"Steam account {username} registered and connecting."
+        };
     }
 
     public PoolStatusResponse GetPoolStatusResponse()
@@ -192,8 +207,15 @@ public class LobbyPoolManager : IHostedService
             {
                 logger.LogError(
                     "Lobby {LobbyId} reserved pool account {Username}, but no SteamGcClient is registered for that name. " +
-                    "Add the account to Steam:PoolAccounts (or Steam:BotAccount) in configuration.",
+                    "Add the account via Steam:PoolAccounts in configuration, or use !add_account at runtime.",
                     lobby.Id, account.Username);
+            }
+            else if (!botClient.IsLoggedOn)
+            {
+                logger.LogWarning(
+                    "Lobby {LobbyId} reserved pool account {Username}, but its Steam client isn't logged on yet. " +
+                    "Skipping CreateLobby / invites. Match still persisted; admin can invoke /admin/game/finished/{LobbyId} to release the account.",
+                    lobby.Id, account.Username, lobby.Id);
             }
             else
             {
@@ -281,9 +303,10 @@ public class LobbyPoolManager : IHostedService
 
         if (session == null)
         {
-            var warn = $"Session {lobbyId} not found";
-            logger.LogWarning("{Message}", warn);
-            await discordClient.SendMessageAsync(warn);
+            // Logger-only: idempotent admin calls (clicking Mark Game Started/Finished
+            // twice, or the auto-call from OnLobbyReady when the session was never
+            // created because no Steam client was available) shouldn't spam the channel.
+            logger.LogDebug("NotifyGameStartedAsync: session {LobbyId} not found", lobbyId);
             return;
         }
 
@@ -310,9 +333,10 @@ public class LobbyPoolManager : IHostedService
 
         if (session == null)
         {
-            var warn = $"Session {lobbyId} not found";
-            logger.LogWarning("{Message}", warn);
-            await discordClient.SendMessageAsync(warn);
+            // Logger-only — see comment above. !report also calls this and we
+            // don't want every report to risk a noisy "Session not found" if the
+            // lobby was finished some other way.
+            logger.LogDebug("NotifyGameFinishedAsync: session {LobbyId} not found", lobbyId);
             return;
         }
 
