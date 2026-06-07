@@ -1,76 +1,63 @@
-using IHLDota2Bot.Clients;
-
 namespace IHLDota2Bot;
 
 /// <summary>
-/// Manages a pool of Steam accounts for creating lobbies.
+/// Bookkeeping for the set of Steam accounts the league can hand out to matches.
+/// Pure domain — no Discord/UI dependency. Each state transition is logged so
+/// the Aspire dashboard shows who has what, without spamming the chat channel.
 /// </summary>
 public class SteamAccountPool
 {
     private readonly List<SteamAccount> accounts = [];
     private readonly Lock lockObject = new();
-    private readonly DiscordClient discordClient;
     private readonly ILogger<SteamAccountPool> logger;
 
-    public SteamAccountPool(DiscordClient discordClient, ILogger<SteamAccountPool> logger)
+    public SteamAccountPool(ILogger<SteamAccountPool> logger)
     {
-        ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(logger);
-
-        this.discordClient = discordClient;
         this.logger = logger;
     }
 
-    public async Task RegisterAccountAsync(string username, string password)
+    public Task RegisterAccountAsync(string username, string password)
     {
-        string message;
         lock (lockObject)
         {
-            if (accounts.Any(a => a.Username == username))
+            var existing = accounts.FirstOrDefault(a => a.Username == username);
+            if (existing != null)
             {
-                var existing = accounts.First(a => a.Username == username);
-                message = $"Account {username} already exists in pool with state {existing.State}";
+                logger.LogInformation("Account {Username} already exists in pool (state {State})", username, existing.State);
+                return Task.CompletedTask;
             }
-            else
-            {
-                accounts.Add(new SteamAccount
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Username = username,
-                    Password = password,
-                    State = AccountState.Ready,
-                    RegisteredAt = DateTime.UtcNow
-                });
-                message = $"Account {username} registered successfully.";
-            }
-        }
 
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+            accounts.Add(new SteamAccount
+            {
+                Id = Guid.NewGuid().ToString(),
+                Username = username,
+                Password = password,
+                State = AccountState.Ready,
+                RegisteredAt = DateTime.UtcNow
+            });
+            logger.LogInformation("Account {Username} registered in pool", username);
+        }
+        return Task.CompletedTask;
     }
 
-    public async Task<SteamAccount?> GetAvailableAccountAsync()
+    public Task<SteamAccount?> GetAvailableAccountAsync()
     {
         SteamAccount? available;
-        string message;
-
         lock (lockObject)
         {
             available = accounts.FirstOrDefault(a => a.State == AccountState.Ready);
             if (available != null)
             {
                 available.State = AccountState.InUse;
-                message = $"Account {available.Username} is now in use.";
+                logger.LogInformation("Account {Username} reserved (now InUse)", available.Username);
             }
             else
             {
-                message = "No available accounts in pool";
+                logger.LogWarning("No available accounts in pool");
             }
         }
-
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
-        return available;
+        return Task.FromResult(available);
     }
 
     public SteamAccount? GetAccountByUsername(string username)
@@ -89,48 +76,36 @@ public class SteamAccountPool
         }
     }
 
-    public async Task ReleaseAccountAsync(string accountId)
+    public Task ReleaseAccountAsync(string accountId)
     {
-        SteamAccount? account;
         lock (lockObject)
         {
-            account = accounts.FirstOrDefault(a => a.Id == accountId);
+            var account = accounts.FirstOrDefault(a => a.Id == accountId);
             if (account != null)
             {
                 account.State = AccountState.Ready;
                 account.LastUsedAt = DateTime.UtcNow;
                 account.CurrentLobbyId = null;
+                logger.LogInformation("Account {Username} released back to pool", account.Username);
             }
         }
-
-        if (account != null)
-        {
-            var message = $"Account {account.Username} released back to pool";
-            logger.LogInformation("{Message}", message);
-            await discordClient.SendMessageAsync(message);
-        }
+        return Task.CompletedTask;
     }
 
-    public async Task MarkAccountInUseAsync(string accountId, string lobbyId)
+    public Task MarkAccountInUseAsync(string accountId, string lobbyId)
     {
-        SteamAccount? account;
         lock (lockObject)
         {
-            account = accounts.FirstOrDefault(a => a.Id == accountId);
+            var account = accounts.FirstOrDefault(a => a.Id == accountId);
             if (account != null)
             {
                 account.State = AccountState.InUse;
                 account.CurrentLobbyId = lobbyId;
                 account.LastUsedAt = DateTime.UtcNow;
+                logger.LogInformation("Account {Username} marked in use for lobby {LobbyId}", account.Username, lobbyId);
             }
         }
-
-        if (account != null)
-        {
-            var message = $"Account {account.Username} marked in use for lobby {lobbyId}";
-            logger.LogInformation("{Message}", message);
-            await discordClient.SendMessageAsync(message);
-        }
+        return Task.CompletedTask;
     }
 
     public AccountPoolStats GetStats()

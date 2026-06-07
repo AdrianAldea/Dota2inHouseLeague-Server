@@ -39,6 +39,7 @@ builder.Services.AddSingleton<DiscordClient>();
 builder.Services.AddSingleton<SteamAccountPool>();
 builder.Services.AddSingleton<LobbyQueue>();
 builder.Services.AddSingleton<SteamGcClientPool>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SteamGcClientPool>());
 builder.Services.AddSingleton<LobbyPoolManager>();
 builder.Services.AddSingleton<Dota2Service>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LobbyPoolManager>());
