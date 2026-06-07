@@ -11,7 +11,7 @@ namespace IHLDota2Bot.Services;
 /// accounts via <see cref="TryAddAccountAsync"/> so an `!add_account` flow can
 /// reach a real Steam connection — not just bookkeeping.
 /// </summary>
-public sealed class SteamGcClientPool
+public sealed class SteamGcClientPool : IHostedService
 {
     private readonly Dictionary<string, SteamGcClient> clientsByUsername;
     private readonly Lock lockObject = new();
@@ -133,6 +133,28 @@ public sealed class SteamGcClientPool
         _ = client.StartAsync();
         return Task.FromResult((true, $"Steam client `{username}` registered and starting."));
     }
+
+    // ── IHostedService: auto-connect every bot on app boot ──
+    //
+    // Without this, the SteamGcClient instances were idle until someone
+    // explicitly hit POST /api/server/start (the "Start Server" admin button).
+    // That meant the !queue/!ready path could fill a lobby with nobody able
+    // to actually host it on Steam. Auto-starting at app boot means players
+    // can !queue as soon as the API responds. Manual /api/server/start still
+    // works as an idempotent retry.
+
+    async Task IHostedService.StartAsync(CancellationToken cancellationToken)
+    {
+        var ok = await StartAllAsync();
+        if (!ok)
+        {
+            logger.LogWarning(
+                "SteamGcClientPool: at least one bot didn't start cleanly on app boot. " +
+                "Check Steam credentials in user-secrets, then POST /api/server/start to retry.");
+        }
+    }
+
+    Task IHostedService.StopAsync(CancellationToken cancellationToken) => StopAllAsync();
 
     /// <summary>Starts every configured client. Returns true if every one accepted the start request.</summary>
     public async Task<bool> StartAllAsync()
