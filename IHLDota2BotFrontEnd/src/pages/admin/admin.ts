@@ -62,6 +62,10 @@ export class AdminPage {
   gameManagerAddAccountUsername = signal('');
   gameManagerAddAccountPassword = signal('');
 
+  // Session controls — wire LobbyPoolManager game-started / game-finished
+  gameManagerSessionLobbyIdStart = signal('');
+  gameManagerSessionLobbyIdFinish = signal('');
+
   // ── Template helpers ──
 
   /** Trims a string — used in the existing Invite card's startPayload expression. */

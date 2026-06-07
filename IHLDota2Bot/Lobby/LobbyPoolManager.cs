@@ -1,7 +1,9 @@
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.DTOs;
+using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Repositories;
+using IHLDota2Bot.Services;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot;
@@ -15,6 +17,7 @@ public class LobbyPoolManager : IHostedService
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
+    private readonly SteamGcClientPool steamGcPool;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
     private readonly Dictionary<string, LobbySession> activeSessions = new();
@@ -29,6 +32,7 @@ public class LobbyPoolManager : IHostedService
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
         IMatchRepository matchRepository,
+        SteamGcClientPool steamGcPool,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
     {
@@ -36,6 +40,7 @@ public class LobbyPoolManager : IHostedService
         ArgumentNullException.ThrowIfNull(lobbyQueue);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(matchRepository);
+        ArgumentNullException.ThrowIfNull(steamGcPool);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -43,6 +48,7 @@ public class LobbyPoolManager : IHostedService
         this.lobbyQueue = lobbyQueue;
         this.discordClient = discordClient;
         this.matchRepository = matchRepository;
+        this.steamGcPool = steamGcPool;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
 
@@ -64,9 +70,6 @@ public class LobbyPoolManager : IHostedService
     public AccountPoolStats GetAccountPoolStats() => accountPool.GetStats();
     public List<SteamAccount> GetSteamAccounts() => accountPool.GetAllAccounts();
     public int GetAvailableAccountCount() => accountPool.GetAvailableAccountCount();
-
-    public Task RegisterPlayerAsync(ulong userId, string username, string steamId) =>
-        lobbyQueue.RegisterPlayerAsync(userId, username, steamId);
 
     public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId) =>
         lobbyQueue.JoinQueueAsync(userId, username, steamId);
@@ -177,11 +180,69 @@ public class LobbyPoolManager : IHostedService
                 logger.LogError(ex, "Failed to persist match for lobby {LobbyId}", lobby.Id);
             }
 
-            var readyMessage = $"Lobby {lobby.Id} is ready! Assigned account: {account.Username}";
+            // Tell Steam to spin up the actual Dota 2 practice lobby and invite the 10 players.
+            // The Steam GC operations run on the *specific* SteamGcClient for the reserved
+            // pool account, so multiple concurrent lobbies can co-exist on distinct bots.
+            var lobbyShortId = lobby.Id.Length >= 8 ? lobby.Id[..8] : lobby.Id;
+            var lobbyName = $"IHL-{lobbyShortId}";
+            var lobbyPassword = $"ihl-{lobbyShortId}";
+
+            var botClient = steamGcPool.GetByUsername(account.Username);
+            if (botClient == null)
+            {
+                logger.LogError(
+                    "Lobby {LobbyId} reserved pool account {Username}, but no SteamGcClient is registered for that name. " +
+                    "Add the account to Steam:PoolAccounts (or Steam:BotAccount) in configuration.",
+                    lobby.Id, account.Username);
+            }
+            else
+            {
+                try
+                {
+                    await botClient.CreateLobbyAsync(new CreateLobbyRequest
+                    {
+                        AuthorId = account.Id,
+                        LobbyName = lobbyName,
+                        LobbyPassword = lobbyPassword
+                    });
+
+                    var steamIds = lobby.Players
+                        .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
+                        .Where(id => id > 0)
+                        .ToList();
+
+                    if (steamIds.Count > 0)
+                    {
+                        botClient.InvitePlayersToLobby(steamIds);
+                    }
+                    else
+                    {
+                        logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players", lobby.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}", lobby.Id);
+                }
+            }
+
+            var readyMessage = $"Lobby {lobby.Id} is ready! Steam lobby `{lobbyName}` (password `{lobbyPassword}`). Assigned account: {account.Username}";
             logger.LogInformation("{Message}", readyMessage);
             await discordClient.SendMessageAsync(readyMessage);
 
             GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
+
+            // Flip the session to InProgress immediately. Some leagues might delay this
+            // until a real "game started" callback from the Steam GC, but for now there's
+            // no such trigger, so we treat "lobby ready" as "game started".
+            try
+            {
+                await NotifyGameStartedAsync(lobby.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to auto-start game session for lobby {LobbyId}", lobby.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -272,6 +333,29 @@ public class LobbyPoolManager : IHostedService
         lock (lockObject)
         {
             return activeSessions.Values.ToList();
+        }
+    }
+
+    /// <summary>
+    /// Returns the active sessions as a Common DTO list so the API can serialise
+    /// them without exposing the server-side Player/Lobby types.
+    /// </summary>
+    public List<ActiveSessionSummary> GetActiveSessionSummaries()
+    {
+        lock (lockObject)
+        {
+            return activeSessions.Values
+                .Select(s => new ActiveSessionSummary
+                {
+                    LobbyId = s.LobbyId,
+                    AccountId = s.AccountId,
+                    PlayerCount = s.Players.Count,
+                    State = (PoolSessionState)s.State,
+                    StartedAt = s.StartedAt,
+                    GameStartedAt = s.GameStartedAt,
+                    FinishedAt = s.FinishedAt
+                })
+                .ToList();
         }
     }
 

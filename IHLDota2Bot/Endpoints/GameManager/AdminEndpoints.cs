@@ -40,6 +40,28 @@ public static class AdminEndpoints
             (Dota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOk(log, "get pool status", svc.GetPoolStatus));
 
+        group.MapGet("/admin/sessions",
+            (Dota2Service svc, ILogger<Dota2Service> log) =>
+                EndpointHelpers.TryOk(log, "get active sessions", svc.GetActiveSessions));
+
+        // Manual overrides — useful if a match was reported through some other
+        // channel and the bot didn't auto-close the loop.
+        group.MapPost("/admin/game/started/{lobbyId}",
+            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+                await EndpointHelpers.TryOkAsync(log, "mark game started", async () =>
+                {
+                    await svc.NotifyGameStartedAsync(lobbyId);
+                    return new { lobbyId, status = "started" };
+                }));
+
+        group.MapPost("/admin/game/finished/{lobbyId}",
+            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+                await EndpointHelpers.TryOkAsync(log, "mark game finished", async () =>
+                {
+                    await svc.NotifyGameFinishedAsync(lobbyId);
+                    return new { lobbyId, status = "finished" };
+                }));
+
         return group;
     }
 }

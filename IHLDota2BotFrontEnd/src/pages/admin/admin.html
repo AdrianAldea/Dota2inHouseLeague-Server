@@ -555,4 +555,43 @@
     >
     </card-component>
 
+    <!-- ACTIVE SESSIONS -->
+    <card-component
+        title="Active Sessions"
+        startLabel="Fetch"
+        method="GET"
+        startEndpoint="/gamemanager/api/gamemanager/admin/sessions"
+    >
+    </card-component>
+
+    <!-- MARK GAME STARTED (manual override) -->
+    <card-component
+        title="Mark Game Started"
+        startLabel="Execute"
+        [startEndpoint]="'/gamemanager/api/gamemanager/admin/game/started/' + gameManagerSessionLobbyIdStart()"
+        [startPayload]="{}"
+    >
+        <ng-template #inputs>
+            <div class="form-group">
+                <label>Lobby ID (GUID)</label>
+                <input [ngModel]="gameManagerSessionLobbyIdStart()" (ngModelChange)="gameManagerSessionLobbyIdStart.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
+            </div>
+        </ng-template>
+    </card-component>
+
+    <!-- MARK GAME FINISHED (manual override) -->
+    <card-component
+        title="Mark Game Finished"
+        startLabel="Execute"
+        [startEndpoint]="'/gamemanager/api/gamemanager/admin/game/finished/' + gameManagerSessionLobbyIdFinish()"
+        [startPayload]="{}"
+    >
+        <ng-template #inputs>
+            <div class="form-group">
+                <label>Lobby ID (GUID)</label>
+                <input [ngModel]="gameManagerSessionLobbyIdFinish()" (ngModelChange)="gameManagerSessionLobbyIdFinish.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
+            </div>
+        </ng-template>
+    </card-component>
+
 </div>

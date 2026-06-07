@@ -1,166 +1,87 @@
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
-using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Entities;
 using IHLDota2Bot.Data.Repositories;
-using Microsoft.Extensions.Options;
-using SteamKit2;
-using SteamKit2.GC;
-using SteamKit2.GC.Dota.Internal;
-using SteamKit2.Internal;
 
 namespace IHLDota2Bot.Services;
 
 public class Dota2Service
 {
-    private const uint DotaAppId = 570;
-
     private readonly DiscordClient discordClient;
     private readonly LobbyPoolManager poolManager;
+    private readonly SteamGcClientPool steamGcPool;
     private readonly IPlayerRepository playerRepository;
     private readonly IMatchRepository matchRepository;
     private readonly IChallengeRepository challengeRepository;
     private readonly ILogger<Dota2Service> logger;
-    private readonly SteamOptions steamOptions;
-    private readonly SteamKit2.SteamClient steamClient;
-    private readonly SteamUser steamUser;
-    private readonly SteamFriends steamFriends;
-    private readonly SteamGameCoordinator steamGameCoordinator;
-    private readonly CallbackManager callbackManager;
-    private bool isRunning;
 
     public Dota2Service(
         DiscordClient discordClient,
         LobbyPoolManager poolManager,
+        SteamGcClientPool steamGcPool,
         IPlayerRepository playerRepository,
         IMatchRepository matchRepository,
         IChallengeRepository challengeRepository,
-        IOptions<SteamOptions> steamOptions,
         ILogger<Dota2Service> logger)
     {
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(poolManager);
+        ArgumentNullException.ThrowIfNull(steamGcPool);
         ArgumentNullException.ThrowIfNull(playerRepository);
         ArgumentNullException.ThrowIfNull(matchRepository);
         ArgumentNullException.ThrowIfNull(challengeRepository);
-        ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.discordClient = discordClient;
         this.poolManager = poolManager;
+        this.steamGcPool = steamGcPool;
         this.playerRepository = playerRepository;
         this.matchRepository = matchRepository;
         this.challengeRepository = challengeRepository;
-        this.steamOptions = steamOptions.Value;
         this.logger = logger;
-
-        steamClient = new SteamKit2.SteamClient();
-        steamUser = steamClient.GetHandler<SteamUser>()!;
-        steamFriends = steamClient.GetHandler<SteamFriends>()!;
-        steamGameCoordinator = steamClient.GetHandler<SteamGameCoordinator>()!;
-
-        callbackManager = new CallbackManager(steamClient);
-        callbackManager.Subscribe<SteamKit2.SteamClient.ConnectedCallback>(OnConnected);
-        callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
-        callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
     }
 
-    public Task<bool> StartServerAsync()
-    {
-        if (isRunning) return Task.FromResult(true);
+    /// <summary>
+    /// Connects every configured Steam bot. With one BotAccount + N PoolAccounts,
+    /// this opens N+1 SteamKit connections.
+    /// </summary>
+    public Task<bool> StartServerAsync() => steamGcPool.StartAllAsync();
 
-        isRunning = true;
-        _ = Task.Run(ConnectToSteam);
-        return Task.FromResult(true);
-    }
-
-    private void ConnectToSteam()
-    {
-        steamClient.Connect();
-        while (isRunning)
-        {
-            callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(1));
-        }
-    }
-
+    /// <summary>
+    /// Admin passthrough — uses the default (BotAccount) client. The queue-driven
+    /// flow in LobbyPoolManager picks a per-match client from the pool instead.
+    /// </summary>
     public void InvitePlayersToLobby(IList<ulong> steamIds)
     {
-        foreach (var steamId in steamIds)
+        var client = steamGcPool.Default;
+        if (client == null)
         {
-            var inviteMsg = new ClientGCMsgProtobuf<CMsgInviteToLobby>((uint)EGCBaseMsg.k_EMsgGCInviteToLobby);
-            inviteMsg.Body.steam_id = steamId;
-
-            logger.LogInformation("Invite sent to SteamID: {SteamId}", steamId);
-            steamGameCoordinator.Send(inviteMsg, DotaAppId);
-        }
-    }
-
-    private void OnGCMessage(SteamGameCoordinator.MessageCallback callback)
-    {
-        logger.LogInformation("GC message received. AppID: {AppId} Message: {EMsg}", callback.AppID, callback.EMsg);
-    }
-
-    private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
-    {
-        var bot = steamOptions.BotAccount;
-        if (string.IsNullOrEmpty(bot.Username) || string.IsNullOrEmpty(bot.Password))
-        {
-            logger.LogError("Steam bot credentials are not configured. Set Steam:BotAccount in user-secrets.");
+            logger.LogError("InvitePlayersToLobby called but no Steam clients are configured.");
             return;
         }
-
-        logger.LogInformation("Attempting Steam authentication as {Username}", bot.Username);
-        steamUser.LogOn(new SteamUser.LogOnDetails
-        {
-            Username = bot.Username,
-            Password = bot.Password
-        });
+        client.InvitePlayersToLobby(steamIds);
     }
 
-    private void OnLoggedOn(SteamUser.LoggedOnCallback callback)
+    /// <summary>
+    /// Admin passthrough — uses the default (BotAccount) client.
+    /// </summary>
+    public Task CreateLobbyAsync(CreateLobbyRequest createLobbyRequest)
     {
-        if (callback.Result != EResult.OK)
+        var client = steamGcPool.Default;
+        if (client == null)
         {
-            logger.LogError("Steam authentication failed: {Result}", callback.Result);
-            return;
+            logger.LogError("CreateLobbyAsync called but no Steam clients are configured.");
+            return Task.CompletedTask;
         }
-
-        logger.LogInformation("Steam authentication successful");
-        steamFriends.SetPersonaState(EPersonaState.Online);
-
-        var hello = new ClientGCMsgProtobuf<SteamKit2.GC.Dota.Internal.CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
-        steamGameCoordinator.Send(hello, DotaAppId);
-
-        var gamePlayed = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
-        gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = DotaAppId });
-        steamClient.Send(gamePlayed);
-
-        logger.LogInformation("Notified Steam that we are 'playing' Dota 2.");
-    }
-
-    public async Task CreateLobbyAsync(CreateLobbyRequest createLobbyRequest)
-    {
-        logger.LogInformation("Sending CMsgPracticeLobbyCreate for lobby: {LobbyName}", createLobbyRequest.LobbyName);
-
-        var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
-        createLobbyMsg.Body.lobby_details = new CMsgPracticeLobbySetDetails
-        {
-            game_name = createLobbyRequest.LobbyName,
-            pass_key = createLobbyRequest.LobbyPassword,
-            game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP,
-            server_region = 2
-        };
-
-        steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
-
-        var message = $"Lobby created: {createLobbyRequest.LobbyName}";
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        return client.CreateLobbyAsync(createLobbyRequest);
     }
 
     public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {
+        // Register only persists the player. Opt-in to matchmaking happens via JoinQueueAsync
+        // (the `!queue` command). Coupling these two would mean every !register surprises the
+        // user with an immediate queue entry they didn't ask for.
         var steamIdString = request.SteamId.ToString();
 
         var persisted = await playerRepository.UpsertAsync(new PlayerEntity
@@ -170,8 +91,6 @@ public class Dota2Service
             SteamId = steamIdString
         }, cancellationToken);
 
-        await poolManager.RegisterPlayerAsync(request.UserId, request.Username, steamIdString);
-
         return new RegisteredPlayer
         {
             SteamId = persisted.SteamId,
@@ -180,17 +99,11 @@ public class Dota2Service
         };
     }
 
-    public async Task<PlayerProfile?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default)
-    {
-        var player = await playerRepository.GetByUserIdAsync(playerId, cancellationToken);
-        if (player == null) return null;
-
-        return new PlayerProfile
-        {
-            Id = player.UserId.ToString(),
-            Name = player.Username
-        };
-    }
+    public Task<PlayerStatsResponse?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default) =>
+        // /player/{id} used to return a sparse {Id, Name} DTO that the Discord !profile
+        // formatter then expanded with missing fields (Rating, Wins, …) the server never
+        // sent. Just delegate to the stats query so both endpoints return identical data.
+        playerRepository.GetStatsAsync(playerId, cancellationToken);
 
     public Task<QueueOperationResponse> MarkPlayerAsReadyAsync(ulong id) => poolManager.MarkPlayerReadyAsync(id);
 
@@ -270,9 +183,33 @@ public class Dota2Service
         if (result.Success && result.Match != null)
         {
             await discordClient.SendMessageAsync(result.Message);
+
+            // Close the loop with LobbyPoolManager so the Steam account is released back
+            // to the pool and a new lobby is spawned for the next 10 players. Matches
+            // created from 1v1 challenges have LobbyId == null and are skipped here —
+            // they never reserved a pool account in the first place.
+            if (!string.IsNullOrEmpty(result.Match.LobbyId))
+            {
+                try
+                {
+                    await poolManager.NotifyGameFinishedAsync(result.Match.LobbyId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to notify game finished for lobby {LobbyId}", result.Match.LobbyId);
+                }
+            }
         }
         return new QueueOperationResponse { Success = result.Success, Message = result.Message };
     }
+
+    // ── Direct exposure of pool-manager session controls (admin endpoints) ──
+
+    public List<ActiveSessionSummary> GetActiveSessions() => poolManager.GetActiveSessionSummaries();
+
+    public Task NotifyGameStartedAsync(string lobbyId) => poolManager.NotifyGameStartedAsync(lobbyId);
+
+    public Task NotifyGameFinishedAsync(string lobbyId) => poolManager.NotifyGameFinishedAsync(lobbyId);
 
     public async Task<QueueOperationResponse> LinkSteamIdAsync(ulong userId, ulong steamId, CancellationToken cancellationToken = default)
     {
