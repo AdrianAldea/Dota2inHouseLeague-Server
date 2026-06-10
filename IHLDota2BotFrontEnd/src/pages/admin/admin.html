@@ -1,6 +1,10 @@
 <h1>⚔️ IHL Dota 2 Bot</h1>
 <p class="subtitle">Admin Dashboard — Control Panel</p>
 
+<!-- LIVE OPERATIONS: active lobbies, queue, ready/destroy, match details -->
+<h2 class="section-title">Live Operations</h2>
+<lobby-monitor></lobby-monitor>
+
 <!-- SERVER CONTROLS -->
 <h2 class="section-title">Core Servers</h2>
 <div class="grid-2">
@@ -236,14 +240,7 @@
         </ng-template>
     </card-component>
 
-    <!-- QUEUE STATUS -->
-    <card-component
-        title="Queue Status"
-        startLabel="Fetch"
-        method="GET"
-        startEndpoint="/gamemanager/api/gamemanager/queue/status"
-    >
-    </card-component>
+    <!-- Queue Status moved to the Live Operations panel at the top. -->
 
 </div>
 
@@ -555,14 +552,7 @@
     >
     </card-component>
 
-    <!-- ACTIVE SESSIONS -->
-    <card-component
-        title="Active Sessions"
-        startLabel="Fetch"
-        method="GET"
-        startEndpoint="/gamemanager/api/gamemanager/admin/sessions"
-    >
-    </card-component>
+    <!-- Active Sessions moved to the Live Operations panel at the top. -->
 
     <!-- MARK GAME STARTED (manual override) -->
     <card-component

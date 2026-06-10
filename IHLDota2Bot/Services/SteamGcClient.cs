@@ -157,6 +157,26 @@ public sealed class SteamGcClient
         }
     }
 
+    /// <summary>
+    /// Admin-triggered teardown of the hosted lobby. Sends PracticeLobbyLeave so
+    /// the Dota GC reaps the practice lobby, then yields ~500ms so SteamKit can
+    /// flush the outbound frame before the caller continues. Awaitable
+    /// counterpart to <see cref="DestroyActiveLobby"/> (which blocks for the
+    /// crash / ProcessExit path). Returns true if a leave was actually sent.
+    /// </summary>
+    public async Task<bool> LeaveActiveLobbyAsync()
+    {
+        if (!isLoggedOn || !hasActiveLobby)
+        {
+            logger.LogInformation("[{Username}] LeaveActiveLobbyAsync: no active lobby to leave", username);
+            return false;
+        }
+
+        SendLeaveLobby();
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        return true;
+    }
+
     private void SendLeaveLobby()
     {
         logger.LogInformation("[{Username}] Sending PracticeLobbyLeave to abandon hosted lobby", username);

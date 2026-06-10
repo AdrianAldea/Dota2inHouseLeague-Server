@@ -545,6 +545,48 @@ public class LobbyPoolManager : IHostedService
     }
 
     /// <summary>
+    /// Admin "destroy": force a hosted game to end now. Sends the Dota GC a
+    /// PracticeLobbyLeave on the lobby's reserved bot account so the practice
+    /// lobby is actually reaped on Steam's side, then runs the normal
+    /// finish/cleanup (releases the pool account, settles the queue lobby,
+    /// fires GameFinished). Best-effort and idempotent: if the session or its
+    /// Steam client can't be resolved we still run the finish cleanup so the
+    /// account isn't stranded.
+    /// </summary>
+    public async Task DestroyLobbyAsync(string lobbyId)
+    {
+        var session = GetSession(lobbyId);
+        if (session == null)
+        {
+            logger.LogWarning("DestroyLobbyAsync: session {LobbyId} not found; running finish cleanup anyway", lobbyId);
+        }
+        else
+        {
+            var account = accountPool.GetAccountById(session.AccountId);
+            var botClient = account == null ? null : steamGcPool.GetByUsername(account.Username);
+            if (botClient == null)
+            {
+                logger.LogWarning(
+                    "DestroyLobbyAsync: no Steam client for lobby {LobbyId} (account {AccountId}); finishing without GC leave",
+                    lobbyId, session.AccountId);
+            }
+            else
+            {
+                try
+                {
+                    await botClient.LeaveActiveLobbyAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "DestroyLobbyAsync: GC leave failed for lobby {LobbyId}", lobbyId);
+                }
+            }
+        }
+
+        await NotifyGameFinishedAsync(lobbyId);
+    }
+
+    /// <summary>
     /// Fired when the Dota GC reports a hosted match reaching POSTGAME. Persists
     /// the result (applying ELO when the game was scored), posts a result card to
     /// Discord, then runs the normal finish/cleanup so the account is released and

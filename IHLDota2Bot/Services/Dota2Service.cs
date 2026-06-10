@@ -171,6 +171,9 @@ public class Dota2Service
     public Task<MatchSummary?> GetMatchByIdAsync(Guid matchId, CancellationToken cancellationToken = default) =>
         matchRepository.GetByIdAsync(matchId, cancellationToken);
 
+    public Task<MatchSummary?> GetMatchByLobbyAsync(string lobbyId, CancellationToken cancellationToken = default) =>
+        matchRepository.GetByLobbyIdAsync(lobbyId, cancellationToken);
+
     public Task<RankResponse?> GetPlayerRankAsync(ulong userId, CancellationToken cancellationToken = default) =>
         playerRepository.GetRankAsync(userId, cancellationToken);
 
@@ -210,6 +213,8 @@ public class Dota2Service
     public Task NotifyGameStartedAsync(string lobbyId) => poolManager.NotifyGameStartedAsync(lobbyId);
 
     public Task NotifyGameFinishedAsync(string lobbyId) => poolManager.NotifyGameFinishedAsync(lobbyId);
+
+    public Task DestroyLobbyAsync(string lobbyId) => poolManager.DestroyLobbyAsync(lobbyId);
 
     public async Task<QueueOperationResponse> LinkSteamIdAsync(ulong userId, ulong steamId, CancellationToken cancellationToken = default)
     {

@@ -1,0 +1,175 @@
+<div class="monitor">
+
+  <!-- Toolbar -->
+  <div class="monitor-toolbar">
+    <div class="toolbar-left">
+      <button class="primary" (click)="refresh()" [disabled]="loading()">
+        {{ loading() ? 'Refreshing…' : 'Refresh' }}
+      </button>
+      <button [class.toggle-on]="autoRefresh()" class="ghost" (click)="toggleAutoRefresh()">
+        Auto-refresh {{ autoRefresh() ? 'ON (5s)' : 'OFF' }}
+      </button>
+    </div>
+    <div class="toolbar-right">
+      @if (lastUpdated()) {
+        <span class="muted">Updated {{ lastUpdated() | date:'HH:mm:ss' }}</span>
+      }
+      @if (error()) {
+        <span class="err">{{ error() }}</span>
+      }
+    </div>
+  </div>
+
+  <div class="monitor-grid">
+
+    <!-- ── ACTIVE LOBBIES ── -->
+    <section class="panel">
+      <div class="panel-header">
+        <span>Active Lobbies</span>
+        <span class="badge-count">{{ sessions().length }}</span>
+      </div>
+
+      @if (sessions().length === 0) {
+        <p class="empty">No active lobbies. Fill the queue and force-ready to spin one up.</p>
+      } @else {
+        <div class="lobby-list">
+          @for (s of sessions(); track s.lobbyId) {
+            <div class="lobby-row">
+              <div class="lobby-main">
+                <div class="lobby-id">
+                  <code title="{{ s.lobbyId }}">{{ shortId(s.lobbyId) }}</code>
+                  <span class="state-badge" [class]="stateClass(s.state)">{{ stateLabel(s.state) }}</span>
+                </div>
+                <div class="lobby-meta">
+                  <span>👥 {{ s.playerCount }}</span>
+                  <span title="Reserved bot account">🤖 {{ shortId(s.accountId) }}</span>
+                  <span title="Session started">⏱ {{ s.startedAt | date:'HH:mm:ss' }}</span>
+                  @if (s.gameStartedAt) {
+                    <span title="Game started">▶ {{ s.gameStartedAt | date:'HH:mm:ss' }}</span>
+                  }
+                </div>
+              </div>
+              <div class="lobby-actions">
+                @if (s.state === 0) {
+                  <button class="mini" (click)="markStarted(s.lobbyId)">Mark Started</button>
+                }
+                <button class="mini info" (click)="viewMatch(s.lobbyId)">View Match</button>
+                <button class="mini danger" (click)="destroy(s.lobbyId)">Destroy</button>
+              </div>
+              @if (lobbyStatus()[s.lobbyId]) {
+                <div class="lobby-status">{{ lobbyStatus()[s.lobbyId] }}</div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ── QUEUE ── -->
+    <section class="panel">
+      <div class="panel-header">
+        <span>Queue</span>
+        @if (queue()) {
+          <span class="badge-count">{{ queue()!.currentLobbyPlayerCount }}/{{ queue()!.playersPerLobby }}</span>
+        }
+      </div>
+
+      @if (queue(); as q) {
+        <div class="queue-stats">
+          <div class="stat"><span class="stat-num">{{ q.currentLobbyPlayerCount }}</span><span class="stat-lbl">In Lobby</span></div>
+          <div class="stat"><span class="stat-num">{{ q.playersReady }}</span><span class="stat-lbl">Ready</span></div>
+          <div class="stat"><span class="stat-num">{{ q.waitingPlayers }}</span><span class="stat-lbl">Waiting</span></div>
+          <div class="stat"><span class="stat-num">{{ q.totalRegistered }}</span><span class="stat-lbl">Registered</span></div>
+        </div>
+
+        <div class="queue-lobbyid">
+          Current lobby: <code>{{ shortId(q.currentLobbyId) }}</code>
+        </div>
+
+        @if (q.players.length === 0) {
+          <p class="empty">No players in the current lobby.</p>
+        } @else {
+          <ul class="player-list">
+            @for (p of q.players; track p.username) {
+              <li>
+                <span class="ready-dot" [class.ready]="p.isReady" [class.notready]="!p.isReady"></span>
+                <span class="player-name">{{ p.username }}</span>
+                <span class="ready-text">{{ p.isReady ? 'Ready' : 'Not ready' }}</span>
+              </li>
+            }
+          </ul>
+        }
+
+        <div class="queue-controls">
+          <button class="primary" (click)="forceReady()">Force Ready &amp; Start</button>
+          <button class="danger" (click)="resetQueue()">Reset Queue</button>
+        </div>
+
+        <div class="ready-one">
+          <input [ngModel]="readyUserId()" (ngModelChange)="readyUserId.set($event)" placeholder="User ID to mark ready" />
+          <button class="mini" (click)="markPlayerReady()">Mark Ready</button>
+        </div>
+
+        @if (queueStatusMsg()) {
+          <div class="queue-status-msg">{{ queueStatusMsg() }}</div>
+        }
+      } @else {
+        <p class="empty">Queue status unavailable. Click Refresh.</p>
+      }
+    </section>
+  </div>
+
+  <!-- ── MATCH DETAILS ── -->
+  <section class="panel match-panel">
+    <div class="panel-header">
+      <span>Match Details</span>
+      @if (matchTitle()) {
+        <span class="muted">{{ matchTitle() }}</span>
+      }
+    </div>
+
+    <div class="match-lookup">
+      <input [ngModel]="matchLookupId()" (ngModelChange)="matchLookupId.set($event)" placeholder="Match UUID (or click View Match above)" />
+      <button class="mini" (click)="lookupMatch()">Fetch</button>
+      @if (match()) {
+        <button class="mini ghost" (click)="clearMatch()">Clear</button>
+      }
+    </div>
+
+    @if (matchStatusMsg()) {
+      <p class="match-msg">{{ matchStatusMsg() }}</p>
+    }
+
+    @if (match(); as m) {
+      <div class="match-summary">
+        <div class="match-head">
+          <span class="state-badge" [class]="matchStatusClass(m.status)">{{ matchStatusLabel(m.status) }}</span>
+          <span class="winner">Winner: <strong>{{ winnerLabel(m.winningTeam) }}</strong></span>
+        </div>
+        <div class="match-meta">
+          <span>Match <code title="{{ m.id }}">{{ shortId(m.id) }}</code></span>
+          <span>Lobby <code title="{{ m.lobbyId }}">{{ shortId(m.lobbyId) }}</code></span>
+          <span>Created {{ m.createdAt | date:'short' }}</span>
+          @if (m.completedAt) {
+            <span>Completed {{ m.completedAt | date:'short' }}</span>
+          }
+        </div>
+
+        <div class="teams">
+          <div class="team radiant">
+            <div class="team-header">Radiant{{ m.winningTeam === 0 ? ' 🏆' : '' }}</div>
+            @for (p of playersOn(m, 0); track p.userId) {
+              <div class="team-player" [class.won]="p.won">{{ p.username }}</div>
+            }
+          </div>
+          <div class="team dire">
+            <div class="team-header">Dire{{ m.winningTeam === 1 ? ' 🏆' : '' }}</div>
+            @for (p of playersOn(m, 1); track p.userId) {
+              <div class="team-player" [class.won]="p.won">{{ p.username }}</div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </section>
+</div>
