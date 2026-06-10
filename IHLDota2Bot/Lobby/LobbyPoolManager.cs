@@ -71,9 +71,53 @@ public class LobbyPoolManager : IHostedService
         {
             await accountPool.RegisterAccountAsync(account.Username, account.Password);
         }
+
+        await ReconcileStaleInProgressMatchesAsync(cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// On startup, the in-memory <c>activeSessions</c> dictionary is empty —
+    /// any previous run's state was lost. The DB doesn't know that, so matches
+    /// the previous process started but never finished sit as <c>InProgress</c>
+    /// forever. Walk the DB once, cancel anything older than the configured
+    /// threshold, and log what we cleaned up. Without this, the affected
+    /// players' lobbies would be stuck and !report wouldn't find a sensible
+    /// match to close.
+    /// </summary>
+    private async Task ReconcileStaleInProgressMatchesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var olderThan = DateTime.UtcNow - LeagueConstants.StaleMatchThreshold;
+            var stale = await matchRepository.GetStaleInProgressMatchesAsync(olderThan, cancellationToken);
+            if (stale.Count == 0)
+            {
+                logger.LogInformation("Reconciliation: no stale InProgress matches found");
+                return;
+            }
+
+            foreach (var match in stale)
+            {
+                var ok = await matchRepository.CancelMatchAsync(match.Id, cancellationToken);
+                if (ok)
+                {
+                    logger.LogWarning(
+                        "Reconciliation: cancelled stale InProgress match {MatchId} (started {Started:o}, age {AgeHours:F1}h)",
+                        match.Id, match.CreatedAt, (DateTime.UtcNow - match.CreatedAt).TotalHours);
+                }
+            }
+
+            logger.LogInformation("Reconciliation: processed {Count} stale match(es)", stale.Count);
+        }
+        catch (Exception ex)
+        {
+            // Reconciliation is best-effort. If it fails (DB unavailable on boot),
+            // log and continue — the rest of the bot still starts.
+            logger.LogError(ex, "Reconciliation pass failed; continuing startup");
+        }
+    }
 
     public AccountPoolStats GetAccountPoolStats() => accountPool.GetStats();
     public List<SteamAccount> GetSteamAccounts() => accountPool.GetAllAccounts();
@@ -187,6 +231,12 @@ public class LobbyPoolManager : IHostedService
 
             await accountPool.MarkAccountInUseAsync(account.Id, lobby.Id);
 
+            // The DB write is the critical sync point. If we can't persist the match,
+            // every later step is moot — players couldn't !report it, ELO wouldn't
+            // apply, and the bookkeeping pool would leak this account forever. Roll
+            // the in-memory reservation back so the next try (or the next 10
+            // players) gets a clean slate.
+            bool matchPersisted = false;
             try
             {
                 var shuffled = lobby.Players.OrderBy(_ => Guid.NewGuid()).ToList();
@@ -197,10 +247,24 @@ public class LobbyPoolManager : IHostedService
 
                 var match = await matchRepository.CreateMatchAsync(lobby.Id, teamAssignments);
                 logger.LogInformation("Match {MatchId} created for lobby {LobbyId}", match.Id, lobby.Id);
+                matchPersisted = true;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to persist match for lobby {LobbyId}", lobby.Id);
+                logger.LogError(ex, "Failed to persist match for lobby {LobbyId}; rolling back reservation", lobby.Id);
+            }
+
+            if (!matchPersisted)
+            {
+                lock (lockObject)
+                {
+                    activeSessions.Remove(lobby.Id);
+                    lobby.SteamAccountId = null;
+                }
+                await accountPool.ReleaseAccountAsync(account.Id);
+                await SafeBroadcastAsync(
+                    $"⚠️ Lobby {lobby.Id} could not be persisted to the database. Account {account.Username} released; please retry.");
+                return;
             }
 
             // Tell Steam to spin up the actual Dota 2 practice lobby and invite the 10 players.
@@ -405,16 +469,42 @@ public class LobbyPoolManager : IHostedService
             return;
         }
 
-        await accountPool.ReleaseAccountAsync(session.AccountId);
-        var account = accountPool.GetAccountById(session.AccountId);
+        // Each cleanup step is wrapped independently so a failure in step N
+        // doesn't strand steps N+1..end. The previous form was sequential
+        // awaits — a throw in ReleaseAccountAsync would leave the lobby
+        // stuck in `Ready` state with no new lobby spawned, and players
+        // couldn't queue again until restart.
 
-        var message = $"GAME FINISHED: {lobbyId} | Account {account?.Username} released";
-        logger.LogInformation("{Message}", message);
-        await discordClient.SendMessageAsync(message);
+        string? username = null;
+        try
+        {
+            await accountPool.ReleaseAccountAsync(session.AccountId);
+            username = accountPool.GetAccountById(session.AccountId)?.Username;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "NotifyGameFinishedAsync: failed to release account {AccountId}", session.AccountId);
+        }
 
-        await lobbyQueue.FinishLobbyAsync(lobbyId);
+        await SafeBroadcastAsync($"GAME FINISHED: {lobbyId} | Account {username ?? session.AccountId} released");
 
-        GameFinished?.Invoke(this, new GameFinishedEventArgs { Session = session });
+        try
+        {
+            await lobbyQueue.FinishLobbyAsync(lobbyId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "NotifyGameFinishedAsync: failed to finish queue lobby {LobbyId}", lobbyId);
+        }
+
+        try
+        {
+            GameFinished?.Invoke(this, new GameFinishedEventArgs { Session = session });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "NotifyGameFinishedAsync: GameFinished subscribers threw");
+        }
     }
 
     public List<LobbySession> GetActiveSessions()
