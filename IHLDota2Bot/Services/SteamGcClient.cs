@@ -206,7 +206,7 @@ public sealed class SteamGcClient
             game_name = req.LobbyName,
             pass_key = req.LobbyPassword,
             game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP,
-            server_region = 2
+            server_region = 4
         };
 
         steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
@@ -244,8 +244,8 @@ public sealed class SteamGcClient
                 break;
 
             case (uint)EGCBaseClientMsg.k_EMsgGCClientConnectionStatus:
-                ProcessConnectionStatus(callback);
-                break;
+                    ProcessConnectionStatus(callback);
+                    break;
 
             case (uint)ESOMsg.k_ESOMsg_UpdateMultiple:
                 ProcessMultipleObjects(callback);
@@ -426,7 +426,7 @@ public sealed class SteamGcClient
 
     // Where the bot parks itself so it never consumes a player slot. Swap to
     // DOTA_GC_TEAM_BROADCASTER if you'd rather the bot show up as a caster.
-    private const DOTA_GC_TEAM BotParkTeam = DOTA_GC_TEAM.DOTA_GC_TEAM_PLAYER_POOL;
+    private const DOTA_GC_TEAM BotParkTeam = DOTA_GC_TEAM.DOTA_GC_TEAM_BROADCASTER;
 
     private void EnsureBotIsNotSeated(CSODOTALobby lobby)
     {
@@ -440,12 +440,16 @@ public sealed class SteamGcClient
             "[{Username}] Bot is seated on {Team}; moving it off the player slot to {Target}",
             username, me.team, BotParkTeam);
 
-        // SetTeamSlot moves the sender (us), so no SteamID is needed. slot 0 is
-        // ignored for the pool/broadcaster which have no numbered team slots.
-        var msg = new ClientGCMsgProtobuf<CMsgPracticeLobbySetTeamSlot>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbySetTeamSlot);
-        msg.Body.team = BotParkTeam;
-        msg.Body.slot = 0;
-        steamGameCoordinator.Send(msg, DotaAppId);
+        // This will safely strip the bot of its team slot and throw it into "Unassigned"
+        // It stays inside the lobby as the HOST/LEADER.
+        var unassignMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyKickFromTeam>(
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyKickFromTeam
+        );
+
+        unassignMsg.Body.account_id = steamClient.SteamID.AccountID; ;
+
+        // Send it immediately 
+        steamGameCoordinator.Send(unassignMsg, DotaAppId);
     }
 
     private void LaunchLobby()
