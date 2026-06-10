@@ -221,7 +221,7 @@ public sealed class SteamGcClient
             game_name = req.LobbyName,
             pass_key = req.LobbyPassword,
             game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP,
-            server_region = 4
+            server_region = 3
         };
 
         steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
@@ -273,6 +273,14 @@ public sealed class SteamGcClient
             case (uint)ESOMsg.k_ESOMsg_CacheSubscribed:
                 logger.LogDebug("[{Username}] SO cache subscribed", username);
                 ProcessCacheSubscribed(callback);
+                break;
+
+            case (uint)ESOMsg.k_ESOMsg_Destroy:
+                ProcessObjectDestroyed(callback);
+                break;
+
+            case (uint)ESOMsg.k_ESOMsg_CacheUnsubscribed:
+                ProcessCacheUnsubscribed(callback);
                 break;
 
             case (uint)EGCBaseMsg.k_EMsgGCInvitationCreated:
@@ -391,6 +399,88 @@ public sealed class SteamGcClient
         {
             logger.LogError(ex, "[{Username}] Failed to process SO cache subscribed", username);
         }
+    }
+
+    private void ProcessObjectDestroyed(SteamGameCoordinator.MessageCallback callback)
+    {
+        try
+        {
+            // k_ESOMsg_Destroy reuses CMsgSOSingleObject (type_id + object_data),
+            // same header-stripping caveat as Update. object_data carries the
+            // lobby's *final* state, which may be a POSTGAME outcome we never got
+            // a plain Update for.
+            var soMessage = new ClientGCMsgProtobuf<CMsgSOSingleObject>(callback.Message).Body;
+            if (soMessage.type_id != LobbyTypeId) return;
+
+            if (soMessage.object_data is { Length: > 0 })
+            {
+                using var ms = new MemoryStream(soMessage.object_data);
+                var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
+                // Last chance to record a decisive result before the lobby is gone.
+                if (lobby != null) DetectMatchCompletion(lobby);
+            }
+
+            HandleLobbyGone("lobby SO destroyed");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[{Username}] Failed to process SO destroy", username);
+        }
+    }
+
+    private void ProcessCacheUnsubscribed(SteamGameCoordinator.MessageCallback callback)
+    {
+        // CacheUnsubscribed means an SO cache we were subscribed to went away. It
+        // carries only the owner soid, which we don't need: if we still think we
+        // host a lobby, that cache was ours and the lobby is over.
+        if (!hasActiveLobby && hostedAppLobbyId is null) return;
+
+        logger.LogInformation("[{Username}] SO cache unsubscribed; treating hosted lobby as gone", username);
+        HandleLobbyGone("SO cache unsubscribed");
+    }
+
+    /// <summary>
+    /// The hosted lobby's shared object is gone (destroyed or unsubscribed).
+    /// If a decisive POSTGAME result was already reported, just clears local
+    /// state. Otherwise the lobby ended without a scored result (abandon, crash,
+    /// everyone left) — raise <see cref="MatchCompleted"/> with a null winner so
+    /// the app cancels the match (no rating change), releases the account, and
+    /// reopens the queue. One-shot via <c>matchResultReported</c>, so a Destroy
+    /// followed by a CacheUnsubscribed (or vice-versa) won't double-fire.
+    /// </summary>
+    private void HandleLobbyGone(string reason)
+    {
+        if (!hasActiveLobby && hostedAppLobbyId is null) return;
+
+        var appLobbyId = hostedAppLobbyId;
+        var alreadyReported = matchResultReported;
+
+        // Drop local lobby state up front so StopAsync / reconnect don't try to
+        // leave a lobby that no longer exists.
+        hasActiveLobby = false;
+        activeRoster = null;
+        hostedAppLobbyId = null;
+        matchResultReported = true;
+
+        if (alreadyReported)
+        {
+            logger.LogInformation("[{Username}] Hosted lobby gone ({Reason}); result already recorded", username, reason);
+            return;
+        }
+
+        logger.LogWarning(
+            "[{Username}] Hosted lobby gone ({Reason}) with no scored result; signalling abandoned match for {AppLobbyId}",
+            username, reason, appLobbyId ?? "(none)");
+
+        MatchCompleted?.Invoke(this, new MatchCompletedEventArgs
+        {
+            Username = username,
+            AppLobbyId = appLobbyId,
+            DotaLobbyId = 0,
+            MatchId = 0,
+            WinningTeam = null,
+            Outcome = EMatchOutcome.k_EMatchOutcome_Unknown
+        });
     }
 
     private void HandleLobbyUpdate(byte[] objectData)
@@ -561,11 +651,14 @@ public sealed class SteamGcClient
         isLoggedOn = false;
         ResetGcReady();
         activeRoster = null;
-        hostedAppLobbyId = null;
         // The GC session is gone, so even if we thought we had a lobby it's no
         // longer ours to leave — drop the flag so a reconnect doesn't try to
         // send PracticeLobbyLeave for a stale lobby.
         hasActiveLobby = false;
+        // NB: keep hostedAppLobbyId. If the bot reconnects mid-game and only then
+        // sees the POSTGAME snapshot, this is what maps the result back to the
+        // app match. It's overwritten on the next CreateLobby and cleared when the
+        // lobby SO is destroyed/unsubscribed, so a stale value can't mis-attribute.
 
         if (!isRunning)
         {
