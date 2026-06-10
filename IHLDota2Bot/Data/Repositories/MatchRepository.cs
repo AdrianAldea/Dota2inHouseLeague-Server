@@ -115,11 +115,82 @@ public class MatchRepository : IMatchRepository
             return new ReportMatchResult { Success = false, Message = "You don't have an active match to report." };
         }
 
+        var (radiantDelta, direDelta) = await ApplyResultAsync(context, match, winningTeam, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var summary = await ToSummaryAsync(context, match, cancellationToken);
+        var message = $"Match {match.Id} reported. Winner: {winningTeam}. Δ Radiant {radiantDelta:+#;-#;0}, Dire {direDelta:+#;-#;0}.";
+        return new ReportMatchResult { Success = true, Message = message, Match = summary };
+    }
+
+    public async Task<ReportMatchResult> CompleteMatchByLobbyAsync(string lobbyId, MatchTeam? winningTeam, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(lobbyId);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var match = await context.Matches
+            .Include(m => m.Players)
+            .Where(m => m.LobbyId == lobbyId)
+            .OrderByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (match == null)
+        {
+            return new ReportMatchResult { Success = false, Message = $"No match found for lobby {lobbyId}." };
+        }
+
+        // Idempotent: the GC re-sends POSTGAME snapshots, and an admin/!report may
+        // have already settled this match. Don't re-apply rating — just hand back
+        // what we have.
+        if (match.Status != MatchStatus.InProgress)
+        {
+            var existing = await ToSummaryAsync(context, match, cancellationToken);
+            return new ReportMatchResult
+            {
+                Success = true,
+                Message = $"Match {match.Id} already settled ({match.Status}).",
+                Match = existing
+            };
+        }
+
+        string message;
+        if (winningTeam is { } winner)
+        {
+            var (radiantDelta, direDelta) = await ApplyResultAsync(context, match, winner, cancellationToken);
+            message = $"Match {match.Id} completed. Winner: {winner}. Δ Radiant {radiantDelta:+#;-#;0}, Dire {direDelta:+#;-#;0}.";
+        }
+        else
+        {
+            // The GC didn't score the game (abandon, crash, never started). Close
+            // it out without touching anyone's rating.
+            match.Status = MatchStatus.Cancelled;
+            match.CompletedAt = DateTime.UtcNow;
+            message = $"Match {match.Id} not scored by the Dota GC; cancelled with no rating change.";
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        var summary = await ToSummaryAsync(context, match, cancellationToken);
+        return new ReportMatchResult { Success = true, Message = message, Match = summary };
+    }
+
+    /// <summary>
+    /// Marks <paramref name="match"/> Completed for <paramref name="winningTeam"/>,
+    /// applies W/L and an ELO delta to every participant, and returns the
+    /// (radiant, dire) rating deltas. Mutates tracked entities only — the caller
+    /// owns SaveChanges.
+    /// </summary>
+    private static async Task<(int RadiantDelta, int DireDelta)> ApplyResultAsync(
+        AppDbContext context,
+        MatchEntity match,
+        MatchTeam winningTeam,
+        CancellationToken cancellationToken)
+    {
         match.Status = MatchStatus.Completed;
         match.CompletedAt = DateTime.UtcNow;
         match.WinningTeam = winningTeam;
 
-        // Apply ELO + W/L to participants
         var userIds = match.Players.Select(p => p.UserId).ToList();
         var players = await context.Players.Where(p => userIds.Contains(p.UserId)).ToListAsync(cancellationToken);
         var playersById = players.ToDictionary(p => p.UserId);
@@ -151,11 +222,7 @@ public class MatchRepository : IMatchRepository
             player.Rating += mp.Team == MatchTeam.Radiant ? radiantDelta : direDelta;
         }
 
-        await context.SaveChangesAsync(cancellationToken);
-
-        var summary = await ToSummaryAsync(context, match, cancellationToken);
-        var message = $"Match {match.Id} reported. Winner: {winningTeam}. Δ Radiant {radiantDelta:+#;-#;0}, Dire {direDelta:+#;-#;0}.";
-        return new ReportMatchResult { Success = true, Message = message, Match = summary };
+        return (radiantDelta, direDelta);
     }
 
     public async Task<List<MatchEntity>> GetStaleInProgressMatchesAsync(DateTime olderThanUtc, CancellationToken cancellationToken = default)

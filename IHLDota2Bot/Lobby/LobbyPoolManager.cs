@@ -325,6 +325,25 @@ public class LobbyPoolManager : IHostedService
                     };
                     botClient.LobbyLaunched += handler;
 
+                    // The GC tells us the result when the match reaches POSTGAME.
+                    // Subscribe a self-detaching handler so the win is recorded and
+                    // posted to Discord without anyone having to !report it.
+                    EventHandler<MatchCompletedEventArgs>? completedHandler = null;
+                    completedHandler = async (_, args) =>
+                    {
+                        if (args.AppLobbyId != lobbyId) return;
+                        botClient.MatchCompleted -= completedHandler;
+                        try
+                        {
+                            await HandleMatchCompletedAsync(lobbyId, args);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Failed to handle match completion for lobby {LobbyId}", lobbyId);
+                        }
+                    };
+                    botClient.MatchCompleted += completedHandler;
+
                     await botClient.CreateLobbyAsync(new CreateLobbyRequest
                     {
                         AuthorId = account.Id,
@@ -523,6 +542,64 @@ public class LobbyPoolManager : IHostedService
         {
             logger.LogError(ex, "NotifyGameFinishedAsync: GameFinished subscribers threw");
         }
+    }
+
+    /// <summary>
+    /// Fired when the Dota GC reports a hosted match reaching POSTGAME. Persists
+    /// the result (applying ELO when the game was scored), posts a result card to
+    /// Discord, then runs the normal finish/cleanup so the account is released and
+    /// players can queue again.
+    /// </summary>
+    private async Task HandleMatchCompletedAsync(string lobbyId, MatchCompletedEventArgs args)
+    {
+        ReportMatchResult? result = null;
+        try
+        {
+            result = await matchRepository.CompleteMatchByLobbyAsync(lobbyId, args.WinningTeam);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "HandleMatchCompletedAsync: failed to persist result for lobby {LobbyId}", lobbyId);
+        }
+
+        if (result?.Match is { } match)
+        {
+            await SafeBroadcastAsync(FormatMatchResult(match, args));
+        }
+        else
+        {
+            // DB write failed or no match row — still surface what the GC told us.
+            var winnerText = args.WinningTeam?.ToString() ?? "No winner (not scored)";
+            await SafeBroadcastAsync(
+                $"🏁 Match for lobby {lobbyId} finished. Winner: {winnerText} (Dota match {args.MatchId}).");
+        }
+
+        // Release the account and reopen the queue regardless of how the result
+        // persisted — a stuck session is worse than a missing result card.
+        await NotifyGameFinishedAsync(lobbyId);
+    }
+
+    private static string FormatMatchResult(MatchSummary match, MatchCompletedEventArgs args)
+    {
+        var header = match.WinningTeam switch
+        {
+            MatchTeam.Radiant => "🏆 **Radiant Victory!**",
+            MatchTeam.Dire => "🏆 **Dire Victory!**",
+            _ => "🏁 **Match finished** (not scored)"
+        };
+
+        var radiant = match.Players.Where(p => p.Team == MatchTeam.Radiant).Select(p => p.Username);
+        var dire = match.Players.Where(p => p.Team == MatchTeam.Dire).Select(p => p.Username);
+
+        var lines = new List<string>
+        {
+            header,
+            $"Dota match `{args.MatchId}`",
+            $"**Radiant:** {string.Join(", ", radiant)}",
+            $"**Dire:** {string.Join(", ", dire)}"
+        };
+
+        return string.Join("\n", lines);
     }
 
     public List<LobbySession> GetActiveSessions()

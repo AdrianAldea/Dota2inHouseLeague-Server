@@ -1,4 +1,5 @@
 using IHLDota2Bot.Clients;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using ProtoBuf;
 using SteamKit2;
@@ -44,6 +45,16 @@ public sealed class SteamGcClient
     // client because each pool account hosts one lobby at a time.
     private ActiveRoster? activeRoster;
 
+    // The app's lobby id for the currently hosted Dota lobby. Unlike
+    // activeRoster (cleared the moment everyone is seated and the match
+    // launches), this survives until the lobby is left/destroyed so we can
+    // correlate a POSTGAME snapshot back to the app's match record.
+    private string? hostedAppLobbyId;
+
+    // POSTGAME SO snapshots repeat; this one-shot guard stops us from posting
+    // the result / completing the match more than once per hosted lobby.
+    private bool matchResultReported;
+
     // Set whenever we either send a PracticeLobbyCreate or observe a lobby SO
     // snapshot, cleared on intentional leave / disconnect. Used by StopAsync
     // and the host-shutdown hooks to send PracticeLobbyLeave so a crashed or
@@ -56,6 +67,7 @@ public sealed class SteamGcClient
     private readonly record struct ActiveRoster(string? AppLobbyId, HashSet<ulong> Expected);
 
     public event EventHandler<LobbyLaunchedEventArgs>? LobbyLaunched;
+    public event EventHandler<MatchCompletedEventArgs>? MatchCompleted;
 
     public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger)
     {
@@ -152,6 +164,7 @@ public sealed class SteamGcClient
         steamGameCoordinator.Send(leaveMsg, DotaAppId);
         hasActiveLobby = false;
         activeRoster = null;
+        hostedAppLobbyId = null;
     }
 
     private void ConnectAndPumpCallbacks()
@@ -197,6 +210,8 @@ public sealed class SteamGcClient
         activeRoster = req.ExpectedSteamIds.Count > 0
             ? new ActiveRoster(req.AppLobbyId, [.. req.ExpectedSteamIds])
             : null;
+        hostedAppLobbyId = req.AppLobbyId;
+        matchResultReported = false;
 
         logger.LogInformation("[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", username, req.LobbyName);
 
@@ -246,6 +261,10 @@ public sealed class SteamGcClient
             case (uint)EGCBaseClientMsg.k_EMsgGCClientConnectionStatus:
                     ProcessConnectionStatus(callback);
                     break;
+
+            case (uint)ESOMsg.k_ESOMsg_Update:
+                ProcessSingleObject(callback);
+                break;
 
             case (uint)ESOMsg.k_ESOMsg_UpdateMultiple:
                 ProcessMultipleObjects(callback);
@@ -300,6 +319,25 @@ public sealed class SteamGcClient
             default:
                 logger.LogInformation("[{Username}] GC connection status: {Status}", username, connStatus.status);
                 break;
+        }
+    }
+
+    private void ProcessSingleObject(SteamGameCoordinator.MessageCallback callback)
+    {
+        try
+        {
+            // A single SO changed — e.g. one member switching team, or the lobby
+            // flipping to POSTGAME. Same header-stripping caveat as the others.
+            var soMessage = new ClientGCMsgProtobuf<CMsgSOSingleObject>(callback.Message).Body;
+
+            if (soMessage.type_id == LobbyTypeId && soMessage.object_data != null)
+            {
+                HandleLobbyUpdate(soMessage.object_data);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[{Username}] Failed to process SO single object", username);
         }
     }
 
@@ -370,6 +408,11 @@ public sealed class SteamGcClient
         // applies to admin/passthrough lobbies.
         EnsureBotIsNotSeated(lobby);
 
+        // Once the GC scores the game the lobby flips to POSTGAME and carries the
+        // outcome. Raise the result before the launch/roster bookkeeping so it
+        // fires even after activeRoster was cleared at launch.
+        DetectMatchCompletion(lobby);
+
         var roster = activeRoster;
         if (roster is null)
         {
@@ -418,6 +461,47 @@ public sealed class SteamGcClient
         activeRoster = null;
         LaunchLobby();
         LobbyLaunched?.Invoke(this, args);
+    }
+
+    // Maps the GC's scored outcome to the app's winning team. Returns null for
+    // anything that isn't a clean Radiant/Dire win (still scoring, abandoned,
+    // server crash, never started, etc.).
+    private static MatchTeam? OutcomeToWinner(EMatchOutcome outcome) => outcome switch
+    {
+        EMatchOutcome.k_EMatchOutcome_RadVictory => MatchTeam.Radiant,
+        EMatchOutcome.k_EMatchOutcome_DireVictory => MatchTeam.Dire,
+        _ => null
+    };
+
+    private void DetectMatchCompletion(CSODOTALobby lobby)
+    {
+        if (matchResultReported) return;
+        if (lobby.state != CSODOTALobby.State.POSTGAME) return;
+
+        var outcome = lobby.match_outcome;
+        var winner = OutcomeToWinner(outcome);
+
+        // POSTGAME can briefly show Unknown before the GC writes the result.
+        // Hold until it's either a decisive win or an explicit not-scored code
+        // so we don't post a half-baked result.
+        if (winner is null && outcome == EMatchOutcome.k_EMatchOutcome_Unknown) return;
+
+        matchResultReported = true;
+
+        logger.LogInformation(
+            "[{Username}] Match completed: LobbyId={LobbyId} MatchId={MatchId} Outcome={Outcome} Winner={Winner}",
+            username, lobby.lobby_id, lobby.match_id, outcome,
+            winner?.ToString() ?? "none");
+
+        MatchCompleted?.Invoke(this, new MatchCompletedEventArgs
+        {
+            Username = username,
+            AppLobbyId = hostedAppLobbyId,
+            DotaLobbyId = lobby.lobby_id,
+            MatchId = lobby.match_id,
+            WinningTeam = winner,
+            Outcome = outcome
+        });
     }
 
     private static bool IsOnTeamSlot(CSODOTALobbyMember member) =>
@@ -480,6 +564,7 @@ public sealed class SteamGcClient
         isLoggedOn = false;
         ResetGcReady();
         activeRoster = null;
+        hostedAppLobbyId = null;
         // The GC session is gone, so even if we thought we had a lobby it's no
         // longer ours to leave — drop the flag so a reconnect doesn't try to
         // send PracticeLobbyLeave for a stale lobby.
@@ -557,4 +642,17 @@ public sealed class LobbyLaunchedEventArgs : EventArgs
     public required string Username { get; init; }
     public string? AppLobbyId { get; init; }
     public ulong DotaLobbyId { get; init; }
+}
+
+public sealed class MatchCompletedEventArgs : EventArgs
+{
+    public required string Username { get; init; }
+    public string? AppLobbyId { get; init; }
+    public ulong DotaLobbyId { get; init; }
+    public ulong MatchId { get; init; }
+
+    // Radiant/Dire when the GC scored a decisive winner; null when the match
+    // wasn't scored (abandon, server crash, never started, ...).
+    public MatchTeam? WinningTeam { get; init; }
+    public EMatchOutcome Outcome { get; init; }
 }
