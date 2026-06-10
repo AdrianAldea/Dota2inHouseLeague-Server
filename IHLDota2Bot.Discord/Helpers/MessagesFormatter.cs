@@ -123,6 +123,4 @@ public static class MessagesFormatter
 
         return sb.ToString();
     }
-
-
 }

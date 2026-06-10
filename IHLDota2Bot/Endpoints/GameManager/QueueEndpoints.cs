@@ -15,15 +15,15 @@ public static class QueueEndpoints
                 EndpointHelpers.TryOkAsync(log, "join queue", () => svc.JoinQueueAsync(id, ct)));
 
         group.MapPost("/leave/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "leave queue", () => svc.LeaveQueueAsync(id)));
 
         group.MapPost("/ready/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "mark player ready", () => svc.MarkPlayerAsReadyAsync(id)));
 
         group.MapPost("/unready/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "mark player unready", () => svc.MarkPlayerAsUnreadyAsync(id)));
 
         group.MapGet("/queue/status",

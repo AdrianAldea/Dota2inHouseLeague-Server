@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,17 @@ namespace IHLDota2Bot.Data.Repositories;
 
 public class PlayerRepository : IPlayerRepository
 {
+    // Shared projection so GetStatsAsync and GetRankAsync can't drift apart.
+    private static readonly Expression<Func<PlayerEntity, PlayerStatsResponse>> ToStats = p => new PlayerStatsResponse
+    {
+        UserId = p.UserId,
+        Username = p.Username,
+        SteamId = p.SteamId,
+        Rating = p.Rating,
+        Wins = p.Wins,
+        Losses = p.Losses
+    };
+
     private readonly IDbContextFactory<AppDbContext> contextFactory;
 
     public PlayerRepository(IDbContextFactory<AppDbContext> contextFactory)
@@ -110,15 +122,7 @@ public class PlayerRepository : IPlayerRepository
         return await context.Players
             .AsNoTracking()
             .Where(p => p.UserId == userId)
-            .Select(p => new PlayerStatsResponse
-            {
-                UserId = p.UserId,
-                Username = p.Username,
-                SteamId = p.SteamId,
-                Rating = p.Rating,
-                Wins = p.Wins,
-                Losses = p.Losses
-            })
+            .Select(ToStats)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -129,15 +133,7 @@ public class PlayerRepository : IPlayerRepository
         var player = await context.Players
             .AsNoTracking()
             .Where(p => p.UserId == userId)
-            .Select(p => new PlayerStatsResponse
-            {
-                UserId = p.UserId,
-                Username = p.Username,
-                SteamId = p.SteamId,
-                Rating = p.Rating,
-                Wins = p.Wins,
-                Losses = p.Losses
-            })
+            .Select(ToStats)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (player == null) return null;

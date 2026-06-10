@@ -514,25 +514,22 @@ public sealed class SteamGcClient
 
     private void EnsureBotIsNotSeated(CSODOTALobby lobby)
     {
-        var myId = steamClient.SteamID?.ConvertToUInt64();
-        if (myId is null or 0) return;
+        var mySteamId = steamClient.SteamID;
+        if (mySteamId is null || mySteamId.ConvertToUInt64() == 0) return;
 
-        var me = lobby.all_members.FirstOrDefault(m => m.id == myId);
+        var me = lobby.all_members.FirstOrDefault(m => m.id == mySteamId.ConvertToUInt64());
         if (me is null || !IsOnTeamSlot(me)) return;
 
         logger.LogInformation(
             "[{Username}] Bot is seated on {Team}; moving it off the player slot to {Target}",
             username, me.team, BotParkTeam);
 
-        // This will safely strip the bot of its team slot and throw it into "Unassigned"
-        // It stays inside the lobby as the HOST/LEADER.
+        // Strips the bot of its team slot and throws it into "Unassigned"; it
+        // stays inside the lobby as the HOST/LEADER.
         var unassignMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyKickFromTeam>(
-            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyKickFromTeam
-        );
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyKickFromTeam);
+        unassignMsg.Body.account_id = mySteamId.AccountID;
 
-        unassignMsg.Body.account_id = steamClient.SteamID.AccountID; ;
-
-        // Send it immediately 
         steamGameCoordinator.Send(unassignMsg, DotaAppId);
     }
 
