@@ -184,6 +184,33 @@ public sealed class SteamGcClientPool : IHostedService
         await Task.WhenAll(snapshot.Select(c => c.StopAsync()));
     }
 
+    /// <summary>
+    /// Synchronously tells every bot to leave its hosted lobby. Hooked into
+    /// AppDomain.ProcessExit and UnhandledException so a crash or hard
+    /// shutdown still gives the Dota GC a leave signal before we go away —
+    /// IHostedService.StopAsync only runs on graceful shutdown.
+    /// </summary>
+    public void DestroyAllActiveLobbies()
+    {
+        SteamGcClient[] snapshot;
+        lock (lockObject)
+        {
+            snapshot = clientsByUsername.Values.ToArray();
+        }
+
+        foreach (var client in snapshot)
+        {
+            try
+            {
+                client.DestroyActiveLobby();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "DestroyActiveLobby threw for {Username}", client.Username);
+            }
+        }
+    }
+
     private static bool HasCredentials(SteamAccountCredentials credentials) =>
         !string.IsNullOrWhiteSpace(credentials?.Username) && !string.IsNullOrWhiteSpace(credentials.Password);
 

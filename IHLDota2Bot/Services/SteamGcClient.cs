@@ -44,6 +44,12 @@ public sealed class SteamGcClient
     // client because each pool account hosts one lobby at a time.
     private ActiveRoster? activeRoster;
 
+    // Set whenever we either send a PracticeLobbyCreate or observe a lobby SO
+    // snapshot, cleared on intentional leave / disconnect. Used by StopAsync
+    // and the host-shutdown hooks to send PracticeLobbyLeave so a crashed or
+    // closed server doesn't strand a ghost lobby on the Dota GC.
+    private bool hasActiveLobby;
+
     private bool isRunning;
     private bool isLoggedOn;
 
@@ -90,12 +96,62 @@ public sealed class SteamGcClient
         return Task.FromResult(true);
     }
 
-    public Task StopAsync()
+    public async Task StopAsync()
     {
         isRunning = false;
+
+        // Try to leave any hosted lobby before tearing down the socket so the
+        // GC reaps it rather than leaving a ghost behind a logged-off host.
+        // Best-effort: we don't await GC ack, just give SteamKit a moment to
+        // flush the outbound message.
+        if (isLoggedOn && hasActiveLobby)
+        {
+            try
+            {
+                SendLeaveLobby();
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[{Username}] Failed to send PracticeLobbyLeave during shutdown", username);
+            }
+        }
+
         isLoggedOn = false;
         steamClient.Disconnect();
-        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Synchronous best-effort lobby cleanup for crash / ProcessExit paths
+    /// where there's no time to await. Sends PracticeLobbyLeave and blocks
+    /// briefly so the message reaches SteamKit's send buffer before the
+    /// process tears down.
+    /// </summary>
+    public void DestroyActiveLobby()
+    {
+        if (!isLoggedOn || !hasActiveLobby) return;
+
+        try
+        {
+            SendLeaveLobby();
+            // Block — caller is on the shutdown path and the process is about
+            // to exit; using Task.Delay async would race the runtime tearing
+            // down the thread pool.
+            Thread.Sleep(500);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[{Username}] DestroyActiveLobby failed", username);
+        }
+    }
+
+    private void SendLeaveLobby()
+    {
+        logger.LogInformation("[{Username}] Sending PracticeLobbyLeave to abandon hosted lobby", username);
+        var leaveMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyLeave>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLeave);
+        steamGameCoordinator.Send(leaveMsg, DotaAppId);
+        hasActiveLobby = false;
+        activeRoster = null;
     }
 
     private void ConnectAndPumpCallbacks()
@@ -154,6 +210,7 @@ public sealed class SteamGcClient
         };
 
         steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
+        hasActiveLobby = true;
 
         var message = $"[{username}] Lobby created: {req.LobbyName}";
         logger.LogInformation("{Message}", message);
@@ -196,6 +253,7 @@ public sealed class SteamGcClient
 
             case (uint)ESOMsg.k_ESOMsg_CacheSubscribed:
                 logger.LogDebug("[{Username}] SO cache subscribed", username);
+                ProcessCacheSubscribed(callback);
                 break;
 
             case (uint)EGCBaseMsg.k_EMsgGCInvitationCreated:
@@ -210,8 +268,10 @@ public sealed class SteamGcClient
 
     private void ProcessConnectionStatus(SteamGameCoordinator.MessageCallback callback)
     {
-        using var ms = new MemoryStream(callback.Message.GetData());
-        var connStatus = Serializer.Deserialize<CMsgConnectionStatus>(ms);
+        // Let SteamKit parse the GC protobuf header; deserializing GetData()
+        // directly feeds the header bytes into the body type and throws
+        // "Invalid wire-type".
+        var connStatus = new ClientGCMsgProtobuf<CMsgConnectionStatus>(callback.Message).Body;
 
         switch (connStatus.status)
         {
@@ -247,16 +307,21 @@ public sealed class SteamGcClient
     {
         try
         {
-            using var ms = new MemoryStream(callback.Message.GetData());
-            var soMessage = Serializer.Deserialize<CMsgSOMultipleObjects>(ms);
+            // ClientGCMsgProtobuf strips the GC protobuf header. Deserializing
+            // callback.Message.GetData() directly throws "Invalid wire-type"
+            // because the leading header bytes get parsed as the body.
+            var soMessage = new ClientGCMsgProtobuf<CMsgSOMultipleObjects>(callback.Message).Body;
 
-            foreach (var obj in soMessage.objects_modified)
+            // A lobby object can show up as freshly added or modified; check both.
+            var lobbyData = soMessage.objects_added
+                .Concat(soMessage.objects_modified)
+                .Where(obj => obj.type_id == LobbyTypeId && obj.object_data != null)
+                .Select(obj => obj.object_data)
+                .LastOrDefault();
+
+            if (lobbyData != null)
             {
-                if (obj.type_id == LobbyTypeId && obj.object_data != null)
-                {
-                    HandleLobbyUpdate(obj.object_data);
-                    break;
-                }
+                HandleLobbyUpdate(lobbyData);
             }
         }
         catch (Exception ex)
@@ -265,11 +330,38 @@ public sealed class SteamGcClient
         }
     }
 
+    private void ProcessCacheSubscribed(SteamGameCoordinator.MessageCallback callback)
+    {
+        try
+        {
+            // When the bot creates/hosts a lobby, the full lobby object arrives
+            // here in the cache snapshot (not only via UpdateMultiple), so the
+            // "all seated -> launch" check has to run on this path too.
+            var subscribed = new ClientGCMsgProtobuf<CMsgSOCacheSubscribed>(callback.Message).Body;
+
+            var lobbyData = subscribed.objects
+                .Where(o => o.type_id == LobbyTypeId)
+                .SelectMany(o => o.object_data)
+                .LastOrDefault();
+
+            if (lobbyData != null)
+            {
+                HandleLobbyUpdate(lobbyData);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[{Username}] Failed to process SO cache subscribed", username);
+        }
+    }
+
     private void HandleLobbyUpdate(byte[] objectData)
     {
         using var ms = new MemoryStream(objectData);
         var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
         if (lobby == null) return;
+
+        hasActiveLobby = true;
 
         var roster = activeRoster;
         if (roster is null)
@@ -280,6 +372,17 @@ public sealed class SteamGcClient
                 "[{Username}] Lobby snapshot (no roster tracked): LobbyId={LobbyId} Members={MemberCount}",
                 username, lobby.lobby_id, lobby.all_members.Count);
             return;
+        }
+
+        // Per-member team breakdown so we can tell "in the lobby but unassigned"
+        // apart from "seated on a team". Only GOOD_GUYS/BAD_GUYS count toward the
+        // launch check; players in PLAYER_POOL/spectator/unassigned won't seat.
+        if (lobby.all_members.Count > 0)
+        {
+            logger.LogDebug(
+                "[{Username}] Lobby members: {Members}",
+                username,
+                string.Join(", ", lobby.all_members.Select(m => $"{m.id}=>{m.team}")));
         }
 
         var seated = lobby.all_members
@@ -342,6 +445,10 @@ public sealed class SteamGcClient
         isLoggedOn = false;
         ResetGcReady();
         activeRoster = null;
+        // The GC session is gone, so even if we thought we had a lobby it's no
+        // longer ours to leave — drop the flag so a reconnect doesn't try to
+        // send PracticeLobbyLeave for a stale lobby.
+        hasActiveLobby = false;
 
         if (!isRunning)
         {
@@ -377,6 +484,7 @@ public sealed class SteamGcClient
         isLoggedOn = false;
         ResetGcReady();
         activeRoster = null;
+        hasActiveLobby = false;
         // SteamKit will fire a DisconnectedCallback right after — that path
         // owns the reconnect logic. Just record the reason here.
         logger.LogWarning("[{Username}] Logged off Steam: {Result}", username, callback.Result);

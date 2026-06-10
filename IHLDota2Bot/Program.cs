@@ -46,6 +46,26 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<LobbyPoolManager>(
 
 var app = builder.Build();
 
+// Crash / hard-shutdown safety net: IHostedService.StopAsync only runs on a
+// graceful shutdown, so a SIGTERM-on-host or an unhandled exception would
+// otherwise leave the Dota GC holding a ghost lobby. Hook ProcessExit and
+// UnhandledException to send PracticeLobbyLeave for every active bot.
+{
+    var steamPool = app.Services.GetRequiredService<SteamGcClientPool>();
+    var lifecycleLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LobbyShutdownHook");
+
+    AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+    {
+        lifecycleLogger.LogInformation("ProcessExit fired; destroying active lobbies");
+        steamPool.DestroyAllActiveLobbies();
+    };
+    AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+    {
+        lifecycleLogger.LogError(e.ExceptionObject as Exception, "UnhandledException; destroying active lobbies");
+        steamPool.DestroyAllActiveLobbies();
+    };
+}
+
 app.MapDefaultEndpoints();
 app.ConfigureEndpoints();
 
