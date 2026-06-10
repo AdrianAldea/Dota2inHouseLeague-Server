@@ -17,6 +17,17 @@ public interface IMatchRepository
     Task<ReportMatchResult> ReportMatchAsync(ulong reporterUserId, MatchTeam winningTeam, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Settles the InProgress match for <paramref name="lobbyId"/> using a result
+    /// the Dota GC reported (rather than a player !report). When
+    /// <paramref name="winningTeam"/> has a value the match is Completed and
+    /// rating/W-L is applied; when it's null (the GC didn't score the game —
+    /// abandon, crash, never started) the match is Cancelled with no rating
+    /// change. Idempotent: a no-op returning the existing summary if the match
+    /// is already settled or no InProgress match exists for the lobby.
+    /// </summary>
+    Task<ReportMatchResult> CompleteMatchByLobbyAsync(string lobbyId, MatchTeam? winningTeam, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// All matches still marked InProgress whose CreatedAt is older than <paramref name="olderThanUtc"/>.
     /// Used by the startup reconciliation pass in <see cref="LobbyPoolManager"/> to clean up matches
     /// stranded by a crash / kill mid-game (the in-memory <c>LobbySession</c> is gone but the DB row
