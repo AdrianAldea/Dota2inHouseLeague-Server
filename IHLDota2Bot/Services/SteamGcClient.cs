@@ -5,10 +5,6 @@ using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
-using System.Text.Json;
 
 namespace IHLDota2Bot.Services;
 
@@ -22,6 +18,10 @@ namespace IHLDota2Bot.Services;
 /// </summary>
 public sealed class SteamGcClient
 {
+    private const uint DotaAppId = 570;
+    private const int LobbyTypeId = 2004;
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+
     private readonly string username;
     private readonly string password;
     private readonly DiscordClient discordClient;
@@ -33,9 +33,10 @@ public sealed class SteamGcClient
     private readonly SteamGameCoordinator steamGameCoordinator;
     private readonly CallbackManager callbackManager;
 
-    // Define a delegate signature for processing structural bytes
-    private delegate void GcMessageAction(IPacketGCMsg packetMsg);
-    private Dictionary<uint, GcMessageAction> gcMessageMap;
+    // Signals that the GC handshake (ClientHello -> ClientWelcome) has
+    // completed for the current session. Callers awaiting GC operations
+    // should await GcReady before sending. Reset on disconnect/logoff.
+    private TaskCompletionSource<bool> gcReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private bool isRunning;
     private bool isLoggedOn;
@@ -63,27 +64,12 @@ public sealed class SteamGcClient
         callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
         callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
         callbackManager.Subscribe<SteamGameCoordinator.MessageCallback>(OnGCMessage);
-
-        InitializeGcRouter();
-    }
-
-    private void InitializeGcRouter()
-    {
-        gcMessageMap = new Dictionary<uint, GcMessageAction>
-        {
-            // Map the exact message ID integer to its specific parsing method
-            // (Note: Replace numerical IDs with actual compiled Protobuf Enum values if available)
-            { 4004, HandleClientWelcome }, // EMsgGCClientWelcome
-            { 4005, HandleClientConnectionStatus }, // EMsgGCClientConnectionStatus
-            { 7027, HandlePracticeLobbySnapshot } // EMsgGCPracticeLobbySnapshot (example)
-        };
     }
 
     public string Username => username;
     public bool IsRunning => isRunning;
     public bool IsLoggedOn => isLoggedOn;
-    public uint DOTA_APP_ID => 570;
-
+    public Task GcReady => gcReady.Task;
 
     public Task<bool> StartAsync()
     {
@@ -138,6 +124,8 @@ public sealed class SteamGcClient
 
     public async Task CreateLobbyAsync(CreateLobbyRequest req)
     {
+        await gcReady.Task;
+
         logger.LogInformation("[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", username, req.LobbyName);
 
         var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
@@ -149,7 +137,7 @@ public sealed class SteamGcClient
             server_region = 2
         };
 
-        steamGameCoordinator.Send(createLobbyMsg, DOTA_APP_ID);
+        steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
 
         var message = $"[{username}] Lobby created: {req.LobbyName}";
         logger.LogInformation("{Message}", message);
@@ -164,134 +152,138 @@ public sealed class SteamGcClient
             inviteMsg.Body.steam_id = steamId;
 
             logger.LogInformation("[{Username}] Invite sent to SteamID {SteamId}", username, steamId);
-            steamGameCoordinator.Send(inviteMsg, DOTA_APP_ID);
+            steamGameCoordinator.Send(inviteMsg, DotaAppId);
         }
     }
 
     private void OnGCMessage(SteamGameCoordinator.MessageCallback callback)
     {
-        if (callback.AppID != DOTA_APP_ID) return;
+        if (callback.AppID != DotaAppId) return;
 
         // Strip the high-bit flag from the message ID to match standard Protobuf tracking
         uint cleanMsgType = MsgUtil.GetGCMsg(callback.Message.MsgType);
 
         switch (cleanMsgType)
         {
-            case (uint)ESOMsg.k_ESOMsg_UpdateMultiple:
-                logger.LogInformation("OnGCMessage: ESOMsg.k_ESOMsg_UpdateMultiple {ESOMsg.k_ESOMsg_UpdateMultiple}", callback.EMsg);
-                ProcessMultipleObjects(callback);
+            case (uint)EGCBaseClientMsg.k_EMsgGCClientWelcome:
+                logger.LogInformation("[{Username}] GC handshake complete (Welcome)", username);
+                gcReady.TrySetResult(true);
                 break;
 
             case (uint)EGCBaseClientMsg.k_EMsgGCClientConnectionStatus:
-                logger.LogInformation("OnGCMessage: EGCBaseClientMsg.k_EMsgGCClientConnectionStatus {EGCBaseClientMsg.k_EMsgGCClientConnectionStatus}", callback.EMsg);
                 ProcessConnectionStatus(callback);
                 break;
 
-            case (uint)ESOMsg.k_ESOMsg_CacheSubscribed:
-                logger.LogInformation("OnGCMessage: ESOMsg.k_ESOMsg_CacheSubscribed {ESOMsg.k_ESOMsg_CacheSubscribed}", callback.EMsg);
+            case (uint)ESOMsg.k_ESOMsg_UpdateMultiple:
+                ProcessMultipleObjects(callback);
                 break;
 
-            case (uint)EGCBaseClientMsg.k_EMsgGCClientWelcome:
-                logger.LogInformation("OnGCMessage: EGCBaseClientMsg.k_EMsgGCClientWelcome {EGCBaseClientMsg.k_EMsgGCClientWelcome}", callback.EMsg);
+            case (uint)ESOMsg.k_ESOMsg_CacheSubscribed:
+                logger.LogDebug("[{Username}] SO cache subscribed", username);
                 break;
 
             case (uint)EGCBaseMsg.k_EMsgGCInvitationCreated:
-                logger.LogInformation("OnGCMessage: EGCBaseMsg.k_EMsgGCInvitationCreated {EGCBaseMsg.k_EMsgGCInvitationCreated}", callback.EMsg);
+                logger.LogInformation("[{Username}] GC invitation created", username);
+                break;
+
+            default:
+                logger.LogDebug("[{Username}] GC message: EMsg {EMsg}", username, callback.EMsg);
                 break;
         }
-
-        logger.LogInformation("[{Username}] GC message: AppID {AppId} EMsg {EMsg}", username, callback.AppID, callback.EMsg);
     }
 
     private void ProcessConnectionStatus(SteamGameCoordinator.MessageCallback callback)
     {
-        // Deserialize using protobuf-net
-        var connStatus = ProtoBuf.Serializer.Deserialize<CMsgConnectionStatus>(new MemoryStream(callback.Message.GetData()));
-
-        logger.LogDebug("🌐 [GC Connection Status Update]: Status={Status}", connStatus.status);
+        using var ms = new MemoryStream(callback.Message.GetData());
+        var connStatus = Serializer.Deserialize<CMsgConnectionStatus>(ms);
 
         switch (connStatus.status)
         {
             case GCConnectionStatus.GCConnectionStatus_HAVE_SESSION:
-                logger.LogInformation("✅ Bot session is healthy and active. Safe to create lobbies!");
+                logger.LogInformation("[{Username}] GC session healthy", username);
+                gcReady.TrySetResult(true);
                 break;
 
             case GCConnectionStatus.GCConnectionStatus_NO_SESSION_IN_LOGON_QUEUE:
-                logger.LogInformation("⏳ Bot is stuck in Valve's logon queue.");
-                logger.LogInformation($"Queue Position: {connStatus.queue_position} / {connStatus.queue_size}");
-                logger.LogInformation($"Est. Wait Time: {connStatus.estimated_wait_seconds_remaining} ({connStatus.wait_seconds}s)");
+                logger.LogWarning(
+                    "[{Username}] GC logon queue: position {QueuePosition}/{QueueSize}, est wait {EstimatedWaitSeconds}s (wait {WaitSeconds}s)",
+                    username, connStatus.queue_position, connStatus.queue_size,
+                    connStatus.estimated_wait_seconds_remaining, connStatus.wait_seconds);
                 break;
 
             case GCConnectionStatus.GCConnectionStatus_NO_SESSION:
-                logger.LogInformation("❌ Disconnected from the Game Coordinator. Retrying ClientHello handshake...");
-                // Trigger your custom reconnect/Hello mechanism here
+                logger.LogWarning("[{Username}] No GC session; handshake will be retried", username);
+                ResetGcReady();
                 break;
 
             case GCConnectionStatus.GCConnectionStatus_GC_GOING_DOWN:
-                logger.LogInformation("⚠️ Valve's Dota 2 GC is restarting or updating. Pausing requests.");
+                logger.LogWarning("[{Username}] GC going down; pausing requests", username);
+                ResetGcReady();
+                break;
+
+            default:
+                logger.LogInformation("[{Username}] GC connection status: {Status}", username, connStatus.status);
                 break;
         }
     }
 
-    public void ProcessMultipleObjects(SteamGameCoordinator.MessageCallback callback)
+    private void ProcessMultipleObjects(SteamGameCoordinator.MessageCallback callback)
     {
-        int LOBBY_TYPE_ID = 2004;
-
         try
         {
-            var soMessage = Serializer.Deserialize<CMsgSOMultipleObjects>(new MemoryStream(callback.Message.GetData()));
-
+            using var ms = new MemoryStream(callback.Message.GetData());
+            var soMessage = Serializer.Deserialize<CMsgSOMultipleObjects>(ms);
 
             foreach (var obj in soMessage.objects_modified)
             {
-                if (obj.type_id == LOBBY_TYPE_ID && obj.object_data != null)
+                if (obj.type_id == LobbyTypeId && obj.object_data != null)
                 {
-                    //HandleLobbyUpdate(obj.object_data);
+                    // TODO: wire up HandleLobbyUpdate(obj.object_data) once
+                    // the auto-launch flow is ready (currently disabled to
+                    // avoid launching matches on every lobby snapshot).
                     break;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Error] Eroare în ProcessMultipleObjects: {ex.Message}");
+            logger.LogError(ex, "[{Username}] Failed to process SO multiple objects", username);
         }
     }
 
     private void HandleLobbyUpdate(byte[] objectData)
     {
         using var ms = new MemoryStream(objectData);
-
-        CSODOTALobby lobby = Serializer.Deserialize<CSODOTALobby>(ms);
-
+        var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
         if (lobby == null) return;
 
-        logger.LogInformation("[HandleLobbyUpdate] Lobby ID: {lobby.lobby_id} | Players: {lobby.all_members.Count}", lobby.lobby_id, lobby.all_members.Count);
+        logger.LogInformation(
+            "[{Username}] Lobby update: LobbyId={LobbyId} Members={MemberCount}",
+            username, lobby.lobby_id, lobby.all_members.Count);
 
-        bool validateResult = ValidatePlayers(lobby);
-
-        if (validateResult)
+        if (ValidatePlayers(lobby))
         {
-            logger.LogInformation("[HandleLobbyUpdate] Launching Dota 2 match...");
+            logger.LogInformation("[{Username}] Launching Dota 2 match", username);
             LaunchLobby();
         }
     }
 
-    private bool ValidatePlayers(CSODOTALobby lobby) =>
+    // TODO: placeholder threshold for local testing — replace with the real
+    // expected roster size (10 for 5v5) before wiring HandleLobbyUpdate.
+    private static bool ValidatePlayers(CSODOTALobby lobby) =>
         lobby.all_members.Count == 2;
 
     private void LaunchLobby()
     {
         var msgLaunch = new ClientGCMsgProtobuf<CMsgPracticeLobbyLaunch>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLaunch);
-        //msgLaunch.Body.client_version = 570;
-        steamGameCoordinator.Send(msgLaunch, DOTA_APP_ID);
+        steamGameCoordinator.Send(msgLaunch, DotaAppId);
     }
 
-    private (string, T) DeserializeToStringAndObject<T>(byte[] param)
+    private void ResetGcReady()
     {
-        var jsonString = Encoding.UTF8.GetString(param);
-
-        var obj = JsonSerializer.Deserialize<T>(jsonString)!;
-        return (jsonString, obj);
+        var existing = gcReady;
+        if (!existing.Task.IsCompleted) return;
+        gcReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
@@ -307,6 +299,7 @@ public sealed class SteamGcClient
     private void OnDisconnected(SteamKit2.SteamClient.DisconnectedCallback callback)
     {
         isLoggedOn = false;
+        ResetGcReady();
 
         if (!isRunning)
         {
@@ -340,12 +333,11 @@ public sealed class SteamGcClient
     private void OnLoggedOff(SteamUser.LoggedOffCallback callback)
     {
         isLoggedOn = false;
+        ResetGcReady();
         // SteamKit will fire a DisconnectedCallback right after — that path
         // owns the reconnect logic. Just record the reason here.
         logger.LogWarning("[{Username}] Logged off Steam: {Result}", username, callback.Result);
     }
-
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
 
     private void OnLoggedOn(SteamUser.LoggedOnCallback callback)
     {
@@ -359,18 +351,17 @@ public sealed class SteamGcClient
         logger.LogInformation("[{Username}] Steam authentication successful", username);
         steamFriends.SetPersonaState(EPersonaState.Online);
 
+        // Order matters: advertise game presence before saying hello to the
+        // Dota GC. SteamKit preserves send order on the underlying socket,
+        // so no sleep is needed between these — readiness is signalled by
+        // the k_EMsgGCClientWelcome callback handled in OnGCMessage.
         var gamePlayed = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
-        gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = DOTA_APP_ID });
+        gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = DotaAppId });
         steamClient.Send(gamePlayed);
-        logger.LogInformation("[{Username}] Notified Steam that we are 'playing' Dota 2", username);
-
-        Thread.Sleep(1000); // Short delay to ensure Steam processes the "playing" status before we send ClientHello
 
         var hello = new ClientGCMsgProtobuf<SteamKit2.GC.Dota.Internal.CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
-        steamGameCoordinator.Send(hello, DOTA_APP_ID);
+        steamGameCoordinator.Send(hello, DotaAppId);
 
-        logger.LogInformation("[{Username}] Sent GC ClientHello", username);
-
-        Thread.Sleep(1000); // Short delay to allow GC handshake to complete and trigger connection status updates before we attempt lobby operations
+        logger.LogInformation("[{Username}] Sent ClientGamesPlayed + GC ClientHello; awaiting Welcome", username);
     }
 }
