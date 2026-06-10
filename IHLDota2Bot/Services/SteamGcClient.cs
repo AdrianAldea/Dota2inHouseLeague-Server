@@ -38,8 +38,18 @@ public sealed class SteamGcClient
     // should await GcReady before sending. Reset on disconnect/logoff.
     private TaskCompletionSource<bool> gcReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    // The roster the current lobby is waiting on. When non-null, lobby SO
+    // snapshots are checked against Expected; when every SteamID is seated
+    // on Radiant/Dire, LaunchLobby fires and this is cleared. One per
+    // client because each pool account hosts one lobby at a time.
+    private ActiveRoster? activeRoster;
+
     private bool isRunning;
     private bool isLoggedOn;
+
+    private readonly record struct ActiveRoster(string? AppLobbyId, HashSet<ulong> Expected);
+
+    public event EventHandler<LobbyLaunchedEventArgs>? LobbyLaunched;
 
     public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger)
     {
@@ -125,6 +135,12 @@ public sealed class SteamGcClient
     public async Task CreateLobbyAsync(CreateLobbyRequest req)
     {
         await gcReady.Task;
+
+        // Set the expected roster *before* sending — an SO snapshot for the
+        // new lobby can arrive while we're still awaiting Discord I/O below.
+        activeRoster = req.ExpectedSteamIds.Count > 0
+            ? new ActiveRoster(req.AppLobbyId, [.. req.ExpectedSteamIds])
+            : null;
 
         logger.LogInformation("[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", username, req.LobbyName);
 
@@ -238,9 +254,7 @@ public sealed class SteamGcClient
             {
                 if (obj.type_id == LobbyTypeId && obj.object_data != null)
                 {
-                    // TODO: wire up HandleLobbyUpdate(obj.object_data) once
-                    // the auto-launch flow is ready (currently disabled to
-                    // avoid launching matches on every lobby snapshot).
+                    HandleLobbyUpdate(obj.object_data);
                     break;
                 }
             }
@@ -257,21 +271,48 @@ public sealed class SteamGcClient
         var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
         if (lobby == null) return;
 
-        logger.LogInformation(
-            "[{Username}] Lobby update: LobbyId={LobbyId} Members={MemberCount}",
-            username, lobby.lobby_id, lobby.all_members.Count);
-
-        if (ValidatePlayers(lobby))
+        var roster = activeRoster;
+        if (roster is null)
         {
-            logger.LogInformation("[{Username}] Launching Dota 2 match", username);
-            LaunchLobby();
+            // No expected roster (admin passthrough or no active create).
+            // Log snapshot so we at least see lobby activity, but don't auto-launch.
+            logger.LogDebug(
+                "[{Username}] Lobby snapshot (no roster tracked): LobbyId={LobbyId} Members={MemberCount}",
+                username, lobby.lobby_id, lobby.all_members.Count);
+            return;
         }
+
+        var seated = lobby.all_members
+            .Where(IsOnTeamSlot)
+            .Select(m => m.id)
+            .ToHashSet();
+
+        var missingCount = roster.Value.Expected.Count - roster.Value.Expected.Intersect(seated).Count();
+
+        logger.LogInformation(
+            "[{Username}] Lobby update: LobbyId={LobbyId} Seated={Seated}/{Expected} Missing={Missing}",
+            username, lobby.lobby_id, seated.Count, roster.Value.Expected.Count, missingCount);
+
+        if (missingCount > 0) return;
+
+        logger.LogInformation("[{Username}] All expected players seated — launching Dota 2 match", username);
+
+        var args = new LobbyLaunchedEventArgs
+        {
+            Username = username,
+            AppLobbyId = roster.Value.AppLobbyId,
+            DotaLobbyId = lobby.lobby_id
+        };
+
+        // Clear before raising so a re-entrant snapshot doesn't re-launch.
+        activeRoster = null;
+        LaunchLobby();
+        LobbyLaunched?.Invoke(this, args);
     }
 
-    // TODO: placeholder threshold for local testing — replace with the real
-    // expected roster size (10 for 5v5) before wiring HandleLobbyUpdate.
-    private static bool ValidatePlayers(CSODOTALobby lobby) =>
-        lobby.all_members.Count == 2;
+    private static bool IsOnTeamSlot(CSODOTALobbyMember member) =>
+        member.team == DOTA_GC_TEAM.DOTA_GC_TEAM_GOOD_GUYS
+        || member.team == DOTA_GC_TEAM.DOTA_GC_TEAM_BAD_GUYS;
 
     private void LaunchLobby()
     {
@@ -300,6 +341,7 @@ public sealed class SteamGcClient
     {
         isLoggedOn = false;
         ResetGcReady();
+        activeRoster = null;
 
         if (!isRunning)
         {
@@ -334,6 +376,7 @@ public sealed class SteamGcClient
     {
         isLoggedOn = false;
         ResetGcReady();
+        activeRoster = null;
         // SteamKit will fire a DisconnectedCallback right after — that path
         // owns the reconnect logic. Just record the reason here.
         logger.LogWarning("[{Username}] Logged off Steam: {Result}", username, callback.Result);
@@ -364,4 +407,11 @@ public sealed class SteamGcClient
 
         logger.LogInformation("[{Username}] Sent ClientGamesPlayed + GC ClientHello; awaiting Welcome", username);
     }
+}
+
+public sealed class LobbyLaunchedEventArgs : EventArgs
+{
+    public required string Username { get; init; }
+    public string? AppLobbyId { get; init; }
+    public ulong DotaLobbyId { get; init; }
 }

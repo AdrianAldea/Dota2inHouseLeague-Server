@@ -293,25 +293,50 @@ public class LobbyPoolManager : IHostedService
             {
                 try
                 {
-                    await botClient.CreateLobbyAsync(new CreateLobbyRequest
-                    {
-                        AuthorId = account.Id,
-                        LobbyName = lobbyName,
-                        LobbyPassword = lobbyPassword
-                    });
-
                     var steamIds = lobby.Players
                         .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
                         .Where(id => id > 0)
                         .ToList();
 
+                    if (steamIds.Count == 0)
+                    {
+                        logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players; auto-launch disabled", lobby.Id);
+                    }
+
+                    // Subscribe before CreateLobbyAsync — the GC snapshot can land
+                    // immediately. Handler self-detaches once it fires for this lobby.
+                    var lobbyId = lobby.Id;
+                    EventHandler<LobbyLaunchedEventArgs>? handler = null;
+                    handler = async (_, args) =>
+                    {
+                        if (args.AppLobbyId != lobbyId) return;
+                        botClient.LobbyLaunched -= handler;
+                        logger.LogInformation(
+                            "Lobby {LobbyId} launched in Dota (DotaLobbyId={DotaLobbyId}); flipping to InProgress",
+                            lobbyId, args.DotaLobbyId);
+                        try
+                        {
+                            await NotifyGameStartedAsync(lobbyId);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Failed to flip game-started state for lobby {LobbyId}", lobbyId);
+                        }
+                    };
+                    botClient.LobbyLaunched += handler;
+
+                    await botClient.CreateLobbyAsync(new CreateLobbyRequest
+                    {
+                        AuthorId = account.Id,
+                        LobbyName = lobbyName,
+                        LobbyPassword = lobbyPassword,
+                        ExpectedSteamIds = steamIds,
+                        AppLobbyId = lobby.Id
+                    });
+
                     if (steamIds.Count > 0)
                     {
                         botClient.InvitePlayersToLobby(steamIds);
-                    }
-                    else
-                    {
-                        logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players", lobby.Id);
                     }
                 }
                 catch (Exception ex)
@@ -326,17 +351,10 @@ public class LobbyPoolManager : IHostedService
 
             GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
 
-            // Flip the session to InProgress immediately. Some leagues might delay this
-            // until a real "game started" callback from the Steam GC, but for now there's
-            // no such trigger, so we treat "lobby ready" as "game started".
-            try
-            {
-                await NotifyGameStartedAsync(lobby.Id);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to auto-start game session for lobby {LobbyId}", lobby.Id);
-            }
+            // InProgress flip happens when SteamGcClient.LobbyLaunched fires
+            // (i.e. all expected players have seated on team slots and the
+            // bot has sent CMsgGCPracticeLobbyLaunch). The handler is wired
+            // above, just before CreateLobbyAsync.
         }
         catch (Exception ex)
         {
