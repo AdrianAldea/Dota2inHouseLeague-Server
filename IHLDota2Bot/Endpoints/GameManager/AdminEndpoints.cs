@@ -62,6 +62,18 @@ public static class AdminEndpoints
                     return new { lobbyId, status = "finished" };
                 }));
 
+        // Destroy — force the hosted game to end: sends the Dota GC a
+        // PracticeLobbyLeave on the lobby's bot, then releases the account and
+        // reopens the queue. Unlike /game/finished, this also tears the lobby
+        // down on Steam's side.
+        group.MapPost("/admin/game/destroy/{lobbyId}",
+            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+                await EndpointHelpers.TryOkAsync(log, "destroy lobby", async () =>
+                {
+                    await svc.DestroyLobbyAsync(lobbyId);
+                    return new { lobbyId, status = "destroyed" };
+                }));
+
         return group;
     }
 }

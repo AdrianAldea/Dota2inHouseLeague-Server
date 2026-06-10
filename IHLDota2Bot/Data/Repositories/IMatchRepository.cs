@@ -8,6 +8,14 @@ public interface IMatchRepository
     Task<MatchEntity> CreateMatchAsync(string? lobbyId, IEnumerable<(ulong UserId, MatchTeam Team)> players, CancellationToken cancellationToken = default);
     Task<MatchSummary?> GetCurrentMatchForPlayerAsync(ulong userId, CancellationToken cancellationToken = default);
     Task<MatchSummary?> GetByIdAsync(Guid matchId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Read-only lookup of the most recent match created for <paramref name="lobbyId"/>.
+    /// Returns null when the lobby never produced a match (or no longer has one).
+    /// Lets the admin panel jump straight from an active lobby to its match details
+    /// without first discovering the match GUID.
+    /// </summary>
+    Task<MatchSummary?> GetByLobbyIdAsync(string lobbyId, CancellationToken cancellationToken = default);
     Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(ulong userId, int top, CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -72,6 +72,22 @@ public class MatchRepository : IMatchRepository
         return match == null ? null : await ToSummaryAsync(context, match, cancellationToken);
     }
 
+    public async Task<MatchSummary?> GetByLobbyIdAsync(string lobbyId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(lobbyId)) return null;
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var match = await context.Matches
+            .AsNoTracking()
+            .Include(m => m.Players)
+            .Where(m => m.LobbyId == lobbyId)
+            .OrderByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return match == null ? null : await ToSummaryAsync(context, match, cancellationToken);
+    }
+
     public async Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(ulong userId, int top, CancellationToken cancellationToken = default)
     {
         if (top <= 0) top = 5;

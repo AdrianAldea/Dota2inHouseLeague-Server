@@ -1,11 +1,12 @@
 import { Component, computed, signal } from '@angular/core';
 import { CardComponent } from '../../components/card/card';
+import { LobbyMonitorComponent } from '../../components/lobby-monitor/lobby-monitor';
 import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'admin-page',
   standalone: true,
-  imports: [CardComponent, FormsModule],
+  imports: [CardComponent, LobbyMonitorComponent, FormsModule],
   templateUrl: './admin.html',
   styleUrl: './admin.css'
 })
