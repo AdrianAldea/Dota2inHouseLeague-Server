@@ -243,7 +243,7 @@ public class LobbyPoolManager : IHostedService
 
                     if (steamIds.Count > 0)
                     {
-                        botClient.InvitePlayersToLobby(steamIds);
+                        //botClient.InvitePlayersToLobby(steamIds);
                     }
                     else
                     {
