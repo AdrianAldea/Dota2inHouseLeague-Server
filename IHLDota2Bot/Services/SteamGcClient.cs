@@ -363,6 +363,13 @@ public sealed class SteamGcClient
 
         hasActiveLobby = true;
 
+        // The bot only hosts; it must not occupy one of the 10 team slots.
+        // The GC sometimes seats the lobby creator on Radiant by default, so
+        // self-correct here: if we see our own account on a team, move it to
+        // the unassigned player pool. Runs before the roster check so it also
+        // applies to admin/passthrough lobbies.
+        EnsureBotIsNotSeated(lobby);
+
         var roster = activeRoster;
         if (roster is null)
         {
@@ -416,6 +423,30 @@ public sealed class SteamGcClient
     private static bool IsOnTeamSlot(CSODOTALobbyMember member) =>
         member.team == DOTA_GC_TEAM.DOTA_GC_TEAM_GOOD_GUYS
         || member.team == DOTA_GC_TEAM.DOTA_GC_TEAM_BAD_GUYS;
+
+    // Where the bot parks itself so it never consumes a player slot. Swap to
+    // DOTA_GC_TEAM_BROADCASTER if you'd rather the bot show up as a caster.
+    private const DOTA_GC_TEAM BotParkTeam = DOTA_GC_TEAM.DOTA_GC_TEAM_PLAYER_POOL;
+
+    private void EnsureBotIsNotSeated(CSODOTALobby lobby)
+    {
+        var myId = steamClient.SteamID?.ConvertToUInt64();
+        if (myId is null or 0) return;
+
+        var me = lobby.all_members.FirstOrDefault(m => m.id == myId);
+        if (me is null || !IsOnTeamSlot(me)) return;
+
+        logger.LogInformation(
+            "[{Username}] Bot is seated on {Team}; moving it off the player slot to {Target}",
+            username, me.team, BotParkTeam);
+
+        // SetTeamSlot moves the sender (us), so no SteamID is needed. slot 0 is
+        // ignored for the pool/broadcaster which have no numbered team slots.
+        var msg = new ClientGCMsgProtobuf<CMsgPracticeLobbySetTeamSlot>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbySetTeamSlot);
+        msg.Body.team = BotParkTeam;
+        msg.Body.slot = 0;
+        steamGameCoordinator.Send(msg, DotaAppId);
+    }
 
     private void LaunchLobby()
     {
