@@ -45,6 +45,71 @@ public static class ProcessJobTree
         }
     }
 
+    /// <summary>
+    /// Belt-and-suspenders for the one case the kill-on-close job can't catch on
+    /// its own: someone kills the intermediate <c>dotnet run</c> launcher but
+    /// leaves <c>IHLDota2Bot.AppHost.exe</c> itself alive. Watches the parent
+    /// process and, if it exits, exits this process too — which closes the job
+    /// handle and reaps every child. Windows-only and best-effort.
+    /// </summary>
+    public static void ExitWhenParentExits()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            WatchParentWindows();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[ProcessJobTree] Could not set up parent-process watch: {ex.Message}");
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void WatchParentWindows()
+    {
+        var parentPid = GetParentProcessId();
+        if (parentPid <= 0)
+        {
+            return;
+        }
+
+        var parentHandle = OpenProcess(SYNCHRONIZE, false, (uint)parentPid);
+        if (parentHandle == IntPtr.Zero)
+        {
+            // Parent already gone or not openable — nothing to watch.
+            return;
+        }
+
+        // A dedicated background thread blocked on the parent's handle is the
+        // simplest correct primitive: it's a pure kernel wait (no CPU, no poll),
+        // and being a started thread it stays rooted until it returns.
+        var watcher = new Thread(() =>
+        {
+            WaitForSingleObject(parentHandle, INFINITE);
+            Console.Error.WriteLine("[ProcessJobTree] Parent process exited; shutting down AppHost so its children are reaped.");
+            Environment.Exit(0);
+        })
+        {
+            IsBackground = true,
+            Name = "ParentProcessWatch"
+        };
+        watcher.Start();
+        Console.WriteLine($"[ProcessJobTree] Watching parent process {parentPid}; AppHost will exit if it does.");
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static int GetParentProcessId()
+    {
+        var pbi = new PROCESS_BASIC_INFORMATION();
+        var status = NtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, ref pbi, Marshal.SizeOf<PROCESS_BASIC_INFORMATION>(), out _);
+        return status == 0 ? pbi.InheritedFromUniqueProcessId.ToInt32() : -1;
+    }
+
     [SupportedOSPlatform("windows")]
     private static void AttachWindows()
     {
@@ -90,6 +155,29 @@ public static class ProcessJobTree
 
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
     private const int JobObjectExtendedLimitInformation = 9;
+    private const int ProcessBasicInformation = 0;
+    private const uint SYNCHRONIZE = 0x00100000;
+    private const uint INFINITE = 0xFFFFFFFF;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtQueryInformationProcess(IntPtr processHandle, int processInformationClass, ref PROCESS_BASIC_INFORMATION processInformation, int processInformationLength, out int returnLength);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_BASIC_INFORMATION
+    {
+        public IntPtr ExitStatus;
+        public IntPtr PebBaseAddress;
+        public IntPtr AffinityMask;
+        public IntPtr BasePriority;
+        public IntPtr UniqueProcessId;
+        public IntPtr InheritedFromUniqueProcessId;
+    }
 
     [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);

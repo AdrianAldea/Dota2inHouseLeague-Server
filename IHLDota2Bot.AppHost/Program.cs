@@ -6,6 +6,10 @@ using IHLDota2Bot.AppHost;
 // child is launched, i.e. before the host is built.
 ProcessJobTree.KillChildrenOnExit();
 
+// Belt-and-suspenders: if the parent (e.g. the `dotnet run` launcher) is killed
+// while this process survives, exit too so the kill-on-close job reaps the rest.
+ProcessJobTree.ExitWhenParentExits();
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", port: 52001)
