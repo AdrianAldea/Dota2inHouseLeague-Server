@@ -158,6 +158,28 @@ public class MatchRepository : IMatchRepository
         return new ReportMatchResult { Success = true, Message = message, Match = summary };
     }
 
+    public async Task<List<MatchEntity>> GetStaleInProgressMatchesAsync(DateTime olderThanUtc, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Matches
+            .AsNoTracking()
+            .Where(m => m.Status == MatchStatus.InProgress && m.CreatedAt < olderThanUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> CancelMatchAsync(Guid matchId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var match = await context.Matches.FirstOrDefaultAsync(m => m.Id == matchId, cancellationToken);
+        if (match == null) return false;
+        if (match.Status != MatchStatus.InProgress) return false; // already settled — don't overwrite
+
+        match.Status = MatchStatus.Cancelled;
+        match.CompletedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     private static async Task<MatchSummary> ToSummaryAsync(AppDbContext context, MatchEntity match, CancellationToken cancellationToken)
     {
         var userIds = match.Players.Select(p => p.UserId).ToList();

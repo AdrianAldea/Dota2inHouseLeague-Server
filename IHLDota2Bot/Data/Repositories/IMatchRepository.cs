@@ -15,6 +15,21 @@ public interface IMatchRepository
     /// Returns null if the match isn't found, or the (possibly already-completed) match summary otherwise.
     /// </summary>
     Task<ReportMatchResult> ReportMatchAsync(ulong reporterUserId, MatchTeam winningTeam, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// All matches still marked InProgress whose CreatedAt is older than <paramref name="olderThanUtc"/>.
+    /// Used by the startup reconciliation pass in <see cref="LobbyPoolManager"/> to clean up matches
+    /// stranded by a crash / kill mid-game (the in-memory <c>LobbySession</c> is gone but the DB row
+    /// would otherwise stay InProgress forever).
+    /// </summary>
+    Task<List<MatchEntity>> GetStaleInProgressMatchesAsync(DateTime olderThanUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks a match as Cancelled. Does not touch player Wins/Losses/Rating —
+    /// a cancelled match never produced a winner so there's nothing to apply.
+    /// Idempotent: calling on an already non-InProgress match is a no-op.
+    /// </summary>
+    Task<bool> CancelMatchAsync(Guid matchId, CancellationToken cancellationToken = default);
 }
 
 public record ReportMatchResult

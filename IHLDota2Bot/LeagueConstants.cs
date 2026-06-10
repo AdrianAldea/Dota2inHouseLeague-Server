@@ -15,6 +15,14 @@ public static class LeagueConstants
     /// <summary>ELO K-factor applied per completed match.</summary>
     public const int EloKFactor = 32;
 
+    /// <summary>
+    /// How old an InProgress match can be before it's considered abandoned and
+    /// reconciled to Cancelled on app startup. A Dota 2 game is typically
+    /// 30–60 minutes; 2 hours leaves comfortable headroom while still cleaning
+    /// up sessions stranded by a crash or kill mid-match.
+    /// </summary>
+    public static readonly TimeSpan StaleMatchThreshold = TimeSpan.FromHours(2);
+
     /// <summary>How long a pending challenge stays valid before expiring.</summary>
     public static readonly TimeSpan ChallengeTtl = TimeSpan.FromMinutes(15);
 
