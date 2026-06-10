@@ -26,4 +26,15 @@ var discord = builder.AddProject<Projects.IHLDota2Bot_Discord>("Dota2inHouseLeag
 dota2.WithReference(discord);
 discord.WithReference(dota2);
 
+// Angular admin frontend. Runs `npm run start` (ng serve) as an AppHost-managed
+// resource so it shows up in the Aspire dashboard, starts automatically with the
+// AppHost, and is reaped along with everything else on shutdown. ng serve binds
+// 4200 and reaches the backend through its own proxy.conf.json, so the endpoint
+// is registered un-proxied on that fixed port. Waits for the Game Manager so the
+// proxy target is up before the UI loads.
+builder.AddNpmApp("frontend", "../IHLDota2BotFrontEnd")
+    .WithHttpEndpoint(port: 4200, targetPort: 4200, isProxied: false)
+    .WithExternalHttpEndpoints()
+    .WaitFor(dota2);
+
 builder.Build().Run();
