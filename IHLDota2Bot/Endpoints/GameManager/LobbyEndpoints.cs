@@ -12,7 +12,7 @@ public static class LobbyEndpoints
     public static RouteGroupBuilder MapLobbyEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/create",
-            async (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] CreateLobbyRequest req, CancellationToken ct) =>
+            async (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] CreateLobbyRequest req) =>
             {
                 try
                 {
@@ -27,7 +27,7 @@ public static class LobbyEndpoints
             });
 
         group.MapPost("/invite",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] InviteRequest req, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] InviteRequest req) =>
                 EndpointHelpers.Try(log, "invite players", () => svc.InvitePlayersToLobby(req.PlayersIds)));
 
         return group;

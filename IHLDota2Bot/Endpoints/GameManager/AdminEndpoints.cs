@@ -21,19 +21,19 @@ public static class AdminEndpoints
                 EndpointHelpers.TryOkAsync(log, "unban player", () => svc.UnbanPlayerAsync(id, ct)));
 
         group.MapPost("/admin/kick/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "kick player", () => svc.KickPlayerAsync(id)));
 
         group.MapPost("/admin/force_start",
-            (Dota2Service svc, ILogger<Dota2Service> log, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOkAsync(log, "force start lobby", svc.ForceStartLobbyAsync));
 
         group.MapPost("/admin/reset_queue",
-            (Dota2Service svc, ILogger<Dota2Service> log, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOkAsync(log, "reset queue", svc.ResetQueueAsync));
 
         group.MapPost("/admin/add_account",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] AddSteamAccountRequest req, CancellationToken ct) =>
+            (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] AddSteamAccountRequest req) =>
                 EndpointHelpers.TryOkAsync(log, "add Steam account", () => svc.AddSteamAccountAsync(req.Username, req.Password)));
 
         group.MapGet("/admin/pool_status",
