@@ -21,11 +21,17 @@ namespace IHLDota2Bot.AppHost;
 /// </summary>
 public static class PodmanBootstrap
 {
-    private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(3);
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan StartTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan InitTimeout = TimeSpan.FromMinutes(15);
+
+    // Hard cap on how long the bootstrap may delay AppHost startup. The work runs
+    // on a background thread; if it isn't done by this point we continue anyway so
+    // a hung podman call can NEVER freeze the AppHost. `machine start` is launched
+    // fire-and-forget, so the machine still comes up even if we stop waiting.
+    private static readonly TimeSpan OverallTimeout = TimeSpan.FromSeconds(120);
 
     // On `machine start`, Podman's win-sshproxy/gvproxy helpers drop a stray "NUL"
     // file (the Windows null device opened as a relative path) into the working
@@ -40,6 +46,23 @@ public static class PodmanBootstrap
     private static Process? _machineStartProcess;
 
     public static void EnsureRunning()
+    {
+        // Run the bootstrap on a background thread and wait at most OverallTimeout.
+        // Join returns as soon as the work finishes (the normal case is a few
+        // seconds), but if any podman call hangs we continue AppHost startup
+        // instead of freezing. The machine has already been told to start, so it
+        // still comes up; Aspire will report later if the runtime truly isn't up.
+        var worker = new Thread(EnsureRunningCore) { IsBackground = true, Name = "PodmanBootstrap" };
+        worker.Start();
+        if (!worker.Join(OverallTimeout))
+        {
+            Console.Error.WriteLine(
+                $"[PodmanBootstrap] Still preparing Podman after {OverallTimeout.TotalSeconds:F0}s; continuing AppHost " +
+                "startup so it can't hang. If containers fail to start, run `podman machine start` and retry.");
+        }
+    }
+
+    private static void EnsureRunningCore()
     {
         try
         {
