@@ -69,13 +69,13 @@ public static class PodmanBootstrap
                 Console.WriteLine(
                     "[PodmanBootstrap] No Podman machine found; running one-time `podman machine init` " +
                     "(downloads a VM image, may take a few minutes)...");
-                if (!RunStreaming(InitTimeout, "machine", "init"))
+                if (!RunQuiet(InitTimeout, "machine", "init"))
                 {
                     Console.Error.WriteLine("[PodmanBootstrap] `podman machine init` failed. Run it manually, then retry.");
                     return;
                 }
                 Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
-                RunStreaming(StartTimeout, "machine", "start");
+                RunQuiet(StartTimeout, "machine", "start");
             }
             else if (machineRunning)
             {
@@ -87,13 +87,13 @@ public static class PodmanBootstrap
                 Console.WriteLine(
                     "[PodmanBootstrap] Podman machine is running but its engine isn't responding; " +
                     "restarting it to restore the connection...");
-                RunStreaming(StartTimeout, "machine", "stop");
-                RunStreaming(StartTimeout, "machine", "start");
+                RunQuiet(StartTimeout, "machine", "stop");
+                RunQuiet(StartTimeout, "machine", "start");
             }
             else
             {
                 Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
-                RunStreaming(StartTimeout, "machine", "start");
+                RunQuiet(StartTimeout, "machine", "start");
             }
 
             var sw = Stopwatch.StartNew();
@@ -170,13 +170,14 @@ public static class PodmanBootstrap
             };
             foreach (var a in args) psi.ArgumentList.Add(a);
 
-            using var process = Process.Start(psi);
-            if (process is null) return (false, string.Empty);
+            using var process = new Process { StartInfo = psi };
+            // Drain stderr on a background thread so a chatty error stream can't
+            // fill its pipe buffer and deadlock the synchronous stdout read below.
+            process.ErrorDataReceived += static (_, _) => { };
+            if (!process.Start()) return (false, string.Empty);
+            process.BeginErrorReadLine();
 
-            // Outputs here are tiny, so reading stdout to completion before waiting
-            // can't deadlock on a full pipe buffer.
             var stdout = process.StandardOutput.ReadToEnd();
-            _ = process.StandardError.ReadToEnd();
 
             if (!process.WaitForExit((int)timeout.TotalMilliseconds))
             {
@@ -194,18 +195,22 @@ public static class PodmanBootstrap
     }
 
     /// <summary>
-    /// Runs the long, chatty `machine init` / `machine start`, re-emitting podman's
-    /// output to our console so the developer still sees progress.
+    /// Runs a podman command (the longer `machine init` / `start` / `stop`),
+    /// returning true on a clean exit.
     ///
-    /// Output is redirected (not inherited) on purpose: `machine start` spawns
-    /// long-lived helpers (win-sshproxy/gvproxy) that inherit whatever handles the
-    /// podman process has. If those were the AppHost's real console handles, the
-    /// helpers hold them open for their whole lifetime — which hangs the AppHost
-    /// under a Visual Studio debug console (it waits on those handles), freezing
-    /// startup right after "machine started". Redirecting hands the helpers our
-    /// pipes instead, leaving the AppHost's console free.
+    /// Output is redirected and silently drained — deliberately not re-emitted to
+    /// the console — for two reasons:
+    /// 1. `machine start` spawns long-lived helpers (win-sshproxy/gvproxy) that
+    ///    inherit the podman process's handles. Redirecting hands them our pipes
+    ///    instead of the AppHost's real console handles, which the helpers would
+    ///    otherwise hold open for their whole lifetime.
+    /// 2. Writing podman's output to the console from the background reader thread
+    ///    can contend with the AppHost's own console writes under a Visual Studio
+    ///    debug console and freeze startup right after "machine started".
+    /// We still surface progress through the bootstrap's own status lines, which
+    /// are written from the main thread.
     /// </summary>
-    private static bool RunStreaming(TimeSpan timeout, params string[] args)
+    private static bool RunQuiet(TimeSpan timeout, params string[] args)
     {
         try
         {
@@ -220,8 +225,10 @@ public static class PodmanBootstrap
             foreach (var a in args) psi.ArgumentList.Add(a);
 
             using var process = new Process { StartInfo = psi };
-            process.OutputDataReceived += static (_, e) => { if (e.Data is not null) Console.WriteLine(e.Data); };
-            process.ErrorDataReceived += static (_, e) => { if (e.Data is not null) Console.Error.WriteLine(e.Data); };
+            // Empty handlers still drain the pipes (so podman can't block on a full
+            // buffer) without touching the console.
+            process.OutputDataReceived += static (_, _) => { };
+            process.ErrorDataReceived += static (_, _) => { };
 
             if (!process.Start()) return false;
             process.BeginOutputReadLine();

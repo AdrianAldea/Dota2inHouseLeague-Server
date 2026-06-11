@@ -399,3 +399,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Stray "NUL" file (the Windows null device opened as a path) that Podman and
+# Aspire's DCP can drop into the working directory during the container
+# lifecycle. Harmless reserved-name junk — never want it tracked or committed.
+NUL
+**/NUL
