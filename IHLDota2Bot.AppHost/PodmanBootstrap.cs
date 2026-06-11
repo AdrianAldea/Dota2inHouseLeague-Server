@@ -34,6 +34,11 @@ public static class PodmanBootstrap
     // podman from the temp dir keeps it out of the source tree.
     private static readonly string PodmanWorkingDir = Path.GetTempPath();
 
+    // Holds the (possibly still-running) `machine start` process so its drain
+    // readers aren't garbage-collected. It's a child in the kill-on-close job, so
+    // it's reaped when the AppHost exits.
+    private static Process? _machineStartProcess;
+
     public static void EnsureRunning()
     {
         try
@@ -74,27 +79,28 @@ public static class PodmanBootstrap
                     Console.Error.WriteLine("[PodmanBootstrap] `podman machine init` failed. Run it manually, then retry.");
                     return;
                 }
-                Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
-                RunQuiet(StartTimeout, "machine", "start");
             }
             else if (machineRunning)
             {
                 // The machine is up but its engine isn't answering — a stale
                 // connection (a known Podman-on-Windows hiccup once the VM has
                 // been up a while). A plain `podman machine start` here just fails
-                // with "already running" without fixing anything, so restart the
-                // machine to re-establish the connection.
+                // with "already running" without fixing anything, so stop it first
+                // and let the start below re-establish the connection.
                 Console.WriteLine(
                     "[PodmanBootstrap] Podman machine is running but its engine isn't responding; " +
                     "restarting it to restore the connection...");
                 RunQuiet(StartTimeout, "machine", "stop");
-                RunQuiet(StartTimeout, "machine", "start");
             }
-            else
-            {
-                Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
-                RunQuiet(StartTimeout, "machine", "start");
-            }
+
+            // Launch `machine start` but do NOT block on it exiting. The start
+            // command can stay alive well after the machine is actually up (the
+            // long-lived helpers it spawns keep its redirected pipes open), so
+            // waiting for it to exit hangs the AppHost — this was the freeze at
+            // "Starting the Podman machine...". The engine-readiness poll below is
+            // the real "machine is up" signal, so we wait on that instead.
+            Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
+            _machineStartProcess = LaunchDrained("machine", "start");
 
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed < StartupTimeout)
@@ -210,6 +216,48 @@ public static class PodmanBootstrap
     /// We still surface progress through the bootstrap's own status lines, which
     /// are written from the main thread.
     /// </summary>
+    /// <summary>
+    /// Starts a podman command with its output redirected and drained, returning
+    /// immediately WITHOUT waiting for it to exit. Used for `machine start`, whose
+    /// process can stay alive (its spawned helpers keep the pipes open) long after
+    /// the machine is already up — so blocking on its exit would hang the AppHost.
+    /// Readiness is determined by polling the engine, not by this process exiting.
+    /// </summary>
+    private static Process? LaunchDrained(params string[] args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("podman")
+            {
+                UseShellExecute = false,
+                WorkingDirectory = PodmanWorkingDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+
+            var process = new Process { StartInfo = psi };
+            // Empty handlers drain the pipes (so podman can't block on a full
+            // buffer and the spawned helpers inherit our pipes, not the console).
+            process.OutputDataReceived += static (_, _) => { };
+            process.ErrorDataReceived += static (_, _) => { };
+
+            if (!process.Start())
+            {
+                process.Dispose();
+                return null;
+            }
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            return process;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static bool RunQuiet(TimeSpan timeout, params string[] args)
     {
         try
