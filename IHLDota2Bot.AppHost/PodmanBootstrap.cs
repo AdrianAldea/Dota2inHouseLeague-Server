@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace IHLDota2Bot.AppHost;
@@ -25,6 +26,13 @@ public static class PodmanBootstrap
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan StartTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan InitTimeout = TimeSpan.FromMinutes(15);
+
+    // On `machine start`, Podman's win-sshproxy/gvproxy helpers drop a stray "NUL"
+    // file (the Windows null device opened as a relative path) into the working
+    // directory. Process.Start inherits the AppHost's working directory (the
+    // project folder), so without this the junk file lands in the repo. Running
+    // podman from the temp dir keeps it out of the source tree.
+    private static readonly string PodmanWorkingDir = Path.GetTempPath();
 
     public static void EnsureRunning()
     {
@@ -157,7 +165,8 @@ public static class PodmanBootstrap
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = PodmanWorkingDir
             };
             foreach (var a in args) psi.ArgumentList.Add(a);
 
@@ -193,7 +202,7 @@ public static class PodmanBootstrap
     {
         try
         {
-            var psi = new ProcessStartInfo("podman") { UseShellExecute = false };
+            var psi = new ProcessStartInfo("podman") { UseShellExecute = false, WorkingDirectory = PodmanWorkingDir };
             foreach (var a in args) psi.ArgumentList.Add(a);
 
             using var process = Process.Start(psi);
