@@ -194,20 +194,43 @@ public static class PodmanBootstrap
     }
 
     /// <summary>
-    /// Runs podman letting its output flow to the console — for the long, chatty
-    /// `machine init` / `machine start` so the developer sees progress (and the
-    /// inherited streams can't deadlock on a buffer).
+    /// Runs the long, chatty `machine init` / `machine start`, re-emitting podman's
+    /// output to our console so the developer still sees progress.
+    ///
+    /// Output is redirected (not inherited) on purpose: `machine start` spawns
+    /// long-lived helpers (win-sshproxy/gvproxy) that inherit whatever handles the
+    /// podman process has. If those were the AppHost's real console handles, the
+    /// helpers hold them open for their whole lifetime — which hangs the AppHost
+    /// under a Visual Studio debug console (it waits on those handles), freezing
+    /// startup right after "machine started". Redirecting hands the helpers our
+    /// pipes instead, leaving the AppHost's console free.
     /// </summary>
     private static bool RunStreaming(TimeSpan timeout, params string[] args)
     {
         try
         {
-            var psi = new ProcessStartInfo("podman") { UseShellExecute = false, WorkingDirectory = PodmanWorkingDir };
+            var psi = new ProcessStartInfo("podman")
+            {
+                UseShellExecute = false,
+                WorkingDirectory = PodmanWorkingDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
             foreach (var a in args) psi.ArgumentList.Add(a);
 
-            using var process = Process.Start(psi);
-            if (process is null) return false;
+            using var process = new Process { StartInfo = psi };
+            process.OutputDataReceived += static (_, e) => { if (e.Data is not null) Console.WriteLine(e.Data); };
+            process.ErrorDataReceived += static (_, e) => { if (e.Data is not null) Console.Error.WriteLine(e.Data); };
 
+            if (!process.Start()) return false;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            // Wait only for the process — NOT the streams. The spawned helpers keep
+            // the redirected pipes open for their lifetime, so waiting for stream
+            // EOF (the parameterless WaitForExit) would hang. The exit code is
+            // available as soon as podman itself exits.
             if (!process.WaitForExit((int)timeout.TotalMilliseconds))
             {
                 try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
