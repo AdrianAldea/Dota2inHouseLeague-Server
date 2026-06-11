@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 
 namespace IHLDota2Bot.AppHost;
 
@@ -29,6 +30,14 @@ public static class PodmanBootstrap
     {
         try
         {
+            // Fast path: engine already answering — nothing to do. One quick retry
+            // rides out a transient probe blip so we don't needlessly restart a
+            // perfectly healthy machine.
+            if (IsEngineReady())
+            {
+                return;
+            }
+            Thread.Sleep(TimeSpan.FromSeconds(2));
             if (IsEngineReady())
             {
                 return;
@@ -45,7 +54,9 @@ public static class PodmanBootstrap
                 return;
             }
 
-            if (!MachineExists())
+            var (machineExists, machineRunning) = GetMachineStatus();
+
+            if (!machineExists)
             {
                 Console.WriteLine(
                     "[PodmanBootstrap] No Podman machine found; running one-time `podman machine init` " +
@@ -55,12 +66,27 @@ public static class PodmanBootstrap
                     Console.Error.WriteLine("[PodmanBootstrap] `podman machine init` failed. Run it manually, then retry.");
                     return;
                 }
+                Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
+                RunStreaming(StartTimeout, "machine", "start");
             }
-
-            Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
-            // Ignore the exit code: "already running" returns non-zero, and the
-            // readiness poll below is the real source of truth.
-            RunStreaming(StartTimeout, "machine", "start");
+            else if (machineRunning)
+            {
+                // The machine is up but its engine isn't answering — a stale
+                // connection (a known Podman-on-Windows hiccup once the VM has
+                // been up a while). A plain `podman machine start` here just fails
+                // with "already running" without fixing anything, so restart the
+                // machine to re-establish the connection.
+                Console.WriteLine(
+                    "[PodmanBootstrap] Podman machine is running but its engine isn't responding; " +
+                    "restarting it to restore the connection...");
+                RunStreaming(StartTimeout, "machine", "stop");
+                RunStreaming(StartTimeout, "machine", "start");
+            }
+            else
+            {
+                Console.WriteLine("[PodmanBootstrap] Starting the Podman machine...");
+                RunStreaming(StartTimeout, "machine", "start");
+            }
 
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed < StartupTimeout)
@@ -93,10 +119,32 @@ public static class PodmanBootstrap
         return ok;
     }
 
-    private static bool MachineExists()
+    /// <summary>
+    /// Reports whether a Podman machine exists and whether it's running. Uses
+    /// `machine list` / `machine inspect`, which read the VM's own state and work
+    /// even when the engine API socket is unreachable — so we can tell "stopped"
+    /// apart from "running but disconnected" and react correctly.
+    /// </summary>
+    private static (bool Exists, bool Running) GetMachineStatus()
     {
-        var (ok, output) = RunCapture(ProbeTimeout, "machine", "list", "--format", "{{.Name}}");
-        return ok && !string.IsNullOrWhiteSpace(output);
+        var (okList, names) = RunCapture(ProbeTimeout, "machine", "list", "--format", "{{.Name}}");
+        if (!okList || string.IsNullOrWhiteSpace(names))
+        {
+            return (false, false);
+        }
+
+        var name = names
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(n => n.TrimEnd('*').Trim())
+            .FirstOrDefault(n => n.Length > 0);
+        if (string.IsNullOrEmpty(name))
+        {
+            return (false, false);
+        }
+
+        var (okState, state) = RunCapture(ProbeTimeout, "machine", "inspect", name, "--format", "{{.State}}");
+        var running = okState && state.Trim().Equals("running", StringComparison.OrdinalIgnoreCase);
+        return (true, running);
     }
 
     /// <summary>Runs podman with output captured (for small, parseable results).</summary>
