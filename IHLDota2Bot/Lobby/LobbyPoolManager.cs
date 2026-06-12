@@ -547,11 +547,11 @@ public class LobbyPoolManager : IHostedService
     /// <summary>
     /// Admin "destroy": force a hosted game to end now. Sends the Dota GC a
     /// PracticeLobbyLeave on the lobby's reserved bot account so the practice
-    /// lobby is actually reaped on Steam's side, then runs the normal
-    /// finish/cleanup (releases the pool account, settles the queue lobby,
-    /// fires GameFinished). Best-effort and idempotent: if the session or its
-    /// Steam client can't be resolved we still run the finish cleanup so the
-    /// account isn't stranded.
+    /// lobby is actually reaped on Steam's side, cancels the in-progress match
+    /// (no rating change), then runs the normal finish/cleanup (releases the
+    /// pool account, settles the queue lobby, fires GameFinished). Best-effort
+    /// and idempotent: if the session or its Steam client can't be resolved we
+    /// still run the finish cleanup so the account isn't stranded.
     /// </summary>
     public async Task DestroyLobbyAsync(string lobbyId)
     {
@@ -581,6 +581,22 @@ public class LobbyPoolManager : IHostedService
                     logger.LogError(ex, "DestroyLobbyAsync: GC leave failed for lobby {LobbyId}", lobbyId);
                 }
             }
+        }
+
+        // Settle the DB record too. The GC leave above clears the client's lobby
+        // state before the GC's destroy notification arrives, so the usual
+        // MatchCompleted path never fires for an admin destroy — without this the
+        // match row would sit InProgress until the stale-match reconciliation on
+        // the next startup. Null winner = Cancelled, no rating change; no-op if
+        // the match was already settled some other way.
+        try
+        {
+            var result = await matchRepository.CompleteMatchByLobbyAsync(lobbyId, winningTeam: null);
+            logger.LogInformation("DestroyLobbyAsync: {Message}", result.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "DestroyLobbyAsync: failed to settle match for lobby {LobbyId}", lobbyId);
         }
 
         await NotifyGameFinishedAsync(lobbyId);

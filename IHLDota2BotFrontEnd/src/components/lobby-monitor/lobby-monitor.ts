@@ -1,7 +1,8 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { catchError, forkJoin, of } from 'rxjs';
 
 // ── Wire shapes (match the Common DTOs) ──
 // System.Text.Json serialises with camelCase keys and enums as numbers, so the
@@ -100,21 +101,31 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set('');
 
-    this.http.get<ActiveSession[]>(`${API}/admin/sessions`).subscribe({
-      next: (res) => {
-        this.sessions.set(res ?? []);
-        this.lastUpdated.set(new Date());
-        this.loading.set(false);
-      },
-      error: (err) => {
-        this.error.set(this.errText(err));
-        this.loading.set(false);
+    // Each request degrades independently: a failure surfaces in the shared
+    // error banner while the other panel still updates.
+    forkJoin({
+      sessions: this.http.get<ActiveSession[]>(`${API}/admin/sessions`).pipe(
+        catchError((err: HttpErrorResponse) => {
+          this.error.set(this.errText(err));
+          return of(null);
+        })
+      ),
+      queue: this.http.get<QueueStatus>(`${API}/queue/status`).pipe(
+        catchError((err: HttpErrorResponse) => {
+          this.error.set(this.errText(err));
+          return of(null);
+        })
+      )
+    }).subscribe(({ sessions, queue }) => {
+      if (sessions) {
+        this.sessions.set(sessions);
+        this.pruneLobbyStatuses(sessions);
       }
-    });
-
-    this.http.get<QueueStatus>(`${API}/queue/status`).subscribe({
-      next: (res) => this.queue.set(res),
-      error: (err) => this.error.set(this.errText(err))
+      if (queue) {
+        this.queue.set(queue);
+      }
+      this.lastUpdated.set(new Date());
+      this.loading.set(false);
     });
   }
 
@@ -139,68 +150,29 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   // ── Per-lobby actions ──
 
   markStarted(lobbyId: string): void {
-    this.setLobbyStatus(lobbyId, 'Marking started…');
-    this.http.post(`${API}/admin/game/started/${lobbyId}`, {}).subscribe({
-      next: () => {
-        this.setLobbyStatus(lobbyId, 'Started ✅');
-        this.refresh();
-      },
-      error: (err) => this.setLobbyStatus(lobbyId, `Error ❌ ${this.errText(err)}`)
-    });
+    this.lobbyAction(lobbyId, `${API}/admin/game/started/${lobbyId}`, 'Marking started…', 'Started ✅');
   }
 
   destroy(lobbyId: string): void {
-    if (!confirm(`Destroy lobby ${this.shortId(lobbyId)}?\n\nThis ends the hosted game (sends the Dota GC a leave), releases the bot account, and reopens the queue.`)) {
+    if (!confirm(`Destroy lobby ${this.shortId(lobbyId)}?\n\nThis ends the hosted game (sends the Dota GC a leave), cancels the match, releases the bot account, and reopens the queue.`)) {
       return;
     }
-    this.setLobbyStatus(lobbyId, 'Destroying…');
-    this.http.post(`${API}/admin/game/destroy/${lobbyId}`, {}).subscribe({
-      next: () => {
-        this.setLobbyStatus(lobbyId, 'Destroyed 💥');
-        this.refresh();
-      },
-      error: (err) => this.setLobbyStatus(lobbyId, `Error ❌ ${this.errText(err)}`)
-    });
+    this.lobbyAction(lobbyId, `${API}/admin/game/destroy/${lobbyId}`, 'Destroying…', 'Destroyed 💥');
   }
 
   viewMatch(lobbyId: string): void {
-    this.matchTitle.set(`Lobby ${this.shortId(lobbyId)}`);
-    this.matchStatusMsg.set('Fetching…');
-    this.match.set(null);
-    this.http.get<MatchSummary>(`${API}/match/by-lobby/${lobbyId}`).subscribe({
-      next: (res) => {
-        this.match.set(res);
-        this.matchStatusMsg.set('');
-      },
-      error: (err) => {
-        this.matchStatusMsg.set(err?.status === 404 ? 'No match found for this lobby.' : `Error ❌ ${this.errText(err)}`);
-      }
-    });
+    this.fetchMatch(`${API}/match/by-lobby/${lobbyId}`, `Lobby ${this.shortId(lobbyId)}`, 'No match found for this lobby.');
   }
 
   // ── Queue-level controls ──
 
   forceReady(): void {
-    this.queueStatusMsg.set('Forcing ready…');
-    this.http.post(`${API}/admin/force_start`, {}).subscribe({
-      next: () => {
-        this.queueStatusMsg.set('Force-started ✅');
-        this.refresh();
-      },
-      error: (err) => this.queueStatusMsg.set(`Error ❌ ${this.errText(err)}`)
-    });
+    this.queueAction(`${API}/admin/force_start`, 'Forcing ready…', 'Force-started ✅');
   }
 
   resetQueue(): void {
     if (!confirm('Reset the current queue lobby? All queued players are removed.')) return;
-    this.queueStatusMsg.set('Resetting…');
-    this.http.post(`${API}/admin/reset_queue`, {}).subscribe({
-      next: () => {
-        this.queueStatusMsg.set('Reset ✅');
-        this.refresh();
-      },
-      error: (err) => this.queueStatusMsg.set(`Error ❌ ${this.errText(err)}`)
-    });
+    this.queueAction(`${API}/admin/reset_queue`, 'Resetting…', 'Reset ✅');
   }
 
   markPlayerReady(): void {
@@ -209,14 +181,7 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
       this.queueStatusMsg.set('Enter a user ID first.');
       return;
     }
-    this.queueStatusMsg.set('Marking ready…');
-    this.http.post(`${API}/ready/${id}`, {}).subscribe({
-      next: () => {
-        this.queueStatusMsg.set(`Marked ${id} ready ✅`);
-        this.refresh();
-      },
-      error: (err) => this.queueStatusMsg.set(`Error ❌ ${this.errText(err)}`)
-    });
+    this.queueAction(`${API}/ready/${id}`, 'Marking ready…', `Marked ${id} ready ✅`);
   }
 
   // ── Match details panel (manual lookup by match GUID) ──
@@ -227,24 +192,72 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
       this.matchStatusMsg.set('Enter a match UUID first.');
       return;
     }
-    this.matchTitle.set(`Match ${this.shortId(id)}`);
-    this.matchStatusMsg.set('Fetching…');
-    this.match.set(null);
-    this.http.get<MatchSummary>(`${API}/match/${id}`).subscribe({
-      next: (res) => {
-        this.match.set(res);
-        this.matchStatusMsg.set('');
-      },
-      error: (err) => {
-        this.matchStatusMsg.set(err?.status === 404 ? 'No match found for that UUID.' : `Error ❌ ${this.errText(err)}`);
-      }
-    });
+    this.fetchMatch(`${API}/match/${id}`, `Match ${this.shortId(id)}`, 'No match found for that UUID.');
   }
 
   clearMatch(): void {
     this.match.set(null);
     this.matchStatusMsg.set('');
     this.matchTitle.set('');
+  }
+
+  // ── Shared request helpers ──
+
+  /** POST for a specific lobby; progress/result lands in that lobby's status line. */
+  private lobbyAction(lobbyId: string, url: string, pendingMsg: string, okMsg: string): void {
+    this.setLobbyStatus(lobbyId, pendingMsg);
+    this.http.post(url, {}).subscribe({
+      next: () => {
+        this.setLobbyStatus(lobbyId, okMsg);
+        this.refresh();
+      },
+      error: (err: HttpErrorResponse) => this.setLobbyStatus(lobbyId, `Error ❌ ${this.errText(err)}`)
+    });
+  }
+
+  /** POST for the queue panel; progress/result lands in the queue status line. */
+  private queueAction(url: string, pendingMsg: string, okMsg: string): void {
+    this.queueStatusMsg.set(pendingMsg);
+    this.http.post(url, {}).subscribe({
+      next: () => {
+        this.queueStatusMsg.set(okMsg);
+        this.refresh();
+      },
+      error: (err: HttpErrorResponse) => this.queueStatusMsg.set(`Error ❌ ${this.errText(err)}`)
+    });
+  }
+
+  /** GET a match summary into the details panel, with a friendly 404 message. */
+  private fetchMatch(url: string, title: string, notFoundMsg: string): void {
+    this.matchTitle.set(title);
+    this.matchStatusMsg.set('Fetching…');
+    this.match.set(null);
+    this.http.get<MatchSummary>(url).subscribe({
+      next: (res) => {
+        this.match.set(res);
+        this.matchStatusMsg.set('');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.matchStatusMsg.set(err.status === 404 ? notFoundMsg : `Error ❌ ${this.errText(err)}`);
+      }
+    });
+  }
+
+  private setLobbyStatus(lobbyId: string, msg: string): void {
+    this.lobbyStatus.update((m) => ({ ...m, [lobbyId]: msg }));
+  }
+
+  /** Drop status lines for lobbies that no longer exist so the map can't grow unbounded. */
+  private pruneLobbyStatuses(sessions: ActiveSession[]): void {
+    const live = new Set(sessions.map((s) => s.lobbyId));
+    this.lobbyStatus.update((m) =>
+      Object.fromEntries(Object.entries(m).filter(([id]) => live.has(id)))
+    );
+  }
+
+  private errText(err: HttpErrorResponse): string {
+    if (typeof err.error === 'string' && err.error) return err.error;
+    return err.message || `HTTP ${err.status}`;
   }
 
   // ── Template helpers ──
@@ -270,10 +283,6 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
     return ['state-inprogress', 'state-finished', 'state-cancelled'][status] ?? '';
   }
 
-  teamLabel(team: number): string {
-    return team === 0 ? 'Radiant' : 'Dire';
-  }
-
   winnerLabel(team: number | null): string {
     if (team === null || team === undefined) return 'Not scored';
     return team === 0 ? 'Radiant' : 'Dire';
@@ -281,15 +290,5 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
 
   playersOn(match: MatchSummary, team: number): MatchPlayer[] {
     return match.players.filter((p) => p.team === team);
-  }
-
-  setLobbyStatus(lobbyId: string, msg: string): void {
-    this.lobbyStatus.update((m) => ({ ...m, [lobbyId]: msg }));
-  }
-
-  private errText(err: any): string {
-    if (!err) return 'Unknown error';
-    if (typeof err.error === 'string') return err.error;
-    return err.message ?? `HTTP ${err.status ?? '?'}`;
   }
 }
