@@ -10,20 +10,10 @@ ProcessJobTree.KillChildrenOnExit();
 // while this process survives, exit too so the kill-on-close job reaps the rest.
 ProcessJobTree.ExitWhenParentExits();
 
-// Container runtime: Podman (no Docker Desktop licensing). Default to it unless
-// the environment explicitly overrides, and start its engine before Aspire
-// provisions containers so the AppHost doesn't require a manual `podman machine
-// start` first.
-var containerRuntime = Environment.GetEnvironmentVariable("DOTNET_ASPIRE_CONTAINER_RUNTIME");
-if (string.IsNullOrEmpty(containerRuntime))
-{
-    containerRuntime = "podman";
-    Environment.SetEnvironmentVariable("DOTNET_ASPIRE_CONTAINER_RUNTIME", containerRuntime);
-}
-if (string.Equals(containerRuntime, "podman", StringComparison.OrdinalIgnoreCase))
-{
-    PodmanBootstrap.EnsureRunning();
-}
+// Container runtime: Docker (Aspire's default). Make sure Docker Desktop's engine
+// is up before Aspire provisions containers so the AppHost doesn't require it to
+// be started by hand.
+DockerBootstrap.EnsureRunning();
 
 var builder = DistributedApplication.CreateBuilder(args);
 
