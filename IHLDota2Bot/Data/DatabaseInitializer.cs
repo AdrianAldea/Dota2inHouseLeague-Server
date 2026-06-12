@@ -25,7 +25,10 @@ public class DatabaseInitializer : IHostedService
         try
         {
             logger.LogInformation("Ensuring database schema exists...");
-            await context.Database.EnsureCreatedAsync(cancellationToken);
+            // Use the configured retry strategy so the very first connection rides
+            // out a SQL Server container that's still finishing startup.
+            var strategy = context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(() => context.Database.EnsureCreatedAsync(cancellationToken));
             logger.LogInformation("Database ready.");
         }
         catch (Exception ex)
