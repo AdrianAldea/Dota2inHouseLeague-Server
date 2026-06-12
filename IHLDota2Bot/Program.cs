@@ -27,7 +27,14 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Dota2inHouseLeagueDB")
         ?? throw new InvalidOperationException("Connection string 'Dota2inHouseLeagueDB' is not configured.");
-    options.UseSqlServer(connectionString);
+    // A freshly-provisioned SQL Server container accepts TCP connections before the
+    // engine is ready for the login handshake, so the first connections can fail
+    // transiently ("connection forcibly closed during pre-login handshake"). Retry
+    // on transient failures so startup rides out the container warming up.
+    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(
+        maxRetryCount: 10,
+        maxRetryDelay: TimeSpan.FromSeconds(10),
+        errorNumbersToAdd: null));
 });
 
 builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
