@@ -7,7 +7,7 @@ namespace IHLDota2Bot;
 public static class LeagueConstants
 {
     /// <summary>Players required to fill a full lobby (5v5 Dota match).</summary>
-    public const int PlayersPerLobby = 1;
+    public const int PlayersPerLobby = 2;
 
     /// <summary>Default rating assigned to newly registered players.</summary>
     public const int DefaultRating = 1000;
