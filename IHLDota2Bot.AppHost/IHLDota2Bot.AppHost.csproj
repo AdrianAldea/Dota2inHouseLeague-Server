@@ -17,6 +17,9 @@
     <!-- NodeJs hosting isn't published on the 13.x line; 9.5.2 is its latest and
          AddNpmApp extends the same core Aspire.Hosting types, so it works with 13.x. -->
     <PackageReference Include="Aspire.Hosting.NodeJs" Version="9.5.2" />
+    <!-- Direct pin to lift a vulnerable transitive (via KubernetesClient): 2.5.192
+         is flagged by GHSA-hv8m-jj95-wg3x; 2.5.302 is the patched 2.5.x line. -->
+    <PackageReference Include="MessagePack" Version="2.5.302" />
   </ItemGroup>
 
   <ItemGroup>
