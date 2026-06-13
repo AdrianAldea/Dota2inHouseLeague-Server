@@ -208,7 +208,7 @@ public class LobbyPoolManager : IHostedService
 
             if (account == null)
             {
-                var message = $"No available Steam accounts for lobby {lobby.Id}. Please wait...";
+                var message = LobbyMessages.NoAvailableAccounts(lobby.Id);
                 logger.LogWarning("{Message}", message);
                 await discordClient.SendMessageAsync(message);
                 return;
@@ -262,8 +262,7 @@ public class LobbyPoolManager : IHostedService
                     lobby.SteamAccountId = null;
                 }
                 await accountPool.ReleaseAccountAsync(account.Id);
-                await SafeBroadcastAsync(
-                    $"⚠️ Lobby {lobby.Id} could not be persisted to the database. Account {account.Username} released; please retry.");
+                await SafeBroadcastAsync(LobbyMessages.PersistFailed(lobby.Id, account.Username));
                 return;
             }
 
@@ -364,7 +363,7 @@ public class LobbyPoolManager : IHostedService
                 }
             }
 
-            var readyMessage = $"Lobby {lobby.Id} is ready! Steam lobby `{lobbyName}` (password `{lobbyPassword}`). Assigned account: {account.Username}";
+            var readyMessage = LobbyMessages.LobbyReady(lobby.Id, lobbyName, lobbyPassword, account.Username);
             logger.LogInformation("{Message}", readyMessage);
             await discordClient.SendMessageAsync(readyMessage);
 
@@ -381,60 +380,35 @@ public class LobbyPoolManager : IHostedService
         }
     }
 
-    private async void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e)
-    {
-        var message = $"New lobby created: {e.Lobby.Id} ({e.Lobby.Players.Count} players)";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count));
 
-    private async void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e)
-    {
-        var message = $"{e.Player.Username} joined the queue ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.PlayerJoined(e.Player.Username, e.Lobby.Players.Count));
 
-    private async void OnPlayerLeft(object? sender, PlayerLeftEventArgs e)
-    {
-        var message = $"{e.Player.Username} left the queue ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnPlayerLeft(object? sender, PlayerLeftEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.PlayerLeft(e.Player.Username, e.Lobby.Players.Count));
 
     private async void OnPlayerReady(object? sender, PlayerReadyEventArgs e)
     {
         var lobby = lobbyQueue.GetCurrentLobby();
-        var message = $"{e.Player.Username} is ready! ({lobby.ReadyCount}/{lobby.TotalCount})";
-        await SafeBroadcastAsync(message);
+        await SafeBroadcastAsync(LobbyMessages.PlayerReady(e.Player.Username, lobby.ReadyCount, lobby.TotalCount));
     }
 
-    private async void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e)
-    {
-        var message = $"{e.Player.Username} is no longer ready";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.PlayerUnready(e.Player.Username));
 
-    private async void OnPlayerKicked(object? sender, PlayerKickedEventArgs e)
-    {
-        var message = $"{e.Player.Username} was kicked from the lobby ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnPlayerKicked(object? sender, PlayerKickedEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.PlayerKicked(e.Player.Username, e.Lobby.Players.Count));
 
-    private async void OnLobbyReset(object? sender, LobbyResetEventArgs e)
-    {
-        var message = $"Queue reset. {e.RemovedPlayerCount} player(s) removed from the current lobby.";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnLobbyReset(object? sender, LobbyResetEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.LobbyReset(e.RemovedPlayerCount));
 
-    private async void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e)
-    {
-        var message = $"Lobby {e.Lobby.Id} has finished. Players can now join the next lobby.";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.LobbyFinished(e.Lobby.Id));
 
-    private async void OnLobbyFull(object? sender, LobbyFullEventArgs e)
-    {
-        var message = $"Lobby {e.Lobby.Id} is full ({e.Lobby.Players.Count}/{LeagueConstants.PlayersPerLobby}). Waiting for everyone to !ready.";
-        await SafeBroadcastAsync(message);
-    }
+    private async void OnLobbyFull(object? sender, LobbyFullEventArgs e) =>
+        await SafeBroadcastAsync(LobbyMessages.LobbyFull(e.Lobby.Id, e.Lobby.Players.Count));
 
     /// <summary>
     /// Wraps a Discord broadcast so a transport failure can't kill the event-handler
@@ -476,7 +450,7 @@ public class LobbyPoolManager : IHostedService
             return;
         }
 
-        var message = $"GAME STARTED: {lobbyId}";
+        var message = LobbyMessages.GameStarted(lobbyId);
         logger.LogInformation("{Message}", message);
         await discordClient.SendMessageAsync(message);
         GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
@@ -523,7 +497,7 @@ public class LobbyPoolManager : IHostedService
             logger.LogError(ex, "NotifyGameFinishedAsync: failed to release account {AccountId}", session.AccountId);
         }
 
-        await SafeBroadcastAsync($"GAME FINISHED: {lobbyId} | Account {username ?? session.AccountId} released");
+        await SafeBroadcastAsync(LobbyMessages.GameFinished(lobbyId, username ?? session.AccountId));
 
         try
         {
@@ -622,42 +596,17 @@ public class LobbyPoolManager : IHostedService
 
         if (result?.Match is { } match)
         {
-            await SafeBroadcastAsync(FormatMatchResult(match, args));
+            await SafeBroadcastAsync(LobbyMessages.MatchResult(match, args.MatchId));
         }
         else
         {
             // DB write failed or no match row — still surface what the GC told us.
-            var winnerText = args.WinningTeam?.ToString() ?? "No winner (not scored)";
-            await SafeBroadcastAsync(
-                $"🏁 Match for lobby {lobbyId} finished. Winner: {winnerText} (Dota match {args.MatchId}).");
+            await SafeBroadcastAsync(LobbyMessages.MatchFinishedFallback(lobbyId, args.WinningTeam, args.MatchId));
         }
 
         // Release the account and reopen the queue regardless of how the result
         // persisted — a stuck session is worse than a missing result card.
         await NotifyGameFinishedAsync(lobbyId);
-    }
-
-    private static string FormatMatchResult(MatchSummary match, MatchCompletedEventArgs args)
-    {
-        var header = match.WinningTeam switch
-        {
-            MatchTeam.Radiant => "🏆 **Radiant Victory!**",
-            MatchTeam.Dire => "🏆 **Dire Victory!**",
-            _ => "🏁 **Match finished** (not scored)"
-        };
-
-        var radiant = match.Players.Where(p => p.Team == MatchTeam.Radiant).Select(p => p.Username);
-        var dire = match.Players.Where(p => p.Team == MatchTeam.Dire).Select(p => p.Username);
-
-        var lines = new List<string>
-        {
-            header,
-            $"Dota match `{args.MatchId}`",
-            $"**Radiant:** {string.Join(", ", radiant)}",
-            $"**Dire:** {string.Join(", ", dire)}"
-        };
-
-        return string.Join("\n", lines);
     }
 
     public List<LobbySession> GetActiveSessions()

@@ -16,6 +16,8 @@ public class Dota2Service
     private readonly IChallengeRepository challengeRepository;
     private readonly ILogger<Dota2Service> logger;
 
+    private const string NotRegisteredMessage = "You are not registered. Use `!register <steamId>` first.";
+
     public Dota2Service(
         DiscordClient discordClient,
         LobbyPoolManager poolManager,
@@ -117,7 +119,7 @@ public class Dota2Service
             return new QueueOperationResponse
             {
                 Success = false,
-                Message = "You are not registered. Use `!register <steamId>` first."
+                Message = NotRegisteredMessage
             };
         }
 
@@ -226,7 +228,7 @@ public class Dota2Service
             return new QueueOperationResponse
             {
                 Success = false,
-                Message = "You are not registered. Use `!register <steamId>` first."
+                Message = NotRegisteredMessage
             };
         }
 
@@ -248,7 +250,7 @@ public class Dota2Service
         var challenger = await playerRepository.GetByUserIdAsync(challengerUserId, cancellationToken);
         if (challenger == null)
         {
-            return new ChallengeOperationResponse { Success = false, Message = "You are not registered. Use `!register <steamId>` first." };
+            return new ChallengeOperationResponse { Success = false, Message = NotRegisteredMessage };
         }
 
         var challenged = await playerRepository.GetByUserIdAsync(challengedUserId, cancellationToken);

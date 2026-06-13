@@ -215,17 +215,7 @@ public class MatchRepository : IMatchRepository
         var radiantRatings = players.Where(p => radiantUserIds.Contains(p.UserId)).Select(p => p.Rating).ToList();
         var direRatings = players.Where(p => !radiantUserIds.Contains(p.UserId)).Select(p => p.Rating).ToList();
 
-        var radiantDelta = 0;
-        var direDelta = 0;
-        if (radiantRatings.Count > 0 && direRatings.Count > 0)
-        {
-            var avgRadiant = radiantRatings.Average();
-            var avgDire = direRatings.Average();
-            var expectedRadiant = 1.0 / (1.0 + Math.Pow(10, (avgDire - avgRadiant) / 400.0));
-            var actualRadiant = winningTeam == MatchTeam.Radiant ? 1.0 : 0.0;
-            radiantDelta = (int)Math.Round(LeagueConstants.EloKFactor * (actualRadiant - expectedRadiant));
-            direDelta = -radiantDelta;
-        }
+        var (radiantDelta, direDelta) = EloCalculator.ComputeDeltas(radiantRatings, direRatings, winningTeam);
 
         foreach (var mp in match.Players)
         {
