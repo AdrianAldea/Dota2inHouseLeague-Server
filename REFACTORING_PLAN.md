@@ -1,0 +1,209 @@
+# Refactoring & Improvements Plan — Dota 2 In-House League Bot
+
+> Status: Proposed · Last updated: 2026-06-15
+>
+> This document captures the results of a full-solution investigation and a
+> prioritized, phased plan to improve code quality, testability, resilience,
+> and operability. It is intended as a living roadmap — check items off as
+> they land.
+
+## 1. Scope of Investigation
+
+The solution is a .NET Aspire–orchestrated, multi-project system:
+
+| Project | Role | Approx. size |
+| --- | --- | --- |
+| `IHLDota2Bot` | Game Manager Web API (minimal APIs, EF Core, SteamKit2) | ~47 files / ~6.5k LOC |
+| `IHLDota2Bot.Discord` | Discord bot service (Discord.Net 3.20.1) | ~12 files |
+| `IHLDota2Bot.Common` | Shared DTOs / requests / enums | ~15 files |
+| `IHLDota2Bot.ServiceDefaults` | OpenTelemetry, resilience, health checks | small |
+| `IHLDota2Bot.AppHost` | Aspire orchestration | small |
+| `IHLDota2BotFrontEnd` | Angular 21 admin dashboard | ~482 LOC, 0 tests |
+| `*.Tests` / `IntegrationTests` | xUnit + Moq, in-memory EF, WebApplicationFactory | partial |
+
+**Healthy baseline:** all C# projects target **.NET 10** with **nullable
+reference types enabled**; the domain layer (LobbyQueue, EloCalculator,
+SteamAccountPool) is pure and well-tested; repository pattern and the Options
+pattern are used; integration tests exercise the full match lifecycle in
+memory; **no TODO/FIXME/HACK debt** was found in C#.
+
+## 2. Top Findings (Cross-Cutting)
+
+These are the highest-impact issues, ordered by risk.
+
+1. **No CI/CD.** There is no `.github/workflows` directory — no automated
+   build, test, or lint on push/PR. This is the single biggest gap: every
+   refactor below is riskier without a green-build gate.
+2. **Broken/stale Docker.** `IHLDota2Bot/Dockerfile` references **.NET 8
+   Windows nanoserver**, a non-existent project path (`Dota2Bot/`), and
+   Windows-only `%BUILD_CONFIGURATION%` syntax. `IHLDota2Bot.Discord/Dockerfile`
+   is correct (.NET 10 Linux). No `docker-compose.yml`.
+3. **`async void` event handlers (backend).** ~9 `async void` handlers in
+   `LobbyPoolManager` — unobserved exceptions can crash the process.
+4. **Monolithic `DiscordService` (732 LOC).** A 94-line switch dispatches 35
+   commands; validation, formatting, and dispatch are interleaved; **0 unit
+   tests** cover it.
+5. **Missing service abstractions.** No `IDota2Service`, no `ISteamClient`, no
+   Discord command-handler interface — endpoints/handlers bind to concrete
+   types, blocking unit testing and substitution.
+6. **No HTTP resilience at call sites.** ServiceDefaults adds the standard
+   resilience handler, but Discord/Steam HTTP calls have no explicit timeout,
+   retry, or circuit-breaker semantics and swallow exceptions returning `null`.
+7. **Frontend: subscription leaks + `any` types + zero tests.** Manual
+   `.subscribe()` without teardown (auto-refresh every 5s), `any` in
+   `CardComponent`, no ESLint, no Vitest config despite tsconfig referencing it.
+8. **Schema via `EnsureCreated`, not migrations.** No versioned schema or
+   rollback path; the README documents `dotnet ef database update` which won't
+   work as written.
+9. **Server-side authorization is a TODO.** Admin endpoints rely on the Discord
+   layer to gate by user id/role (`AdminEndpoints.cs`); the API itself is open.
+10. **Config/docs drift.** README claims .NET 8 / Angular 21 / SQL Server with
+    EF migrations and Swagger at `:5000`; reality is .NET 10, `EnsureCreated`,
+    and Aspire-assigned ports. `.gitmodules` is empty (no-op, should be removed).
+
+## 3. Phased Plan
+
+Each phase is independently shippable. Recommended order maximizes safety
+(get the build gate first) before larger refactors.
+
+### Phase 0 — Foundations & Safety Net (do first)
+
+Goal: make every later change verifiable and reversible.
+
+- [x] **Add GitHub Actions CI**: restore, build, `dotnet test` (whole solution),
+      and Angular `npm ci` + lint + test + build on push/PR to `main`.
+      (`.github/workflows/ci.yml`)
+- [x] **Add frontend lint/test tooling**: ESLint (`angular-eslint` flat config)
+      + the Angular Vitest unit-test builder with a smoke test; `npm test` and
+      `npm run lint` wired into CI. Known pre-existing lint findings
+      (accessibility, `any`, `inject()`) are surfaced as warnings and tracked in
+      Phase 6 so the gate stays green.
+- [x] **Fix the backend Dockerfile** (`IHLDota2Bot/Dockerfile`): .NET 10 Linux
+      base, correct project/restore paths, POSIX build-arg syntax; flipped
+      `DockerDefaultTargetOS` to `Linux`. Multi-service orchestration is left to
+      Aspire (documented in the README) rather than a hand-maintained compose
+      file.
+- [x] **Reconcile README with reality**: .NET 10, Aspire run instructions,
+      `EnsureCreated` bootstrap note, Aspire-assigned ports/Swagger, `npm test`/
+      `npm run lint`, accurate Docker guidance.
+- [x] **Remove the empty `.gitmodules`**.
+- [ ] Consider `TreatWarningsAsErrors` (or a ruleset) once the build is clean.
+
+### Phase 1 — Correctness & Safety (backend)
+
+Goal: eliminate crash/race risks.
+
+- [ ] **Replace `async void` handlers** in `LobbyPoolManager` with `async Task`
+      + a single safe-dispatch wrapper that observes and logs exceptions.
+- [ ] **Audit thread-safety in `SteamGcClient`**: document the single-threaded
+      callback assumption or add explicit synchronization for mutated fields
+      (`hasActiveLobby`, `activeRoster`, `matchResultReported`).
+- [ ] **Harden reconnection**: replace the fixed 5s delay with exponential
+      backoff + a max-attempt/credential-invalid guard.
+- [ ] **Match/Steam consistency**: define ordering & idempotency for DB match
+      creation vs. Steam lobby creation so a DB failure can't strand a lobby.
+
+### Phase 2 — Abstractions & Testability
+
+Goal: unlock unit testing and substitution.
+
+- [ ] **Extract `IDota2Service`**; have endpoints depend on the interface.
+- [ ] **Extract `ISteamClient`** (Discord side) and centralize the 25 hardcoded
+      API paths into constants or a typed route builder shared via `Common`.
+- [ ] **Wrap the Dota GC protocol** behind an `IDota2GcService` so protobuf
+      details and constants (AppId 570, lobby type 2004) are isolated.
+- [ ] **Register `DiscordSocketClient` via DI** instead of `new` inside the
+      service, enabling handler tests.
+
+### Phase 3 — Discord Bot Restructure
+
+Goal: dismantle the 732-line monolith.
+
+- [ ] **Command-handler pattern**: one handler per command implementing a small
+      `IDiscordCommand` interface; replace the 94-line switch with a registry/
+      dispatcher keyed by `DiscordAction`.
+- [ ] **Cross-cutting pipeline**: admin gating, parameter validation, rate
+      limiting, and structured per-command logging as middleware, not inline.
+- [ ] **Centralize messages**: move scattered usage/error strings into a single
+      catalog; dedupe the two `ReplyIfFailedAsync` overloads and the duplicated
+      mention-validation blocks.
+- [ ] **Add `IsAdmin`/authorization tests** and command-dispatch tests (mock
+      socket + mock `ISteamClient`).
+- [ ] **Evaluate slash commands** (Discord.Net 3.x) to replace `!`-prefix
+      parsing for discoverability and validation.
+
+### Phase 4 — Resilience & Observability
+
+Goal: production-grade external-call behavior and insight.
+
+- [ ] **Explicit HTTP policies** for Discord/Steam clients: timeouts, retry with
+      jitter, circuit breaker (Polly / standard resilience handler tuning); stop
+      swallowing exceptions into `null` without classification.
+- [ ] **Custom metrics & tracing**: lobby creation rate, match completion
+      latency, queue depth, command throughput — emit via the existing
+      OpenTelemetry pipeline (Activity sources + meters).
+- [ ] **Rate limiting** on Discord commands (per-user/per-command).
+
+### Phase 5 — Data & Security
+
+- [ ] **Adopt EF Core migrations** in place of `EnsureCreated`; add an initial
+      migration and wire `DatabaseInitializer` to migrate.
+- [ ] **Server-side authorization** on admin API endpoints (don't rely solely on
+      the Discord layer).
+- [ ] **Verify `PlayersPerLobby`** (currently 2) is intentional vs. a 5v5/test
+      value; surface league sizing via config.
+- [ ] **Secrets review**: confirm all tokens/keys flow through user-secrets/env;
+      avoid plaintext credential paths (e.g. `add_account`).
+
+### Phase 6 — Frontend Hardening
+
+- [ ] **Fix subscription leaks**: `takeUntil(destroy$)` (or `toSignal`/async
+      pipe) on every HTTP call in `LobbyMonitorComponent` and `CardComponent`.
+- [ ] **Remove `any`**: generics/interfaces in `CardComponent`; type all responses.
+- [ ] **Service + config layer**: extract API calls and the hardcoded
+      `/discord` and `/gamemanager` endpoints into services with environment
+      config; add a global `HttpInterceptor` for errors/timeouts.
+- [ ] **Tests**: start with services and `LobbyMonitor` logic (Vitest).
+- [ ] **Accessibility pass**: ARIA labels, `label[for]` associations, focus
+      states, semantic landmarks; move the one inline style to CSS.
+- [ ] **Routing**: replace the inlined single page once a second view appears.
+
+### Phase 7 — Test Depth (cross-cutting, ongoing)
+
+- [ ] Endpoint integration tests for `MatchEndpoints`/`PlayerEndpoints` beyond
+      the happy path (error/edge cases).
+- [ ] Tests for `Dota2Service` and `LobbyPoolManager` orchestration.
+- [ ] Functional tests for ServiceDefaults (resilience/OTel) beyond smoke tests.
+- [ ] Contract tests for Discord ↔ Game Manager HTTP boundary.
+
+## 4. Quick Wins (low effort, high value)
+
+These can land immediately, mostly independent of the phases above:
+
+- Delete empty `.gitmodules`.
+- Fix `IHLDota2Bot/Dockerfile`.
+- Add CI build+test workflow.
+- Dedupe `ReplyIfFailedAsync` overloads and the repeated mention-validation block.
+- Centralize the "You are not registered." message and the 25 API path strings.
+- Add `takeUntil` teardown to the two leaking frontend subscriptions.
+- Correct the README's framework versions and run instructions.
+
+## 5. Risks & Sequencing Notes
+
+- **Do Phase 0 first.** Large refactors (Phases 2–3) without CI are high-risk.
+- The Discord restructure (Phase 3) depends on the abstractions in Phase 2.
+- Migrations (Phase 5) is a behavioral change to startup — land it with care and
+  a tested upgrade path from the current `EnsureCreated` databases.
+- Frontend work (Phase 6) is fully parallelizable with backend work.
+
+## 6. Suggested First PR
+
+A focused, low-risk starter that unblocks everything else:
+
+1. GitHub Actions CI (build + test for .NET and Angular).
+2. Fix the backend Dockerfile.
+3. Remove `.gitmodules`.
+4. README accuracy fixes.
+
+This establishes the safety net and clears the most obvious drift before any
+behavioral refactoring begins.
