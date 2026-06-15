@@ -4,6 +4,7 @@
   <Project Path="IHLDota2Bot.Common/IHLDota2Bot.Common.csproj" Id="948cb1a9-70d5-4242-b35f-ff599dedb7f1" />
   <Project Path="IHLDota2Bot.Discord.Tests/IHLDota2Bot.Discord.Tests.csproj" />
   <Project Path="IHLDota2Bot.Discord/IHLDota2Bot.Discord.csproj" />
+  <Project Path="IHLDota2Bot.IntegrationTests/IHLDota2Bot.IntegrationTests.csproj" />
   <Project Path="IHLDota2Bot.ServiceDefaults.Tests/IHLDota2Bot.ServiceDefaults.Tests.csproj" />
   <Project Path="IHLDota2Bot.ServiceDefaults/IHLDota2Bot.ServiceDefaults.csproj" />
   <Project Path="IHLDota2Bot.Tests/IHLDota2Bot.Tests.csproj" />
