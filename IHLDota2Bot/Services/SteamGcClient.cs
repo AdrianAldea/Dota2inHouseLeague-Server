@@ -17,11 +17,33 @@ namespace IHLDota2Bot.Services;
 /// holds one client per configured bot/pool account so the league can run
 /// concurrent Dota lobbies.
 /// </summary>
+/// <remarks>
+/// Threading model: all SteamKit callbacks (OnConnected/OnLoggedOn/OnGCMessage/…)
+/// are dispatched serially from the single <c>RunWaitCallbacks</c> pump thread, so
+/// they never race each other. The public API (<see cref="StartAsync"/>,
+/// <see cref="StopAsync"/>, <see cref="CreateLobbyAsync"/>,
+/// <see cref="LeaveActiveLobbyAsync"/>, the <c>Is*</c> getters) is called from other
+/// threads (event handlers, API requests). The simple <c>bool</c> state flags shared
+/// across those boundaries are <c>volatile</c> so writes on the pump thread are
+/// visible to callers and vice-versa.
+/// </remarks>
 public sealed class SteamGcClient
 {
     private const uint DotaAppId = 570;
     private const int LobbyTypeId = 2004;
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+
+    // Reconnect backoff: start at 5s and double up to a 2-minute ceiling so a
+    // prolonged Steam outage doesn't hammer the CMs while a brief blip still
+    // recovers quickly. Reset to 0 on a successful logon.
+    private static readonly TimeSpan ReconnectBaseDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromMinutes(2);
+    private int reconnectAttempts;
+
+    // Set when Steam rejects our credentials with a non-retryable result
+    // (bad password, SteamGuard required, account disabled/banned). Retrying
+    // the same secrets can't succeed and risks a lockout, so the reconnect
+    // loop stops until the process is restarted with corrected configuration.
+    private volatile bool authenticationFailed;
 
     private readonly string username;
     private readonly string password;
@@ -53,16 +75,16 @@ public sealed class SteamGcClient
 
     // POSTGAME SO snapshots repeat; this one-shot guard stops us from posting
     // the result / completing the match more than once per hosted lobby.
-    private bool matchResultReported;
+    private volatile bool matchResultReported;
 
     // Set whenever we either send a PracticeLobbyCreate or observe a lobby SO
     // snapshot, cleared on intentional leave / disconnect. Used by StopAsync
     // and the host-shutdown hooks to send PracticeLobbyLeave so a crashed or
     // closed server doesn't strand a ghost lobby on the Dota GC.
-    private bool hasActiveLobby;
+    private volatile bool hasActiveLobby;
 
-    private bool isRunning;
-    private bool isLoggedOn;
+    private volatile bool isRunning;
+    private volatile bool isLoggedOn;
 
     private readonly record struct ActiveRoster(string? AppLobbyId, HashSet<ulong> Expected);
 
@@ -686,18 +708,34 @@ public sealed class SteamGcClient
             return;
         }
 
-        // Reconnect with a short fixed backoff. SteamKit's RunWaitCallbacks loop
-        // is still pumping (we never set isRunning=false here) so when Connect()
-        // succeeds the ConnectedCallback will fire again and re-trigger LogOn.
+        if (authenticationFailed)
+        {
+            logger.LogError(
+                "[{Username}] Not reconnecting: Steam rejected this account's credentials. " +
+                "Fix the configured username/password (and SteamGuard, if enabled) and restart.",
+                username);
+            return;
+        }
+
+        // SteamKit's RunWaitCallbacks loop is still pumping (we never set
+        // isRunning=false here), so once Connect() succeeds the ConnectedCallback
+        // fires again and re-triggers LogOn. Back off exponentially so a sustained
+        // outage doesn't spin; the delay resets once we log on successfully.
+        var attempt = reconnectAttempts++;
+        var delaySeconds = Math.Min(
+            ReconnectBaseDelay.TotalSeconds * Math.Pow(2, attempt),
+            MaxReconnectDelay.TotalSeconds);
+        var delay = TimeSpan.FromSeconds(delaySeconds);
+
         logger.LogWarning(
-            "[{Username}] Disconnected from Steam (UserInitiated={UserInitiated}); reconnecting in {Delay}s",
-            username, callback.UserInitiated, ReconnectDelay.TotalSeconds);
+            "[{Username}] Disconnected from Steam (UserInitiated={UserInitiated}); reconnecting in {Delay:F0}s (attempt {Attempt})",
+            username, callback.UserInitiated, delay.TotalSeconds, attempt + 1);
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(ReconnectDelay);
+                await Task.Delay(delay);
                 if (!isRunning) return;
                 logger.LogInformation("[{Username}] Reconnecting to Steam", username);
                 steamClient.Connect();
@@ -708,6 +746,17 @@ public sealed class SteamGcClient
             }
         });
     }
+
+    // Logon failures that won't fix themselves by retrying the same secrets.
+    private static bool IsNonRetryableLogonResult(EResult result) => result switch
+    {
+        EResult.InvalidPassword => true,
+        EResult.AccountLogonDenied => true,             // SteamGuard email code required
+        EResult.AccountLoginDeniedNeedTwoFactor => true,
+        EResult.AccountDisabled => true,
+        EResult.Banned => true,
+        _ => false
+    };
 
     private void OnLoggedOff(SteamUser.LoggedOffCallback callback)
     {
@@ -725,10 +774,18 @@ public sealed class SteamGcClient
         if (callback.Result != EResult.OK)
         {
             logger.LogError("[{Username}] Steam authentication failed: {Result}", username, callback.Result);
+            if (IsNonRetryableLogonResult(callback.Result))
+            {
+                authenticationFailed = true;
+                logger.LogError(
+                    "[{Username}] Logon result {Result} is non-retryable; disabling reconnect for this account until restart",
+                    username, callback.Result);
+            }
             return;
         }
 
         isLoggedOn = true;
+        reconnectAttempts = 0;
         logger.LogInformation("[{Username}] Steam authentication successful", username);
         steamFriends.SetPersonaState(EPersonaState.Online);
 

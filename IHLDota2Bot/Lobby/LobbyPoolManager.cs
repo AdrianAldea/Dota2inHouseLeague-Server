@@ -199,7 +199,10 @@ public class LobbyPoolManager : IHostedService
     public QueueStats GetQueueStats() => lobbyQueue.GetStats();
     public List<Player> GetRegisteredPlayers() => lobbyQueue.GetRegisteredPlayers();
 
-    private async void OnLobbyReady(object? sender, LobbyReadyEventArgs e)
+    private void OnLobbyReady(object? sender, LobbyReadyEventArgs e) =>
+        RunHandlerSafely(nameof(OnLobbyReady), () => HandleLobbyReadyAsync(e));
+
+    private async Task HandleLobbyReadyAsync(LobbyReadyEventArgs e)
     {
         try
         {
@@ -380,39 +383,63 @@ public class LobbyPoolManager : IHostedService
         }
     }
 
-    private async void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count));
+    private void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
+        RunHandlerSafely(nameof(OnLobbyCreated), () => SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count)));
 
-    private async void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.PlayerJoined(e.Player.Username, e.Lobby.Players.Count));
+    private void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e) =>
+        RunHandlerSafely(nameof(OnPlayerJoined), () => SafeBroadcastAsync(LobbyMessages.PlayerJoined(e.Player.Username, e.Lobby.Players.Count)));
 
-    private async void OnPlayerLeft(object? sender, PlayerLeftEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.PlayerLeft(e.Player.Username, e.Lobby.Players.Count));
+    private void OnPlayerLeft(object? sender, PlayerLeftEventArgs e) =>
+        RunHandlerSafely(nameof(OnPlayerLeft), () => SafeBroadcastAsync(LobbyMessages.PlayerLeft(e.Player.Username, e.Lobby.Players.Count)));
 
-    private async void OnPlayerReady(object? sender, PlayerReadyEventArgs e)
-    {
-        var lobby = lobbyQueue.GetCurrentLobby();
-        await SafeBroadcastAsync(LobbyMessages.PlayerReady(e.Player.Username, lobby.ReadyCount, lobby.TotalCount));
-    }
+    private void OnPlayerReady(object? sender, PlayerReadyEventArgs e) =>
+        RunHandlerSafely(nameof(OnPlayerReady), () =>
+        {
+            var lobby = lobbyQueue.GetCurrentLobby();
+            return SafeBroadcastAsync(LobbyMessages.PlayerReady(e.Player.Username, lobby.ReadyCount, lobby.TotalCount));
+        });
 
-    private async void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.PlayerUnready(e.Player.Username));
+    private void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e) =>
+        RunHandlerSafely(nameof(OnPlayerUnready), () => SafeBroadcastAsync(LobbyMessages.PlayerUnready(e.Player.Username)));
 
-    private async void OnPlayerKicked(object? sender, PlayerKickedEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.PlayerKicked(e.Player.Username, e.Lobby.Players.Count));
+    private void OnPlayerKicked(object? sender, PlayerKickedEventArgs e) =>
+        RunHandlerSafely(nameof(OnPlayerKicked), () => SafeBroadcastAsync(LobbyMessages.PlayerKicked(e.Player.Username, e.Lobby.Players.Count)));
 
-    private async void OnLobbyReset(object? sender, LobbyResetEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.LobbyReset(e.RemovedPlayerCount));
+    private void OnLobbyReset(object? sender, LobbyResetEventArgs e) =>
+        RunHandlerSafely(nameof(OnLobbyReset), () => SafeBroadcastAsync(LobbyMessages.LobbyReset(e.RemovedPlayerCount)));
 
-    private async void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.LobbyFinished(e.Lobby.Id));
+    private void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e) =>
+        RunHandlerSafely(nameof(OnLobbyFinished), () => SafeBroadcastAsync(LobbyMessages.LobbyFinished(e.Lobby.Id)));
 
-    private async void OnLobbyFull(object? sender, LobbyFullEventArgs e) =>
-        await SafeBroadcastAsync(LobbyMessages.LobbyFull(e.Lobby.Id, e.Lobby.Players.Count));
+    private void OnLobbyFull(object? sender, LobbyFullEventArgs e) =>
+        RunHandlerSafely(nameof(OnLobbyFull), () => SafeBroadcastAsync(LobbyMessages.LobbyFull(e.Lobby.Id, e.Lobby.Players.Count)));
 
     /// <summary>
-    /// Wraps a Discord broadcast so a transport failure can't kill the event-handler
-    /// thread (these are async void handlers).
+    /// Bridges synchronous <see cref="EventHandler{TEventArgs}"/> callbacks to async
+    /// work without using <c>async void</c>. The action runs synchronously up to its
+    /// first await (matching the previous handlers' behaviour, so a raiser holding the
+    /// queue lock isn't blocked), but any fault — before or after that first await — is
+    /// observed and logged here instead of being thrown on a pool thread with no one to
+    /// catch it, which would tear down the process.
+    /// </summary>
+    private void RunHandlerSafely(string handlerName, Func<Task> action) =>
+        _ = ObserveHandlerAsync(handlerName, action);
+
+    private async Task ObserveHandlerAsync(string handlerName, Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception in lobby event handler {Handler}", handlerName);
+        }
+    }
+
+    /// <summary>
+    /// Wraps a Discord broadcast so a transport failure can't propagate out of an
+    /// event handler.
     /// </summary>
     private async Task SafeBroadcastAsync(string message)
     {
