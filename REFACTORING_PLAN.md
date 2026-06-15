@@ -70,16 +70,23 @@ Each phase is independently shippable. Recommended order maximizes safety
 
 Goal: make every later change verifiable and reversible.
 
-- [ ] **Add GitHub Actions CI**: restore, build, `dotnet test` (all C# test
-      projects), and Angular `npm ci` + build on push/PR to `main`.
-- [ ] **Add frontend lint/test tooling**: ESLint + `@angular-eslint`, a real
-      Vitest config, wire `npm test`/`npm run lint` into CI.
-- [ ] **Fix the backend Dockerfile** (`IHLDota2Bot/Dockerfile`): .NET 10 Linux
-      base, correct project path, POSIX build-arg syntax. Add a root
-      `docker-compose.yml` (or document Aspire publish) for multi-service runs.
-- [ ] **Reconcile README with reality**: .NET 10, Angular 21, Aspire run
-      instructions, correct ports, actual DB bootstrap story.
-- [ ] **Remove the empty `.gitmodules`**.
+- [x] **Add GitHub Actions CI**: restore, build, `dotnet test` (whole solution),
+      and Angular `npm ci` + lint + test + build on push/PR to `main`.
+      (`.github/workflows/ci.yml`)
+- [x] **Add frontend lint/test tooling**: ESLint (`angular-eslint` flat config)
+      + the Angular Vitest unit-test builder with a smoke test; `npm test` and
+      `npm run lint` wired into CI. Known pre-existing lint findings
+      (accessibility, `any`, `inject()`) are surfaced as warnings and tracked in
+      Phase 6 so the gate stays green.
+- [x] **Fix the backend Dockerfile** (`IHLDota2Bot/Dockerfile`): .NET 10 Linux
+      base, correct project/restore paths, POSIX build-arg syntax; flipped
+      `DockerDefaultTargetOS` to `Linux`. Multi-service orchestration is left to
+      Aspire (documented in the README) rather than a hand-maintained compose
+      file.
+- [x] **Reconcile README with reality**: .NET 10, Aspire run instructions,
+      `EnsureCreated` bootstrap note, Aspire-assigned ports/Swagger, `npm test`/
+      `npm run lint`, accurate Docker guidance.
+- [x] **Remove the empty `.gitmodules`**.
 - [ ] Consider `TreatWarningsAsErrors` (or a ruleset) once the build is clean.
 
 ### Phase 1 — Correctness & Safety (backend)

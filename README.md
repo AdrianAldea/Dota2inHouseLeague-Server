@@ -50,11 +50,12 @@ The project is organized as a multi-project solution with the following componen
 ## 🛠️ Technology Stack
 
 ### Backend
-- **.NET 8+**: API and core services
-- **Entity Framework Core**: Database ORM
-- **SQL Server**: Primary database
+- **.NET 10**: API and core services
+- **Entity Framework Core 10**: Database ORM
+- **SQL Server**: Primary database (run as a container by Aspire)
 - **.NET Aspire**: Service orchestration
-- **Discord.NET**: Discord integration
+- **Discord.Net**: Discord integration
+- **SteamKit2**: Steam / Dota 2 Game Coordinator integration
 
 ### Frontend
 - **Angular 21+**: Web framework
@@ -70,11 +71,11 @@ The project is organized as a multi-project solution with the following componen
 
 ### Prerequisites
 
-- .NET 8 SDK or later
-- Node.js 20+ and npm
-- SQL Server (local or remote)
+- .NET 10 SDK
+- Node.js 22+ and npm
+- Docker (Aspire runs SQL Server as a container)
 - Discord bot token
-- Steam API key
+- Steam account credentials (bot + pool accounts)
 
 ### Setup Instructions
 
@@ -106,21 +107,25 @@ Create or update configuration files with required credentials:
 
 #### 3. Backend Setup
 
+The whole backend (Game Manager API, Discord bot, and a containerized SQL
+Server) is orchestrated by the .NET Aspire AppHost. Running the AppHost starts
+every service and wires up service discovery and the database automatically.
+
 ```bash
-# Navigate to the solution directory
+# Navigate to the Aspire host
 cd IHLDota2Bot.AppHost
 
 # Restore dependencies
 dotnet restore
 
-# Run migrations (database setup)
-dotnet ef database update
-
-# Start the application
+# Start the distributed application (services + SQL Server container)
 dotnet run
 ```
 
-The API will be available at `http://localhost:5000`
+The database schema is created automatically on startup (currently via EF Core
+`EnsureCreated` — migrating to versioned EF Core migrations is tracked in
+`REFACTORING_PLAN.md`). Service URLs and ports are assigned by Aspire; open the
+**Aspire dashboard** printed in the console to see each service's endpoint.
 
 #### 4. Frontend Setup
 
@@ -131,7 +136,7 @@ cd IHLDota2BotFrontEnd
 npm install
 
 # Start development server
-ng serve
+npm start
 ```
 
 The frontend will be available at `http://localhost:4200`
@@ -187,37 +192,43 @@ dotnet test
 
 ### Frontend Tests
 
+Unit tests run on [Vitest](https://vitest.dev/) via the Angular build system
+(jsdom environment):
+
 ```bash
 cd IHLDota2BotFrontEnd
-ng test
+npm test
 ```
 
-### End-to-End Tests
+### Frontend Linting
 
 ```bash
 cd IHLDota2BotFrontEnd
-ng e2e
+npm run lint
 ```
 
 ## 📝 API Documentation
 
-Once the backend is running, Swagger documentation is available at:
-
-```
-http://localhost:5000/swagger
-```
-
-This provides interactive documentation for all API endpoints.
+In the Development environment, Swagger/OpenAPI documentation is exposed by each
+backend service at its `/swagger` endpoint. The exact host and port are assigned
+by Aspire — find each service's URL in the Aspire dashboard and append
+`/swagger`. This provides interactive documentation for all API endpoints.
 
 ## 🐳 Docker Support
 
-The project includes Docker support for containerized deployment:
+The Game Manager API (`IHLDota2Bot/Dockerfile`) and Discord bot
+(`IHLDota2Bot.Discord/Dockerfile`) each ship a multi-stage, Linux-based
+.NET 10 Dockerfile. Build an image from the repository root, for example:
 
 ```bash
-docker compose up
+docker build -f IHLDota2Bot/Dockerfile -t ihl-gamemanager .
+docker build -f IHLDota2Bot.Discord/Dockerfile -t ihl-discord .
 ```
 
-See `.dockerignore` for excluded files.
+For local development, prefer running the Aspire AppHost (see Backend Setup),
+which orchestrates the services and their dependencies for you. Producing
+deployment manifests is handled by Aspire's publishing tooling rather than a
+hand-maintained `docker-compose.yml`. See `.dockerignore` for excluded files.
 
 ## 🔐 Security Considerations
 
