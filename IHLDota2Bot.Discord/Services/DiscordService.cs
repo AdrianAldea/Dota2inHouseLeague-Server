@@ -269,7 +269,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         var reason = parts.Length > 2 ? string.Join(' ', parts.Skip(2)) : null;
 
         var result = await steamClient.BanPlayerAsync(target.Id, reason);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to ban player.");
+        await ReplyIfFailedAsync(message, result, "Failed to ban player.");
     }
 
     private async Task UnbanPlayerAsync(SocketUserMessage message)
@@ -282,7 +282,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         }
 
         var result = await steamClient.UnbanPlayerAsync(target.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to unban player.");
+        await ReplyIfFailedAsync(message, result, "Failed to unban player.");
     }
 
     private async Task KickPlayerAsync(SocketUserMessage message)
@@ -295,19 +295,19 @@ public class DiscordService : IHostedService, IAsyncDisposable
         }
 
         var result = await steamClient.KickPlayerAsync(target.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to kick player.");
+        await ReplyIfFailedAsync(message, result, "Failed to kick player.");
     }
 
     private async Task ForceStartAsync(SocketUserMessage message)
     {
         var result = await steamClient.ForceStartLobbyAsync();
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to force start.");
+        await ReplyIfFailedAsync(message, result, "Failed to force start.");
     }
 
     private async Task ResetQueueAsync(SocketUserMessage message)
     {
         var result = await steamClient.ResetQueueAsync();
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to reset queue.");
+        await ReplyIfFailedAsync(message, result, "Failed to reset queue.");
     }
 
     private async Task AddSteamAccountAsync(SocketUserMessage message, string[] parts)
@@ -351,7 +351,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         }
 
         var result = await steamClient.ChallengePlayerAsync(author.Id, opponent.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to send challenge.");
+        await ReplyIfFailedAsync(message, result, "Failed to send challenge.");
     }
 
     private async Task AcceptChallengeAsync(SocketUserMessage message)
@@ -360,7 +360,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.AcceptChallengeAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to accept challenge.");
+        await ReplyIfFailedAsync(message, result, "Failed to accept challenge.");
     }
 
     private async Task DeclineChallengeAsync(SocketUserMessage message)
@@ -369,7 +369,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.DeclineChallengeAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to decline challenge.");
+        await ReplyIfFailedAsync(message, result, "Failed to decline challenge.");
     }
 
     private async Task ShowCurrentMatchAsync(SocketUserMessage message)
@@ -430,7 +430,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.ReportMatchAsync(author.Id, winner);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to report match.");
+        await ReplyIfFailedAsync(message, result, "Failed to report match.");
     }
 
     private static ulong? ResolveTargetUserId(SocketUserMessage message)
@@ -439,6 +439,22 @@ public class DiscordService : IHostedService, IAsyncDisposable
         var mentioned = message.MentionedUsers?.FirstOrDefault();
         return mentioned?.Id ?? message.Author?.Id;
     }
+
+    // The Game Manager already broadcasts every *successful* state-change to the
+    // channel (lobby events, plus ban/report/challenge announcements with @mention
+    // pings). Echoing the operation's reply here as well posted it twice — e.g.
+    // "X joined the queue" appearing once from the broadcast and once from the
+    // reply. So for state-changing commands we surface the reply ONLY on failure;
+    // success is announced by the broadcast, keeping exactly one message per action.
+    private static Task ReplyIfFailedAsync(SocketUserMessage message, QueueOperationResponse? result, string fallback) =>
+        result is { Success: true }
+            ? Task.CompletedTask
+            : message.Channel.SendMessageAsync(result?.Message ?? fallback);
+
+    private static Task ReplyIfFailedAsync(SocketUserMessage message, ChallengeOperationResponse? result, string fallback) =>
+        result is { Success: true }
+            ? Task.CompletedTask
+            : message.Channel.SendMessageAsync(result?.Message ?? fallback);
 
     private async Task ShowStatsAsync(SocketUserMessage message, ulong? userId)
     {
@@ -482,7 +498,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.UnregisterAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to unregister.");
+        await ReplyIfFailedAsync(message, result, "Failed to unregister.");
     }
 
     private async Task LinkSteamIdAsync(SocketUserMessage message, string[] parts)
@@ -517,7 +533,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.JoinQueueAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to join queue.");
+        await ReplyIfFailedAsync(message, result, "Failed to join queue.");
     }
 
     private async Task LeaveQueueAsync(SocketUserMessage message)
@@ -526,7 +542,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.LeaveQueueAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to leave queue.");
+        await ReplyIfFailedAsync(message, result, "Failed to leave queue.");
     }
 
     private async Task MarkReadyAsync(SocketUserMessage message)
@@ -535,7 +551,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.MarkReadyAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to mark ready.");
+        await ReplyIfFailedAsync(message, result, "Failed to mark ready.");
     }
 
     private async Task MarkUnreadyAsync(SocketUserMessage message)
@@ -544,7 +560,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (author == null) return;
 
         var result = await steamClient.MarkUnreadyAsync(author.Id);
-        await message.Channel.SendMessageAsync(result?.Message ?? "Failed to mark unready.");
+        await ReplyIfFailedAsync(message, result, "Failed to mark unready.");
     }
 
     private async Task ShowQueueStatusAsync(SocketUserMessage message)
