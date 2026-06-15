@@ -13,41 +13,41 @@ public static class AdminEndpoints
     public static RouteGroupBuilder MapAdminEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/admin/ban/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, [FromQuery] string? reason, CancellationToken ct) =>
+            (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, [FromQuery] string? reason, CancellationToken ct) =>
                 EndpointHelpers.TryOkAsync(log, "ban player", () => svc.BanPlayerAsync(id, reason, ct)));
 
         group.MapPost("/admin/unban/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
+            (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id, CancellationToken ct) =>
                 EndpointHelpers.TryOkAsync(log, "unban player", () => svc.UnbanPlayerAsync(id, ct)));
 
         group.MapPost("/admin/kick/{id}",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
+            (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "kick player", () => svc.KickPlayerAsync(id)));
 
         group.MapPost("/admin/force_start",
-            (Dota2Service svc, ILogger<Dota2Service> log) =>
+            (IDota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOkAsync(log, "force start lobby", svc.ForceStartLobbyAsync));
 
         group.MapPost("/admin/reset_queue",
-            (Dota2Service svc, ILogger<Dota2Service> log) =>
+            (IDota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOkAsync(log, "reset queue", svc.ResetQueueAsync));
 
         group.MapPost("/admin/add_account",
-            (Dota2Service svc, ILogger<Dota2Service> log, [FromBody] AddSteamAccountRequest req) =>
+            (IDota2Service svc, ILogger<Dota2Service> log, [FromBody] AddSteamAccountRequest req) =>
                 EndpointHelpers.TryOkAsync(log, "add Steam account", () => svc.AddSteamAccountAsync(req.Username, req.Password)));
 
         group.MapGet("/admin/pool_status",
-            (Dota2Service svc, ILogger<Dota2Service> log) =>
+            (IDota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOk(log, "get pool status", svc.GetPoolStatus));
 
         group.MapGet("/admin/sessions",
-            (Dota2Service svc, ILogger<Dota2Service> log) =>
+            (IDota2Service svc, ILogger<Dota2Service> log) =>
                 EndpointHelpers.TryOk(log, "get active sessions", svc.GetActiveSessions));
 
         // Manual overrides — useful if a match was reported through some other
         // channel and the bot didn't auto-close the loop.
         group.MapPost("/admin/game/started/{lobbyId}",
-            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+            async (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
                 await EndpointHelpers.TryOkAsync(log, "mark game started", async () =>
                 {
                     await svc.NotifyGameStartedAsync(lobbyId);
@@ -55,7 +55,7 @@ public static class AdminEndpoints
                 }));
 
         group.MapPost("/admin/game/finished/{lobbyId}",
-            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+            async (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
                 await EndpointHelpers.TryOkAsync(log, "mark game finished", async () =>
                 {
                     await svc.NotifyGameFinishedAsync(lobbyId);
@@ -67,7 +67,7 @@ public static class AdminEndpoints
         // reopens the queue. Unlike /game/finished, this also tears the lobby
         // down on Steam's side.
         group.MapPost("/admin/game/destroy/{lobbyId}",
-            async (Dota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
+            async (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] string lobbyId) =>
                 await EndpointHelpers.TryOkAsync(log, "destroy lobby", async () =>
                 {
                     await svc.DestroyLobbyAsync(lobbyId);

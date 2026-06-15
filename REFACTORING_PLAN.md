@@ -118,13 +118,18 @@ Goal: eliminate crash/race risks.
 
 Goal: unlock unit testing and substitution.
 
-- [ ] **Extract `IDota2Service`**; have endpoints depend on the interface.
-- [ ] **Extract `ISteamClient`** (Discord side) and centralize the 25 hardcoded
-      API paths into constants or a typed route builder shared via `Common`.
-- [ ] **Wrap the Dota GC protocol** behind an `IDota2GcService` so protobuf
-      details and constants (AppId 570, lobby type 2004) are isolated.
-- [ ] **Register `DiscordSocketClient` via DI** instead of `new` inside the
-      service, enabling handler tests.
+- [x] **Extract `IDota2Service`**; all Game Manager endpoints now depend on the
+      interface (`AddSingleton<IDota2Service, Dota2Service>`).
+- [x] **Extract `ISteamClient`** (Discord side); `DiscordService` depends on the
+      interface, and the 25 API paths are centralized in a `GameManagerApiRoutes`
+      helper instead of inline string literals.
+- [x] **Wrap the Dota GC client** behind `ISteamGcClient` (implemented by
+      `SteamGcClient`); `SteamGcClientPool` and its consumers work through the
+      interface, keeping the SteamKit2/protobuf details and constants
+      (AppId 570, lobby type 2004) isolated behind it.
+- [x] **Register `DiscordSocketClient` via DI** instead of `new`-ing it inside
+      `DiscordService`, so the service can be constructed/tested with an injected
+      gateway client.
 
 ### Phase 3 — Discord Bot Restructure
 

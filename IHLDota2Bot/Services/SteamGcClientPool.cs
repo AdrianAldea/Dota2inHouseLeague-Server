@@ -13,11 +13,11 @@ namespace IHLDota2Bot.Services;
 /// </summary>
 public sealed class SteamGcClientPool : IHostedService
 {
-    private readonly Dictionary<string, SteamGcClient> clientsByUsername;
+    private readonly Dictionary<string, ISteamGcClient> clientsByUsername;
     private readonly Lock lockObject = new();
     private readonly DiscordClient discordClient;
     private readonly ILoggerFactory loggerFactory;
-    private SteamGcClient? defaultClient;
+    private ISteamGcClient? defaultClient;
     private readonly ILogger<SteamGcClientPool> logger;
 
     public SteamGcClientPool(
@@ -34,7 +34,7 @@ public sealed class SteamGcClientPool : IHostedService
         this.discordClient = discordClient;
         this.loggerFactory = loggerFactory;
         this.logger = logger;
-        clientsByUsername = new Dictionary<string, SteamGcClient>(StringComparer.OrdinalIgnoreCase);
+        clientsByUsername = new Dictionary<string, ISteamGcClient>(StringComparer.OrdinalIgnoreCase);
 
         var options = steamOptions.Value;
 
@@ -75,12 +75,12 @@ public sealed class SteamGcClientPool : IHostedService
     }
 
     /// <summary>The fallback client — first configured BotAccount, or first PoolAccount if no BotAccount.</summary>
-    public SteamGcClient? Default
+    public ISteamGcClient? Default
     {
         get { lock (lockObject) { return defaultClient; } }
     }
 
-    public IReadOnlyDictionary<string, SteamGcClient> All
+    public IReadOnlyDictionary<string, ISteamGcClient> All
     {
         get
         {
@@ -93,7 +93,7 @@ public sealed class SteamGcClientPool : IHostedService
         }
     }
 
-    public SteamGcClient? GetByUsername(string username)
+    public ISteamGcClient? GetByUsername(string username)
     {
         lock (lockObject)
         {
@@ -115,7 +115,7 @@ public sealed class SteamGcClientPool : IHostedService
             return Task.FromResult((false, "Username and password are required."));
         }
 
-        SteamGcClient client;
+        ISteamGcClient client;
         lock (lockObject)
         {
             if (clientsByUsername.ContainsKey(username))
@@ -159,7 +159,7 @@ public sealed class SteamGcClientPool : IHostedService
     /// <summary>Starts every configured client. Returns true if every one accepted the start request.</summary>
     public async Task<bool> StartAllAsync()
     {
-        SteamGcClient[] snapshot;
+        ISteamGcClient[] snapshot;
         lock (lockObject)
         {
             if (clientsByUsername.Count == 0)
@@ -176,7 +176,7 @@ public sealed class SteamGcClientPool : IHostedService
 
     public async Task StopAllAsync()
     {
-        SteamGcClient[] snapshot;
+        ISteamGcClient[] snapshot;
         lock (lockObject)
         {
             snapshot = clientsByUsername.Values.ToArray();
@@ -192,7 +192,7 @@ public sealed class SteamGcClientPool : IHostedService
     /// </summary>
     public void DestroyAllActiveLobbies()
     {
-        SteamGcClient[] snapshot;
+        ISteamGcClient[] snapshot;
         lock (lockObject)
         {
             snapshot = clientsByUsername.Values.ToArray();
@@ -214,7 +214,7 @@ public sealed class SteamGcClientPool : IHostedService
     private static bool HasCredentials(SteamAccountCredentials credentials) =>
         !string.IsNullOrWhiteSpace(credentials?.Username) && !string.IsNullOrWhiteSpace(credentials.Password);
 
-    private SteamGcClient BuildClient(string username, string password)
+    private ISteamGcClient BuildClient(string username, string password)
     {
         // Use a per-account logger category so multi-bot log lines stay distinguishable
         // in the Aspire dashboard without having to read every message body.

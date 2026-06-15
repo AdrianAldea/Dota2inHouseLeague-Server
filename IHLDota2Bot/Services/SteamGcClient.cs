@@ -27,7 +27,7 @@ namespace IHLDota2Bot.Services;
 /// across those boundaries are <c>volatile</c> so writes on the pump thread are
 /// visible to callers and vice-versa.
 /// </remarks>
-public sealed class SteamGcClient
+public sealed class SteamGcClient : ISteamGcClient
 {
     private const uint DotaAppId = 570;
     private const int LobbyTypeId = 2004;
