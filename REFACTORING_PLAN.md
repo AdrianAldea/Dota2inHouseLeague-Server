@@ -93,15 +93,26 @@ Goal: make every later change verifiable and reversible.
 
 Goal: eliminate crash/race risks.
 
-- [ ] **Replace `async void` handlers** in `LobbyPoolManager` with `async Task`
-      + a single safe-dispatch wrapper that observes and logs exceptions.
-- [ ] **Audit thread-safety in `SteamGcClient`**: document the single-threaded
-      callback assumption or add explicit synchronization for mutated fields
-      (`hasActiveLobby`, `activeRoster`, `matchResultReported`).
-- [ ] **Harden reconnection**: replace the fixed 5s delay with exponential
-      backoff + a max-attempt/credential-invalid guard.
-- [ ] **Match/Steam consistency**: define ordering & idempotency for DB match
-      creation vs. Steam lobby creation so a DB failure can't strand a lobby.
+- [x] **Replace `async void` handlers** in `LobbyPoolManager`: the ten LobbyQueue
+      event handlers now dispatch through a single fault-observing wrapper
+      (`RunHandlerSafely`/`ObserveHandlerAsync`) — no `async void`, faults are
+      logged instead of crashing the process. (The two self-detaching inline GC
+      lambdas in the lobby-ready path already wrap their awaited work in
+      try/catch and are left as-is.)
+- [x] **Audit thread-safety in `SteamGcClient`**: documented the single-threaded
+      callback-pump model in the class remarks and marked the cross-thread
+      `bool` flags (`isRunning`, `isLoggedOn`, `hasActiveLobby`,
+      `matchResultReported`) `volatile` for cross-thread visibility.
+- [x] **Harden reconnection**: replaced the fixed 5s delay with exponential
+      backoff (5s → 2min cap, reset on successful logon) and a non-retryable
+      auth guard (bad password / SteamGuard / disabled / banned) that stops the
+      reconnect loop instead of hammering Steam with credentials that can't work.
+- [~] **Match/Steam consistency**: the lobby-ready path already persists the
+      match in the DB *first* and rolls back the in-memory reservation + pool
+      account if the write fails (so a DB failure can't strand a lobby), and
+      both the GC `MatchCompleted` path and admin destroy settle the DB row
+      idempotently. Left as-is; revisit if a transactional boundary across the
+      DB and Steam GC is needed later.
 
 ### Phase 2 — Abstractions & Testability
 
