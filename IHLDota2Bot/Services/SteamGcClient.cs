@@ -32,11 +32,9 @@ public sealed class SteamGcClient
     private const uint DotaAppId = 570;
     private const int LobbyTypeId = 2004;
 
-    // Reconnect backoff: start at 5s and double up to a 2-minute ceiling so a
-    // prolonged Steam outage doesn't hammer the CMs while a brief blip still
-    // recovers quickly. Reset to 0 on a successful logon.
-    private static readonly TimeSpan ReconnectBaseDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromMinutes(2);
+    // Exponential reconnect backoff lives in SteamReconnectPolicy so it can be
+    // unit-tested in isolation. reconnectAttempts is the zero-based attempt
+    // counter, reset to 0 on a successful logon.
     private int reconnectAttempts;
 
     // Set when Steam rejects our credentials with a non-retryable result
@@ -722,10 +720,7 @@ public sealed class SteamGcClient
         // fires again and re-triggers LogOn. Back off exponentially so a sustained
         // outage doesn't spin; the delay resets once we log on successfully.
         var attempt = reconnectAttempts++;
-        var delaySeconds = Math.Min(
-            ReconnectBaseDelay.TotalSeconds * Math.Pow(2, attempt),
-            MaxReconnectDelay.TotalSeconds);
-        var delay = TimeSpan.FromSeconds(delaySeconds);
+        var delay = SteamReconnectPolicy.NextDelay(attempt);
 
         logger.LogWarning(
             "[{Username}] Disconnected from Steam (UserInitiated={UserInitiated}); reconnecting in {Delay:F0}s (attempt {Attempt})",
@@ -747,17 +742,6 @@ public sealed class SteamGcClient
         });
     }
 
-    // Logon failures that won't fix themselves by retrying the same secrets.
-    private static bool IsNonRetryableLogonResult(EResult result) => result switch
-    {
-        EResult.InvalidPassword => true,
-        EResult.AccountLogonDenied => true,             // SteamGuard email code required
-        EResult.AccountLoginDeniedNeedTwoFactor => true,
-        EResult.AccountDisabled => true,
-        EResult.Banned => true,
-        _ => false
-    };
-
     private void OnLoggedOff(SteamUser.LoggedOffCallback callback)
     {
         isLoggedOn = false;
@@ -774,7 +758,7 @@ public sealed class SteamGcClient
         if (callback.Result != EResult.OK)
         {
             logger.LogError("[{Username}] Steam authentication failed: {Result}", username, callback.Result);
-            if (IsNonRetryableLogonResult(callback.Result))
+            if (SteamReconnectPolicy.IsNonRetryableLogonResult(callback.Result))
             {
                 authenticationFailed = true;
                 logger.LogError(
