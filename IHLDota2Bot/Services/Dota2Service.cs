@@ -6,7 +6,7 @@ using IHLDota2Bot.Data.Repositories;
 
 namespace IHLDota2Bot.Services;
 
-public class Dota2Service
+public class Dota2Service : IDota2Service
 {
     private readonly DiscordClient discordClient;
     private readonly LobbyPoolManager poolManager;

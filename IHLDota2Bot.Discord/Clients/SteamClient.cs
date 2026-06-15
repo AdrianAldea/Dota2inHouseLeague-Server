@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace IHLDota2Bot.Discord.Clients;
 
-public class SteamClient
+public class SteamClient : ISteamClient
 {
     public const string HttpClientName = "SteamClient";
 
@@ -24,7 +24,7 @@ public class SteamClient
     {
         try
         {
-            var response = await httpClient.PostAsJsonAsync("api/gamemanager/register", request, JsonSerializerOptions.Web, cancellationToken);
+            var response = await httpClient.PostAsJsonAsync(GameManagerApiRoutes.Register, request, JsonSerializerOptions.Web, cancellationToken);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<RegisteredPlayer>(cancellationToken);
         }
@@ -36,28 +36,28 @@ public class SteamClient
     }
 
     public Task<QueueOperationResponse?> JoinQueueAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/queue/{id}", "join queue", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Queue(id), "join queue", id, cancellationToken);
 
     public Task<QueueOperationResponse?> LeaveQueueAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/leave/{id}", "leave queue", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Leave(id), "leave queue", id, cancellationToken);
 
     public Task<QueueOperationResponse?> MarkReadyAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/ready/{id}", "mark ready", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Ready(id), "mark ready", id, cancellationToken);
 
     public Task<QueueOperationResponse?> MarkUnreadyAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/unready/{id}", "mark unready", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Unready(id), "mark unready", id, cancellationToken);
 
     public Task<QueueOperationResponse?> UnregisterAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/unregister/{id}", "unregister", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Unregister(id), "unregister", id, cancellationToken);
 
     public Task<QueueOperationResponse?> LinkSteamIdAsync(ulong userId, ulong steamId, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/link/{userId}/{steamId}", "link Steam ID", userId, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Link(userId, steamId), "link Steam ID", userId, cancellationToken);
 
     public async Task<PlayerStatsResponse?> GetPlayerStatsAsync(ulong id, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await httpClient.GetAsync($"api/gamemanager/stats/{id}", cancellationToken);
+            var response = await httpClient.GetAsync(GameManagerApiRoutes.Stats(id), cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<PlayerStatsResponse>(cancellationToken);
@@ -73,7 +73,7 @@ public class SteamClient
     {
         try
         {
-            return await httpClient.GetFromJsonAsync<LeaderboardResponse>($"api/gamemanager/leaderboard?top={top}", cancellationToken);
+            return await httpClient.GetFromJsonAsync<LeaderboardResponse>(GameManagerApiRoutes.Leaderboard(top), cancellationToken);
         }
         catch (Exception ex)
         {
@@ -86,7 +86,7 @@ public class SteamClient
     {
         try
         {
-            var response = await httpClient.GetAsync($"api/gamemanager/match/current/{id}", cancellationToken);
+            var response = await httpClient.GetAsync(GameManagerApiRoutes.CurrentMatch(id), cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<MatchSummary>(cancellationToken);
@@ -102,7 +102,7 @@ public class SteamClient
     {
         try
         {
-            return await httpClient.GetFromJsonAsync<RecentMatchesResponse>($"api/gamemanager/match/recent/{id}?top={top}", cancellationToken);
+            return await httpClient.GetFromJsonAsync<RecentMatchesResponse>(GameManagerApiRoutes.RecentMatches(id, top), cancellationToken);
         }
         catch (Exception ex)
         {
@@ -115,7 +115,7 @@ public class SteamClient
     {
         try
         {
-            var response = await httpClient.PostAsync($"api/gamemanager/match/report/{id}/{winner}", content: null, cancellationToken);
+            var response = await httpClient.PostAsync(GameManagerApiRoutes.ReportMatch(id, winner), content: null, cancellationToken);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<QueueOperationResponse>(cancellationToken);
         }
@@ -127,13 +127,13 @@ public class SteamClient
     }
 
     public Task<ChallengeOperationResponse?> ChallengePlayerAsync(ulong challengerId, ulong challengedId, CancellationToken cancellationToken = default) =>
-        PostChallengeAsync($"api/gamemanager/challenge/{challengerId}/{challengedId}", "challenge", challengerId, cancellationToken);
+        PostChallengeAsync(GameManagerApiRoutes.Challenge(challengerId, challengedId), "challenge", challengerId, cancellationToken);
 
     public Task<ChallengeOperationResponse?> AcceptChallengeAsync(ulong userId, CancellationToken cancellationToken = default) =>
-        PostChallengeAsync($"api/gamemanager/challenge/accept/{userId}", "accept challenge", userId, cancellationToken);
+        PostChallengeAsync(GameManagerApiRoutes.AcceptChallenge(userId), "accept challenge", userId, cancellationToken);
 
     public Task<ChallengeOperationResponse?> DeclineChallengeAsync(ulong userId, CancellationToken cancellationToken = default) =>
-        PostChallengeAsync($"api/gamemanager/challenge/decline/{userId}", "decline challenge", userId, cancellationToken);
+        PostChallengeAsync(GameManagerApiRoutes.DeclineChallenge(userId), "decline challenge", userId, cancellationToken);
 
     private async Task<ChallengeOperationResponse?> PostChallengeAsync(string path, string action, ulong userId, CancellationToken cancellationToken)
     {
@@ -154,7 +154,7 @@ public class SteamClient
     {
         try
         {
-            return await httpClient.GetFromJsonAsync<QueueStatusResponse>("api/gamemanager/queue/status", cancellationToken);
+            return await httpClient.GetFromJsonAsync<QueueStatusResponse>(GameManagerApiRoutes.QueueStatus, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -180,30 +180,30 @@ public class SteamClient
 
     public Task<QueueOperationResponse?> BanPlayerAsync(ulong id, string? reason, CancellationToken cancellationToken = default)
     {
-        var path = $"api/gamemanager/admin/ban/{id}";
+        var path = GameManagerApiRoutes.Ban(id);
         if (!string.IsNullOrEmpty(reason))
             path += $"?reason={Uri.EscapeDataString(reason)}";
         return PostOperationAsync(path, "ban player", id, cancellationToken);
     }
 
     public Task<QueueOperationResponse?> UnbanPlayerAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/admin/unban/{id}", "unban player", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Unban(id), "unban player", id, cancellationToken);
 
     public Task<QueueOperationResponse?> KickPlayerAsync(ulong id, CancellationToken cancellationToken = default) =>
-        PostOperationAsync($"api/gamemanager/admin/kick/{id}", "kick player", id, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.Kick(id), "kick player", id, cancellationToken);
 
     public Task<QueueOperationResponse?> ForceStartLobbyAsync(CancellationToken cancellationToken = default) =>
-        PostOperationAsync("api/gamemanager/admin/force_start", "force start", 0, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.ForceStart, "force start", 0, cancellationToken);
 
     public Task<QueueOperationResponse?> ResetQueueAsync(CancellationToken cancellationToken = default) =>
-        PostOperationAsync("api/gamemanager/admin/reset_queue", "reset queue", 0, cancellationToken);
+        PostOperationAsync(GameManagerApiRoutes.ResetQueue, "reset queue", 0, cancellationToken);
 
     public async Task<QueueOperationResponse?> AddSteamAccountAsync(string username, string password, CancellationToken cancellationToken = default)
     {
         try
         {
             var response = await httpClient.PostAsJsonAsync(
-                "api/gamemanager/admin/add_account",
+                GameManagerApiRoutes.AddAccount,
                 new AddSteamAccountRequest { Username = username, Password = password },
                 JsonSerializerOptions.Web,
                 cancellationToken);
@@ -221,7 +221,7 @@ public class SteamClient
     {
         try
         {
-            var response = await httpClient.GetAsync($"api/gamemanager/rank/{id}", cancellationToken);
+            var response = await httpClient.GetAsync(GameManagerApiRoutes.Rank(id), cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<RankResponse>(cancellationToken);
@@ -237,7 +237,7 @@ public class SteamClient
     {
         try
         {
-            var response = await httpClient.GetAsync($"api/gamemanager/match/{matchId}", cancellationToken);
+            var response = await httpClient.GetAsync(GameManagerApiRoutes.MatchById(matchId), cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<MatchSummary>(cancellationToken);
@@ -253,7 +253,7 @@ public class SteamClient
     {
         try
         {
-            return await httpClient.GetFromJsonAsync<PoolStatusResponse>("api/gamemanager/admin/pool_status", cancellationToken);
+            return await httpClient.GetFromJsonAsync<PoolStatusResponse>(GameManagerApiRoutes.PoolStatus, cancellationToken);
         }
         catch (Exception ex)
         {

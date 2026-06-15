@@ -12,31 +12,28 @@ namespace IHLDota2Bot.Discord.Services;
 
 public class DiscordService : IHostedService, IAsyncDisposable
 {
-    private readonly SteamClient steamClient;
+    private readonly ISteamClient steamClient;
     private readonly ILogger<DiscordService> logger;
     private readonly DiscordOptions options;
     private readonly DiscordSocketClient discordClient;
     private bool isRunning;
 
     public DiscordService(
-        SteamClient steamClient,
+        ISteamClient steamClient,
+        DiscordSocketClient discordClient,
         IOptions<DiscordOptions> options,
         ILogger<DiscordService> logger)
     {
         ArgumentNullException.ThrowIfNull(steamClient);
+        ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.steamClient = steamClient;
+        this.discordClient = discordClient;
         this.options = options.Value;
         this.logger = logger;
 
-        var config = new DiscordSocketConfig
-        {
-            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
-        };
-
-        discordClient = new DiscordSocketClient(config);
         discordClient.MessageReceived += HandleMessageAsync;
         discordClient.Log += OnDiscordLogAsync;
     }

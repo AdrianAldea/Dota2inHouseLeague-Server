@@ -52,7 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SteamGcClientPool>();
         services.AddHostedService(sp => sp.GetRequiredService<SteamGcClientPool>());
         services.AddSingleton<LobbyPoolManager>();
-        services.AddSingleton<Dota2Service>();
+        services.AddSingleton<IDota2Service, Dota2Service>();
         services.AddHostedService(sp => sp.GetRequiredService<LobbyPoolManager>());
 
         return services;

@@ -1,3 +1,5 @@
+using Discord;
+using Discord.WebSocket;
 using IHLDota2Bot.Discord.Clients;
 using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Extensions;
@@ -19,7 +21,15 @@ builder.Services.AddHttpClient(SteamClient.HttpClientName, (sp, client) =>
     client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
 });
 
-builder.Services.AddSingleton<SteamClient>();
+builder.Services.AddSingleton<ISteamClient, SteamClient>();
+
+// The Discord gateway client is owned by DI so DiscordService can be constructed
+// (and unit-tested) with an injected socket client rather than newing one up.
+builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConfig
+{
+    GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
+}));
+
 builder.Services.AddSingleton<DiscordService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
 
