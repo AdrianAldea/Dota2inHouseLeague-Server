@@ -5,7 +5,10 @@ using IHLDota2Bot.Discord.Commands;
 using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Extensions;
 using IHLDota2Bot.Discord.Services;
+using IHLDota2Bot.Discord.Telemetry;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,6 +72,18 @@ builder.Services.AddSingleton<IDiscordCommandHandler, ResetQueueCommandHandler>(
 builder.Services.AddSingleton<IDiscordCommandHandler, AddAccountCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, PoolStatusCommandHandler>();
 builder.Services.AddSingleton<DiscordCommandDispatcher>();
+
+// Command-pipeline cross-cutting concerns: throttling + telemetry.
+builder.Services.Configure<CommandRateLimitOptions>(
+    builder.Configuration.GetSection(CommandRateLimitOptions.SectionName));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<CommandRateLimiter>();
+builder.Services.AddSingleton<DiscordCommandTelemetry>();
+
+// Surface the command meter + activity source through the existing OpenTelemetry pipeline.
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(DiscordCommandTelemetry.MeterName))
+    .WithTracing(tracing => tracing.AddSource(DiscordCommandTelemetry.ActivitySourceName));
 
 builder.Services.AddSingleton<DiscordService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
