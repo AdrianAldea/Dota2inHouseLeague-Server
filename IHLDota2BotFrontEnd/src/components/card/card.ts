@@ -1,4 +1,5 @@
-import { Component, ContentChild, Input, signal, TemplateRef } from "@angular/core";
+import { Component, ContentChild, DestroyRef, inject, Input, signal, TemplateRef } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 
@@ -25,6 +26,8 @@ export class CardComponent {
   statusMessage = signal('');
   response = signal<any>(null);
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(private http: HttpClient) {}
     
   send(endpoint: string, payload: any = {}) {
@@ -47,7 +50,7 @@ export class CardComponent {
       throw Error("Unimplemented Request type");
     }
 
-    request$.subscribe({
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.statusMessage.set('Success ✅');
         this.response.set(res);
