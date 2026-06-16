@@ -1,57 +1,11 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { catchError, forkJoin, of } from 'rxjs';
-
-// ── Wire shapes (match the Common DTOs) ──
-// System.Text.Json serialises with camelCase keys and enums as numbers, so the
-// numeric `state` / `status` / `team`/`winningTeam` fields are mapped to labels
-// in the template helpers below rather than trusted as strings.
-
-interface ActiveSession {
-  lobbyId: string;
-  accountId: string;
-  playerCount: number;
-  state: number; // PoolSessionState: 0 Ready, 1 InProgress, 2 Finished
-  startedAt: string;
-  gameStartedAt?: string | null;
-  finishedAt?: string | null;
-}
-
-interface QueuePlayer {
-  username: string;
-  isReady: boolean;
-}
-
-interface QueueStatus {
-  currentLobbyId: string | null;
-  currentLobbyPlayerCount: number;
-  playersPerLobby: number;
-  playersReady: number;
-  totalRegistered: number;
-  waitingPlayers: number;
-  players: QueuePlayer[];
-}
-
-interface MatchPlayer {
-  userId: number;
-  username: string;
-  team: number; // MatchTeam: 0 Radiant, 1 Dire
-  won: boolean;
-}
-
-interface MatchSummary {
-  id: string;
-  lobbyId: string | null;
-  createdAt: string;
-  completedAt: string | null;
-  status: number; // MatchStatus: 0 InProgress, 1 Completed, 2 Cancelled
-  winningTeam: number | null;
-  players: MatchPlayer[];
-}
-
-const API = '/gamemanager/api/gamemanager';
+import { Observable, catchError, forkJoin, of } from 'rxjs';
+import { GameManagerService } from '../../services/game-manager.service';
+import { ActiveSession, MatchPlayer, MatchSummary, QueueStatus } from '../../models/game.models';
 
 @Component({
   selector: 'lobby-monitor',
@@ -85,7 +39,8 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   autoRefresh = signal(false);
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private http: HttpClient) {}
+  private readonly api = inject(GameManagerService);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.refresh();
@@ -104,29 +59,31 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
     // Each request degrades independently: a failure surfaces in the shared
     // error banner while the other panel still updates.
     forkJoin({
-      sessions: this.http.get<ActiveSession[]>(`${API}/admin/sessions`).pipe(
+      sessions: this.api.getSessions().pipe(
         catchError((err: HttpErrorResponse) => {
           this.error.set(this.errText(err));
           return of(null);
         })
       ),
-      queue: this.http.get<QueueStatus>(`${API}/queue/status`).pipe(
+      queue: this.api.getQueueStatus().pipe(
         catchError((err: HttpErrorResponse) => {
           this.error.set(this.errText(err));
           return of(null);
         })
       )
-    }).subscribe(({ sessions, queue }) => {
-      if (sessions) {
-        this.sessions.set(sessions);
-        this.pruneLobbyStatuses(sessions);
-      }
-      if (queue) {
-        this.queue.set(queue);
-      }
-      this.lastUpdated.set(new Date());
-      this.loading.set(false);
-    });
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ sessions, queue }) => {
+        if (sessions) {
+          this.sessions.set(sessions);
+          this.pruneLobbyStatuses(sessions);
+        }
+        if (queue) {
+          this.queue.set(queue);
+        }
+        this.lastUpdated.set(new Date());
+        this.loading.set(false);
+      });
   }
 
   toggleAutoRefresh(): void {
@@ -150,29 +107,29 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   // ── Per-lobby actions ──
 
   markStarted(lobbyId: string): void {
-    this.lobbyAction(lobbyId, `${API}/admin/game/started/${lobbyId}`, 'Marking started…', 'Started ✅');
+    this.lobbyAction(lobbyId, this.api.markGameStarted(lobbyId), 'Marking started…', 'Started ✅');
   }
 
   destroy(lobbyId: string): void {
     if (!confirm(`Destroy lobby ${this.shortId(lobbyId)}?\n\nThis ends the hosted game (sends the Dota GC a leave), cancels the match, releases the bot account, and reopens the queue.`)) {
       return;
     }
-    this.lobbyAction(lobbyId, `${API}/admin/game/destroy/${lobbyId}`, 'Destroying…', 'Destroyed 💥');
+    this.lobbyAction(lobbyId, this.api.destroyLobby(lobbyId), 'Destroying…', 'Destroyed 💥');
   }
 
   viewMatch(lobbyId: string): void {
-    this.fetchMatch(`${API}/match/by-lobby/${lobbyId}`, `Lobby ${this.shortId(lobbyId)}`, 'No match found for this lobby.');
+    this.fetchMatch(this.api.getMatchByLobby(lobbyId), `Lobby ${this.shortId(lobbyId)}`, 'No match found for this lobby.');
   }
 
   // ── Queue-level controls ──
 
   forceReady(): void {
-    this.queueAction(`${API}/admin/force_start`, 'Forcing ready…', 'Force-started ✅');
+    this.queueAction(this.api.forceStart(), 'Forcing ready…', 'Force-started ✅');
   }
 
   resetQueue(): void {
     if (!confirm('Reset the current queue lobby? All queued players are removed.')) return;
-    this.queueAction(`${API}/admin/reset_queue`, 'Resetting…', 'Reset ✅');
+    this.queueAction(this.api.resetQueue(), 'Resetting…', 'Reset ✅');
   }
 
   markPlayerReady(): void {
@@ -181,7 +138,7 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
       this.queueStatusMsg.set('Enter a user ID first.');
       return;
     }
-    this.queueAction(`${API}/ready/${id}`, 'Marking ready…', `Marked ${id} ready ✅`);
+    this.queueAction(this.api.markPlayerReady(id), 'Marking ready…', `Marked ${id} ready ✅`);
   }
 
   // ── Match details panel (manual lookup by match GUID) ──
@@ -192,7 +149,7 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
       this.matchStatusMsg.set('Enter a match UUID first.');
       return;
     }
-    this.fetchMatch(`${API}/match/${id}`, `Match ${this.shortId(id)}`, 'No match found for that UUID.');
+    this.fetchMatch(this.api.getMatchById(id), `Match ${this.shortId(id)}`, 'No match found for that UUID.');
   }
 
   clearMatch(): void {
@@ -204,9 +161,9 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   // ── Shared request helpers ──
 
   /** POST for a specific lobby; progress/result lands in that lobby's status line. */
-  private lobbyAction(lobbyId: string, url: string, pendingMsg: string, okMsg: string): void {
+  private lobbyAction(lobbyId: string, request$: Observable<unknown>, pendingMsg: string, okMsg: string): void {
     this.setLobbyStatus(lobbyId, pendingMsg);
-    this.http.post(url, {}).subscribe({
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.setLobbyStatus(lobbyId, okMsg);
         this.refresh();
@@ -216,9 +173,9 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   }
 
   /** POST for the queue panel; progress/result lands in the queue status line. */
-  private queueAction(url: string, pendingMsg: string, okMsg: string): void {
+  private queueAction(request$: Observable<unknown>, pendingMsg: string, okMsg: string): void {
     this.queueStatusMsg.set(pendingMsg);
-    this.http.post(url, {}).subscribe({
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.queueStatusMsg.set(okMsg);
         this.refresh();
@@ -228,11 +185,11 @@ export class LobbyMonitorComponent implements OnInit, OnDestroy {
   }
 
   /** GET a match summary into the details panel, with a friendly 404 message. */
-  private fetchMatch(url: string, title: string, notFoundMsg: string): void {
+  private fetchMatch(request$: Observable<MatchSummary>, title: string, notFoundMsg: string): void {
     this.matchTitle.set(title);
     this.matchStatusMsg.set('Fetching…');
     this.match.set(null);
-    this.http.get<MatchSummary>(url).subscribe({
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.match.set(res);
         this.matchStatusMsg.set('');

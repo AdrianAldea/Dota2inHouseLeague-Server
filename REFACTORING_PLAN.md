@@ -216,13 +216,19 @@ Goal: production-grade external-call behavior and insight.
 
 ### Phase 6 — Frontend Hardening
 
-- [ ] **Fix subscription leaks**: `takeUntil(destroy$)` (or `toSignal`/async
+- [x] **Fix subscription leaks**: `takeUntil(destroy$)` (or `toSignal`/async
       pipe) on every HTTP call in `LobbyMonitorComponent` and `CardComponent`.
+      Done via `takeUntilDestroyed(destroyRef)` on every subscription.
 - [ ] **Remove `any`**: generics/interfaces in `CardComponent`; type all responses.
-- [ ] **Service + config layer**: extract API calls and the hardcoded
+- [x] **Service + config layer**: extract API calls and the hardcoded
       `/discord` and `/gamemanager` endpoints into services with environment
-      config; add a global `HttpInterceptor` for errors/timeouts.
-- [ ] **Tests**: start with services and `LobbyMonitor` logic (Vitest).
+      config; add a global `HttpInterceptor` for errors/timeouts. `environment.ts`
+      holds base paths + timeout; `GameManagerService` wraps the live-ops calls;
+      `httpTimeoutInterceptor` applies a global timeout + normalises failures.
+      (admin.ts/admin.html endpoint extraction continues in 6b.)
+- [x] **Tests**: start with services and `LobbyMonitor` logic (Vitest).
+      `GameManagerService`, `httpTimeoutInterceptor`, and `LobbyMonitor` logic
+      covered (1 → 16 frontend tests).
 - [ ] **Accessibility pass**: ARIA labels, `label[for]` associations, focus
       states, semantic landmarks; move the one inline style to CSS.
 - [ ] **Routing**: replace the inlined single page once a second view appears.
