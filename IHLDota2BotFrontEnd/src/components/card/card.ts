@@ -1,7 +1,11 @@
 import { Component, ContentChild, DestroyRef, inject, Input, signal, TemplateRef } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommonModule } from "@angular/common";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
+import { Observable } from "rxjs";
+
+/** Request body for a card action. Heterogeneous across cards, so keyed by string. */
+export type CardPayload = Record<string, unknown>;
 
 @Component({
   selector: 'card-component',
@@ -16,29 +20,29 @@ export class CardComponent {
   @Input() startEndpoint!: string;
   @Input() stopEndpoint?: string;
   @Input() startLabel: string = "Start";
-  @Input() startPayload: any = {};
-  @Input() stopPayload: any = {};
+  @Input() startPayload: CardPayload = {};
+  @Input() stopPayload: CardPayload = {};
   @Input() method: 'GET' | 'POST' = 'POST';
 
   @ContentChild('inputs', { read: TemplateRef })
-  inputsTpl?: TemplateRef<any>;
+  inputsTpl?: TemplateRef<unknown>;
 
   statusMessage = signal('');
-  response = signal<any>(null);
+  response = signal<unknown>(null);
 
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(private http: HttpClient) {}
-    
-  send(endpoint: string, payload: any = {}) {
+
+  send(endpoint: string, payload: CardPayload = {}) {
     this.statusMessage.set('Sending request...');
     this.response.set(null);
 
-    let request$;
+    let request$: Observable<unknown>;
 
     if (this.method == 'GET') {
       request$ = this.http.get(endpoint);
-    } else if(this.method == 'POST') {
+    } else if (this.method == 'POST') {
       // We pass the IDs as strings in the template, and strip the quotes in the raw JSON
       // representation right before sending so they are dispatched as raw JSON 64-bit integers.
       let json = JSON.stringify(payload);
@@ -55,7 +59,7 @@ export class CardComponent {
         this.statusMessage.set('Success ✅');
         this.response.set(res);
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.statusMessage.set('Error ❌');
         this.response.set(err.error || err.message);
       }

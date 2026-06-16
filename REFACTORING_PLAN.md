@@ -219,7 +219,10 @@ Goal: production-grade external-call behavior and insight.
 - [x] **Fix subscription leaks**: `takeUntil(destroy$)` (or `toSignal`/async
       pipe) on every HTTP call in `LobbyMonitorComponent` and `CardComponent`.
       Done via `takeUntilDestroyed(destroyRef)` on every subscription.
-- [ ] **Remove `any`**: generics/interfaces in `CardComponent`; type all responses.
+- [x] **Remove `any`**: generics/interfaces in `CardComponent`; type all responses.
+      `CardComponent` now uses `CardPayload` (`Record<string, unknown>`) for
+      payloads and `unknown` for responses; error callback typed as
+      `HttpErrorResponse`. Cleared the `no-explicit-any` lint warnings.
 - [x] **Service + config layer**: extract API calls and the hardcoded
       `/discord` and `/gamemanager` endpoints into services with environment
       config; add a global `HttpInterceptor` for errors/timeouts. `environment.ts`
