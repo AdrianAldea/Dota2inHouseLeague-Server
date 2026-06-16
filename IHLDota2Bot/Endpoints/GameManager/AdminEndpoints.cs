@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace IHLDota2Bot.Endpoints.GameManager;
 
 /// <summary>
-/// Admin endpoints (server-side gate not yet enforced — Discord layer
-/// gates by user id / role for now).
+/// Admin endpoints. Require authentication via <c>X-Api-Key</c> header (see
+/// <c>MapGameManagerEndpoints</c> and <c>AdminApiKeyAuthenticationHandler</c>).
 /// </summary>
 public static class AdminEndpoints
 {

@@ -20,11 +20,12 @@ builder.Services.AddSwaggerGen();
 builder.Services.Configure<DiscordOptions>(builder.Configuration.GetSection(DiscordOptions.SectionName));
 builder.Services.Configure<SteamClientOptions>(builder.Configuration.GetSection(SteamClientOptions.SectionName));
 
+builder.Services.AddTransient<ApiKeyHandler>();
 builder.Services.AddHttpClient(SteamClient.HttpClientName, (sp, client) =>
 {
     var options = sp.GetRequiredService<IOptions<SteamClientOptions>>().Value;
     client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
-});
+}).AddHttpMessageHandler<ApiKeyHandler>();
 
 // Tune the (already-applied) Aspire standard resilience handler for this client.
 // These calls back a user's `!command`, so favour failing fast over long retries:
