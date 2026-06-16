@@ -58,6 +58,11 @@ h1 {
     gap: 0.3rem;
 }
 
+/* Field that should span both columns of a .form-grid (was an inline style). */
+.form-group--wide {
+    grid-column: span 2;
+}
+
 .form-group label {
     font-size: 0.75rem;
     color: #8b949e;
@@ -102,6 +107,14 @@ select {
 
 select:focus {
     border-color: #f0a500;
+}
+
+/* `outline: none` above keeps mouse focus clean; restore a clearly visible ring
+   for keyboard users so tabbing through the form is followable. */
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid #f0a500;
+    outline-offset: 2px;
 }
 
 /* Inline warning banner used above the Admin section to flag that the

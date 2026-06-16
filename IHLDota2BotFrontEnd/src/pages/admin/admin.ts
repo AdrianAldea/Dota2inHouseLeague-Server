@@ -2,6 +2,7 @@ import { Component, computed, signal } from '@angular/core';
 import { CardComponent } from '../../components/card/card';
 import { LobbyMonitorComponent } from '../../components/lobby-monitor/lobby-monitor';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'admin-page',
@@ -72,6 +73,14 @@ export class AdminPage {
   /** Trims a string — used in the existing Invite card's startPayload expression. */
   readonly trim = (s: string) => s.trim();
 
+  // URL builders so the proxy prefixes live in `environment`, not in the template.
+  /** Game Manager domain API URL, e.g. `gm('/ready/' + id())`. */
+  readonly gm = (path: string) => `${environment.gameManagerApi}${path}`;
+  /** Discord service API URL, e.g. `discord('/start')`. */
+  readonly discord = (path: string) => `${environment.discordApi}${path}`;
+  /** Game Manager server-lifecycle API URL, e.g. `server('/start')`. */
+  readonly server = (path: string) => `${environment.serverApi}${path}`;
+
   /**
    * Ban URL with optional `?reason=`. Inlining `encodeURIComponent` directly
    * inside the template isn't allowed by Angular's template expression rules.
@@ -80,14 +89,14 @@ export class AdminPage {
     const id = this.gameManagerBanId();
     const reason = this.gameManagerBanReason().trim();
     const q = reason ? `?reason=${encodeURIComponent(reason)}` : '';
-    return `/gamemanager/api/gamemanager/admin/ban/${id}${q}`;
+    return this.gm(`/admin/ban/${id}${q}`);
   });
 
   /** Leaderboard URL with optional `?top=N` (default 10 server-side). */
   readonly leaderboardEndpoint = computed(() => {
     const top = this.gameManagerLeaderboardTop().trim();
     const q = top ? `?top=${encodeURIComponent(top)}` : '';
-    return `/gamemanager/api/gamemanager/leaderboard${q}`;
+    return this.gm(`/leaderboard${q}`);
   });
 
   /** Recent-matches URL with `?top=N` (default 5 server-side). */
@@ -95,6 +104,6 @@ export class AdminPage {
     const id = this.gameManagerRecentMatchesUserId();
     const top = this.gameManagerRecentMatchesTop().trim();
     const q = top ? `?top=${encodeURIComponent(top)}` : '';
-    return `/gamemanager/api/gamemanager/match/recent/${id}${q}`;
+    return this.gm(`/match/recent/${id}${q}`);
   });
 }
