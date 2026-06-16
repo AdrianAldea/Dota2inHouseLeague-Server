@@ -1,3 +1,4 @@
+using IHLDota2Bot.Auth;
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data;
@@ -22,6 +23,13 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<SteamOptions>(configuration.GetSection(SteamOptions.SectionName));
         services.Configure<DiscordClientOptions>(configuration.GetSection(DiscordClientOptions.SectionName));
+        services.Configure<AdminApiKeyOptions>(configuration.GetSection(AdminApiKeyOptions.SectionName));
+
+        services
+            .AddAuthentication(AdminApiKeyAuthenticationHandler.SchemeName)
+            .AddScheme<AdminApiKeyAuthenticationHandler.SchemeOptions, AdminApiKeyAuthenticationHandler>(
+                AdminApiKeyAuthenticationHandler.SchemeName, _ => { });
+        services.AddAuthorization();
 
         services.AddHttpClient(DiscordClient.HttpClientName, (sp, client) =>
         {

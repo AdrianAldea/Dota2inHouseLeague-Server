@@ -201,8 +201,10 @@ Goal: production-grade external-call behavior and insight.
       migration and wire `DatabaseInitializer` to migrate. Legacy `EnsureCreated`
       databases are auto-baselined (`SchemaUpgradePlanner`); non-relational
       providers (in-memory tests) fall back to `EnsureCreated`.
-- [ ] **Server-side authorization** on admin API endpoints (don't rely solely on
-      the Discord layer).
+- [x] **Server-side authorization** on admin API endpoints (don't rely solely on
+      the Discord layer). `AdminApiKeyAuthenticationHandler` validates `X-Api-Key`
+      header; `ApiKeyHandler` injects it from the Discord service. Key flows via
+      user-secrets / env var; unconfigured = warning + open (dev ergonomics).
 - [ ] **Verify `PlayersPerLobby`** (currently 2) is intentional vs. a 5v5/test
       value; surface league sizing via config.
 - [ ] **Secrets review**: confirm all tokens/keys flow through user-secrets/env;

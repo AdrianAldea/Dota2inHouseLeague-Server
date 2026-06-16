@@ -1,4 +1,6 @@
+using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Extensions;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,7 +11,21 @@ builder.Services.AddGameManager(builder.Configuration);
 
 var app = builder.Build();
 
+// Warn loudly at startup when the admin API key is missing so operators know
+// the admin gate is inactive rather than discovering it from a security audit.
+var apiKeyOpts = app.Services.GetRequiredService<IOptions<AdminApiKeyOptions>>().Value;
+if (string.IsNullOrEmpty(apiKeyOpts.AdminApiKey))
+{
+    app.Logger.LogWarning(
+        "Admin API key is not configured (GameManager:AdminApiKey). " +
+        "Admin endpoints are unrestricted. Set the key via user-secrets or " +
+        "the GameManager__AdminApiKey environment variable for production.");
+}
+
 app.UseLobbyShutdownHooks();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapDefaultEndpoints();
 app.ConfigureEndpoints();
