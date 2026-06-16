@@ -1,17 +1,24 @@
-<h1>⚔️ IHL Dota 2 Bot</h1>
-<p class="subtitle">Admin Dashboard — Control Panel</p>
+<header>
+    <h1>⚔️ IHL Dota 2 Bot</h1>
+    <p class="subtitle">Admin Dashboard — Control Panel</p>
+</header>
+
+<main>
 
 <!-- LIVE OPERATIONS: active lobbies, queue, ready/destroy, match details -->
-<h2 class="section-title">Live Operations</h2>
+<section aria-labelledby="live-ops-title">
+<h2 id="live-ops-title" class="section-title">Live Operations</h2>
 <lobby-monitor></lobby-monitor>
+</section>
 
 <!-- SERVER CONTROLS -->
-<h2 class="section-title">Core Servers</h2>
+<section aria-labelledby="core-servers-title">
+<h2 id="core-servers-title" class="section-title">Core Servers</h2>
 <div class="grid-2">
     <card-component
         title="Discord Bot Server"
-        startEndpoint="/discord/api/start"
-        stopEndpoint="/discord/api/stop"
+        [startEndpoint]="discord('/start')"
+        [stopEndpoint]="discord('/stop')"
         [startPayload]="{}"
         [stopPayload]="{}"
     >
@@ -19,40 +26,44 @@
 
     <card-component
         title="Game Manager Server"
-        startEndpoint="/gamemanager/api/server/start"
+        [startEndpoint]="server('/start')"
         [startPayload]="{}"
     >
     </card-component>
 </div>
+</section>
 
 <!-- DISCORD ENDPOINTS -->
-<h2 class="section-title">Discord Tools</h2>
+<section aria-labelledby="discord-tools-title">
+<h2 id="discord-tools-title" class="section-title">Discord Tools</h2>
 <div class="grid-2">
     <!-- MESSAGE -->
     <card-component
         title="Message"
         startLabel="Send"
-        startEndpoint="/discord/api/message"
+        [startEndpoint]="discord('/message')"
         [startPayload]="{ message: discordMessage() }"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Message</label>
-                <input [ngModel]="discordMessage()" (ngModelChange)="discordMessage.set($event)" placeholder="Discord Message" />
+                <label for="discordMessage">Message</label>
+                <input id="discordMessage" [ngModel]="discordMessage()" (ngModelChange)="discordMessage.set($event)" placeholder="Discord Message" />
             </div>
         </ng-template>
     </card-component>
 </div>
+</section>
 
 <!-- GAME MANAGER ENDPOINTS -->
-<h2 class="section-title">Game Manager Tools</h2>
+<section aria-labelledby="gm-tools-title">
+<h2 id="gm-tools-title" class="section-title">Game Manager Tools</h2>
 <div class="grid-2">
 
     <!-- CREATE LOBBY -->
     <card-component
         title="Create Lobby"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/create"
+        [startEndpoint]="gm('/create')"
         [startPayload]="{
             authorId: gameManagerCreateAuthorId(),
             lobbyName: gameManagerCreateLobbyName(),
@@ -62,16 +73,16 @@
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Author Id</label>
-                    <input [ngModel]="gameManagerCreateAuthorId()" (ngModelChange)="gameManagerCreateAuthorId.set($event)" placeholder="938828..." />
+                    <label for="createAuthorId">Author Id</label>
+                    <input id="createAuthorId" [ngModel]="gameManagerCreateAuthorId()" (ngModelChange)="gameManagerCreateAuthorId.set($event)" placeholder="938828..." />
                 </div>
                 <div class="form-group">
-                    <label>Lobby Name</label>
-                    <input [ngModel]="gameManagerCreateLobbyName()" (ngModelChange)="gameManagerCreateLobbyName.set($event)" placeholder="Dota 123" />
+                    <label for="createLobbyName">Lobby Name</label>
+                    <input id="createLobbyName" [ngModel]="gameManagerCreateLobbyName()" (ngModelChange)="gameManagerCreateLobbyName.set($event)" placeholder="Dota 123" />
                 </div>
                 <div class="form-group">
-                    <label>Lobby Password</label>
-                    <input [ngModel]="gameManagerCreateLobbyPassword()" (ngModelChange)="gameManagerCreateLobbyPassword.set($event)" placeholder="Pass123" />
+                    <label for="createLobbyPassword">Lobby Password</label>
+                    <input id="createLobbyPassword" [ngModel]="gameManagerCreateLobbyPassword()" (ngModelChange)="gameManagerCreateLobbyPassword.set($event)" placeholder="Pass123" />
                 </div>
             </div>
         </ng-template>
@@ -81,7 +92,7 @@
     <card-component
         title="Register Player"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/register"
+        [startEndpoint]="gm('/register')"
         [startPayload]="{
             steamId: gameManagerRegisterSteamId(),
             userId: gameManagerRegisterUserId(),
@@ -91,16 +102,16 @@
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Steam ID (ulong)</label>
-                    <input [ngModel]="gameManagerRegisterSteamId()" (ngModelChange)="gameManagerRegisterSteamId.set($event)" placeholder="765611..." />
+                    <label for="registerSteamId">Steam ID (ulong)</label>
+                    <input id="registerSteamId" [ngModel]="gameManagerRegisterSteamId()" (ngModelChange)="gameManagerRegisterSteamId.set($event)" placeholder="765611..." />
                 </div>
                 <div class="form-group">
-                    <label>User ID (ulong)</label>
-                    <input [ngModel]="gameManagerRegisterUserId()" (ngModelChange)="gameManagerRegisterUserId.set($event)" placeholder="123456..." />
+                    <label for="registerUserId">User ID (ulong)</label>
+                    <input id="registerUserId" [ngModel]="gameManagerRegisterUserId()" (ngModelChange)="gameManagerRegisterUserId.set($event)" placeholder="123456..." />
                 </div>
                 <div class="form-group">
-                    <label>Username</label>
-                    <input [ngModel]="gameManagerRegisterUsername()" (ngModelChange)="gameManagerRegisterUsername.set($event)" placeholder="myusername" />
+                    <label for="registerUsername">Username</label>
+                    <input id="registerUsername" [ngModel]="gameManagerRegisterUsername()" (ngModelChange)="gameManagerRegisterUsername.set($event)" placeholder="myusername" />
                 </div>
             </div>
         </ng-template>
@@ -110,13 +121,13 @@
     <card-component
         title="Ready"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/ready/' + gameManagerReadyId()"
+        [startEndpoint]="gm('/ready/' + gameManagerReadyId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerReadyId()" (ngModelChange)="gameManagerReadyId.set($event)" placeholder="123456" />
+                <label for="readyId">User ID (ulong)</label>
+                <input id="readyId" [ngModel]="gameManagerReadyId()" (ngModelChange)="gameManagerReadyId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -126,12 +137,12 @@
         title="Get Player Profile"
         startLabel="Fetch"
         method="GET"
-        [startEndpoint]="'/gamemanager/api/gamemanager/player/' + gameManagerPlayerId()"
+        [startEndpoint]="gm('/player/' + gameManagerPlayerId())"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Player ID (ulong)</label>
-                <input [ngModel]="gameManagerPlayerId()" (ngModelChange)="gameManagerPlayerId.set($event)" placeholder="123456" />
+                <label for="playerId">Player ID (ulong)</label>
+                <input id="playerId" [ngModel]="gameManagerPlayerId()" (ngModelChange)="gameManagerPlayerId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -140,13 +151,13 @@
     <card-component
         title="Invite Players"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/invite"
+        [startEndpoint]="gm('/invite')"
         [startPayload]="{ playersIds: gameManagerInvite() ? gameManagerInvite().split(',').map(trim) : [] }"
     >
         <ng-template #inputs>
-            <div class="form-group" style="grid-column: span 2;">
-                <label>Player IDs (comma-separated ulongs)</label>
-                <input [ngModel]="gameManagerInvite()" (ngModelChange)="gameManagerInvite.set($event)" placeholder="ID1, ID2, ID3" />
+            <div class="form-group form-group--wide">
+                <label for="invite">Player IDs (comma-separated ulongs)</label>
+                <input id="invite" [ngModel]="gameManagerInvite()" (ngModelChange)="gameManagerInvite.set($event)" placeholder="ID1, ID2, ID3" />
             </div>
         </ng-template>
     </card-component>
@@ -155,18 +166,18 @@
     <card-component
         title="Link Steam ID"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/link/' + gameManagerLinkUserId() + '/' + gameManagerLinkSteamId()"
+        [startEndpoint]="gm('/link/' + gameManagerLinkUserId() + '/' + gameManagerLinkSteamId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>User ID (ulong)</label>
-                    <input [ngModel]="gameManagerLinkUserId()" (ngModelChange)="gameManagerLinkUserId.set($event)" placeholder="123456..." />
+                    <label for="linkUserId">User ID (ulong)</label>
+                    <input id="linkUserId" [ngModel]="gameManagerLinkUserId()" (ngModelChange)="gameManagerLinkUserId.set($event)" placeholder="123456..." />
                 </div>
                 <div class="form-group">
-                    <label>New Steam ID</label>
-                    <input [ngModel]="gameManagerLinkSteamId()" (ngModelChange)="gameManagerLinkSteamId.set($event)" placeholder="765611..." />
+                    <label for="linkSteamId">New Steam ID</label>
+                    <input id="linkSteamId" [ngModel]="gameManagerLinkSteamId()" (ngModelChange)="gameManagerLinkSteamId.set($event)" placeholder="765611..." />
                 </div>
             </div>
         </ng-template>
@@ -176,36 +187,36 @@
     <card-component
         title="Unregister Player"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/unregister/' + gameManagerUnregisterId()"
+        [startEndpoint]="gm('/unregister/' + gameManagerUnregisterId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerUnregisterId()" (ngModelChange)="gameManagerUnregisterId.set($event)" placeholder="123456" />
+                <label for="unregisterId">User ID (ulong)</label>
+                <input id="unregisterId" [ngModel]="gameManagerUnregisterId()" (ngModelChange)="gameManagerUnregisterId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
 
 </div>
+</section>
 
-<!-- ──────────────────────────────────────────────────────── -->
-<!-- QUEUE                                                    -->
-<!-- ──────────────────────────────────────────────────────── -->
-<h2 class="section-title">Queue</h2>
+<!-- QUEUE -->
+<section aria-labelledby="queue-title">
+<h2 id="queue-title" class="section-title">Queue</h2>
 <div class="grid-2">
 
     <!-- JOIN QUEUE -->
     <card-component
         title="Join Queue"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/queue/' + gameManagerJoinQueueId()"
+        [startEndpoint]="gm('/queue/' + gameManagerJoinQueueId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerJoinQueueId()" (ngModelChange)="gameManagerJoinQueueId.set($event)" placeholder="123456" />
+                <label for="joinQueueId">User ID (ulong)</label>
+                <input id="joinQueueId" [ngModel]="gameManagerJoinQueueId()" (ngModelChange)="gameManagerJoinQueueId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -214,13 +225,13 @@
     <card-component
         title="Leave Queue"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/leave/' + gameManagerLeaveId()"
+        [startEndpoint]="gm('/leave/' + gameManagerLeaveId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerLeaveId()" (ngModelChange)="gameManagerLeaveId.set($event)" placeholder="123456" />
+                <label for="leaveId">User ID (ulong)</label>
+                <input id="leaveId" [ngModel]="gameManagerLeaveId()" (ngModelChange)="gameManagerLeaveId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -229,13 +240,13 @@
     <card-component
         title="Unready"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/unready/' + gameManagerUnreadyId()"
+        [startEndpoint]="gm('/unready/' + gameManagerUnreadyId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerUnreadyId()" (ngModelChange)="gameManagerUnreadyId.set($event)" placeholder="123456" />
+                <label for="unreadyId">User ID (ulong)</label>
+                <input id="unreadyId" [ngModel]="gameManagerUnreadyId()" (ngModelChange)="gameManagerUnreadyId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -243,11 +254,11 @@
     <!-- Queue Status moved to the Live Operations panel at the top. -->
 
 </div>
+</section>
 
-<!-- ──────────────────────────────────────────────────────── -->
-<!-- STATS                                                    -->
-<!-- ──────────────────────────────────────────────────────── -->
-<h2 class="section-title">Stats &amp; Leaderboard</h2>
+<!-- STATS -->
+<section aria-labelledby="stats-title">
+<h2 id="stats-title" class="section-title">Stats &amp; Leaderboard</h2>
 <div class="grid-2">
 
     <!-- STATS -->
@@ -255,12 +266,12 @@
         title="Player Stats"
         startLabel="Fetch"
         method="GET"
-        [startEndpoint]="'/gamemanager/api/gamemanager/stats/' + gameManagerStatsId()"
+        [startEndpoint]="gm('/stats/' + gameManagerStatsId())"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerStatsId()" (ngModelChange)="gameManagerStatsId.set($event)" placeholder="123456" />
+                <label for="statsId">User ID (ulong)</label>
+                <input id="statsId" [ngModel]="gameManagerStatsId()" (ngModelChange)="gameManagerStatsId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -270,12 +281,12 @@
         title="Player Rank"
         startLabel="Fetch"
         method="GET"
-        [startEndpoint]="'/gamemanager/api/gamemanager/rank/' + gameManagerRankId()"
+        [startEndpoint]="gm('/rank/' + gameManagerRankId())"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerRankId()" (ngModelChange)="gameManagerRankId.set($event)" placeholder="123456" />
+                <label for="rankId">User ID (ulong)</label>
+                <input id="rankId" [ngModel]="gameManagerRankId()" (ngModelChange)="gameManagerRankId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -289,18 +300,18 @@
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Top N (default 10, max 50)</label>
-                <input [ngModel]="gameManagerLeaderboardTop()" (ngModelChange)="gameManagerLeaderboardTop.set($event)" placeholder="10" />
+                <label for="leaderboardTop">Top N (default 10, max 50)</label>
+                <input id="leaderboardTop" [ngModel]="gameManagerLeaderboardTop()" (ngModelChange)="gameManagerLeaderboardTop.set($event)" placeholder="10" />
             </div>
         </ng-template>
     </card-component>
 
 </div>
+</section>
 
-<!-- ──────────────────────────────────────────────────────── -->
-<!-- MATCHES                                                  -->
-<!-- ──────────────────────────────────────────────────────── -->
-<h2 class="section-title">Matches</h2>
+<!-- MATCHES -->
+<section aria-labelledby="matches-title">
+<h2 id="matches-title" class="section-title">Matches</h2>
 <div class="grid-2">
 
     <!-- CURRENT MATCH -->
@@ -308,12 +319,12 @@
         title="Current Match"
         startLabel="Fetch"
         method="GET"
-        [startEndpoint]="'/gamemanager/api/gamemanager/match/current/' + gameManagerCurrentMatchUserId()"
+        [startEndpoint]="gm('/match/current/' + gameManagerCurrentMatchUserId())"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerCurrentMatchUserId()" (ngModelChange)="gameManagerCurrentMatchUserId.set($event)" placeholder="123456" />
+                <label for="currentMatchUserId">User ID (ulong)</label>
+                <input id="currentMatchUserId" [ngModel]="gameManagerCurrentMatchUserId()" (ngModelChange)="gameManagerCurrentMatchUserId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -328,12 +339,12 @@
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>User ID (ulong)</label>
-                    <input [ngModel]="gameManagerRecentMatchesUserId()" (ngModelChange)="gameManagerRecentMatchesUserId.set($event)" placeholder="123456" />
+                    <label for="recentMatchesUserId">User ID (ulong)</label>
+                    <input id="recentMatchesUserId" [ngModel]="gameManagerRecentMatchesUserId()" (ngModelChange)="gameManagerRecentMatchesUserId.set($event)" placeholder="123456" />
                 </div>
                 <div class="form-group">
-                    <label>Top N (default 5, max 20)</label>
-                    <input [ngModel]="gameManagerRecentMatchesTop()" (ngModelChange)="gameManagerRecentMatchesTop.set($event)" placeholder="5" />
+                    <label for="recentMatchesTop">Top N (default 5, max 20)</label>
+                    <input id="recentMatchesTop" [ngModel]="gameManagerRecentMatchesTop()" (ngModelChange)="gameManagerRecentMatchesTop.set($event)" placeholder="5" />
                 </div>
             </div>
         </ng-template>
@@ -344,12 +355,12 @@
         title="Match by ID"
         startLabel="Fetch"
         method="GET"
-        [startEndpoint]="'/gamemanager/api/gamemanager/match/' + gameManagerMatchId()"
+        [startEndpoint]="gm('/match/' + gameManagerMatchId())"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Match UUID</label>
-                <input [ngModel]="gameManagerMatchId()" (ngModelChange)="gameManagerMatchId.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
+                <label for="matchId">Match UUID</label>
+                <input id="matchId" [ngModel]="gameManagerMatchId()" (ngModelChange)="gameManagerMatchId.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
             </div>
         </ng-template>
     </card-component>
@@ -358,18 +369,18 @@
     <card-component
         title="Report Match"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/match/report/' + gameManagerReportUserId() + '/' + gameManagerReportWinner()"
+        [startEndpoint]="gm('/match/report/' + gameManagerReportUserId() + '/' + gameManagerReportWinner())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Reporter User ID (ulong)</label>
-                    <input [ngModel]="gameManagerReportUserId()" (ngModelChange)="gameManagerReportUserId.set($event)" placeholder="123456" />
+                    <label for="reportUserId">Reporter User ID (ulong)</label>
+                    <input id="reportUserId" [ngModel]="gameManagerReportUserId()" (ngModelChange)="gameManagerReportUserId.set($event)" placeholder="123456" />
                 </div>
                 <div class="form-group">
-                    <label>Winner</label>
-                    <select [ngModel]="gameManagerReportWinner()" (ngModelChange)="gameManagerReportWinner.set($event)">
+                    <label for="reportWinner">Winner</label>
+                    <select id="reportWinner" [ngModel]="gameManagerReportWinner()" (ngModelChange)="gameManagerReportWinner.set($event)">
                         <option value="Radiant">Radiant</option>
                         <option value="Dire">Dire</option>
                     </select>
@@ -379,29 +390,29 @@
     </card-component>
 
 </div>
+</section>
 
-<!-- ──────────────────────────────────────────────────────── -->
-<!-- CHALLENGES                                               -->
-<!-- ──────────────────────────────────────────────────────── -->
-<h2 class="section-title">Challenges (1v1)</h2>
+<!-- CHALLENGES -->
+<section aria-labelledby="challenges-title">
+<h2 id="challenges-title" class="section-title">Challenges (1v1)</h2>
 <div class="grid-2">
 
     <!-- SEND CHALLENGE -->
     <card-component
         title="Send Challenge"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/challenge/' + gameManagerChallengeChallengerId() + '/' + gameManagerChallengeChallengedId()"
+        [startEndpoint]="gm('/challenge/' + gameManagerChallengeChallengerId() + '/' + gameManagerChallengeChallengedId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Challenger User ID</label>
-                    <input [ngModel]="gameManagerChallengeChallengerId()" (ngModelChange)="gameManagerChallengeChallengerId.set($event)" placeholder="123456" />
+                    <label for="challengerId">Challenger User ID</label>
+                    <input id="challengerId" [ngModel]="gameManagerChallengeChallengerId()" (ngModelChange)="gameManagerChallengeChallengerId.set($event)" placeholder="123456" />
                 </div>
                 <div class="form-group">
-                    <label>Opponent User ID</label>
-                    <input [ngModel]="gameManagerChallengeChallengedId()" (ngModelChange)="gameManagerChallengeChallengedId.set($event)" placeholder="789012" />
+                    <label for="challengedId">Opponent User ID</label>
+                    <input id="challengedId" [ngModel]="gameManagerChallengeChallengedId()" (ngModelChange)="gameManagerChallengeChallengedId.set($event)" placeholder="789012" />
                 </div>
             </div>
         </ng-template>
@@ -411,13 +422,13 @@
     <card-component
         title="Accept Latest Challenge"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/challenge/accept/' + gameManagerAcceptId()"
+        [startEndpoint]="gm('/challenge/accept/' + gameManagerAcceptId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Your User ID</label>
-                <input [ngModel]="gameManagerAcceptId()" (ngModelChange)="gameManagerAcceptId.set($event)" placeholder="123456" />
+                <label for="acceptId">Your User ID</label>
+                <input id="acceptId" [ngModel]="gameManagerAcceptId()" (ngModelChange)="gameManagerAcceptId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -426,27 +437,28 @@
     <card-component
         title="Decline Latest Challenge"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/challenge/decline/' + gameManagerDeclineId()"
+        [startEndpoint]="gm('/challenge/decline/' + gameManagerDeclineId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Your User ID</label>
-                <input [ngModel]="gameManagerDeclineId()" (ngModelChange)="gameManagerDeclineId.set($event)" placeholder="123456" />
+                <label for="declineId">Your User ID</label>
+                <input id="declineId" [ngModel]="gameManagerDeclineId()" (ngModelChange)="gameManagerDeclineId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
 
 </div>
+</section>
 
-<!-- ──────────────────────────────────────────────────────── -->
-<!-- ADMIN                                                    -->
-<!-- ──────────────────────────────────────────────────────── -->
-<h2 class="section-title">Admin Tools</h2>
-<p class="warning">
-    ⚠ Server endpoints under <code>/admin/*</code> are <em>not</em> auth-gated.
-    The Discord-side <code>AdminUserIds</code> / <code>AdminRoleName</code> check
-    only applies to commands typed in Discord — not to these direct HTTP calls.
+<!-- ADMIN -->
+<section aria-labelledby="admin-tools-title">
+<h2 id="admin-tools-title" class="section-title">Admin Tools</h2>
+<p class="warning" role="note">
+    ⚠ Endpoints under <code>/admin/*</code> are gated by the <code>X-Api-Key</code>
+    header when <code>GameManager:AdminApiKey</code> is configured. This dashboard
+    does not send that header, so admin actions here work only when the key is left
+    unset (development) or a reverse proxy injects it.
 </p>
 <div class="grid-2">
 
@@ -460,12 +472,12 @@
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>User ID (ulong)</label>
-                    <input [ngModel]="gameManagerBanId()" (ngModelChange)="gameManagerBanId.set($event)" placeholder="123456" />
+                    <label for="banId">User ID (ulong)</label>
+                    <input id="banId" [ngModel]="gameManagerBanId()" (ngModelChange)="gameManagerBanId.set($event)" placeholder="123456" />
                 </div>
                 <div class="form-group">
-                    <label>Reason (optional)</label>
-                    <input [ngModel]="gameManagerBanReason()" (ngModelChange)="gameManagerBanReason.set($event)" placeholder="Toxicity, smurfing, ..." />
+                    <label for="banReason">Reason (optional)</label>
+                    <input id="banReason" [ngModel]="gameManagerBanReason()" (ngModelChange)="gameManagerBanReason.set($event)" placeholder="Toxicity, smurfing, ..." />
                 </div>
             </div>
         </ng-template>
@@ -475,13 +487,13 @@
     <card-component
         title="Unban Player"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/admin/unban/' + gameManagerUnbanId()"
+        [startEndpoint]="gm('/admin/unban/' + gameManagerUnbanId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerUnbanId()" (ngModelChange)="gameManagerUnbanId.set($event)" placeholder="123456" />
+                <label for="unbanId">User ID (ulong)</label>
+                <input id="unbanId" [ngModel]="gameManagerUnbanId()" (ngModelChange)="gameManagerUnbanId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -490,13 +502,13 @@
     <card-component
         title="Kick from Lobby"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/admin/kick/' + gameManagerKickId()"
+        [startEndpoint]="gm('/admin/kick/' + gameManagerKickId())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>User ID (ulong)</label>
-                <input [ngModel]="gameManagerKickId()" (ngModelChange)="gameManagerKickId.set($event)" placeholder="123456" />
+                <label for="kickId">User ID (ulong)</label>
+                <input id="kickId" [ngModel]="gameManagerKickId()" (ngModelChange)="gameManagerKickId.set($event)" placeholder="123456" />
             </div>
         </ng-template>
     </card-component>
@@ -505,7 +517,7 @@
     <card-component
         title="Force Start Lobby"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/admin/force_start"
+        [startEndpoint]="gm('/admin/force_start')"
         [startPayload]="{}"
     >
     </card-component>
@@ -514,7 +526,7 @@
     <card-component
         title="Reset Queue"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/admin/reset_queue"
+        [startEndpoint]="gm('/admin/reset_queue')"
         [startPayload]="{}"
     >
     </card-component>
@@ -523,7 +535,7 @@
     <card-component
         title="Add Steam Pool Account"
         startLabel="Execute"
-        startEndpoint="/gamemanager/api/gamemanager/admin/add_account"
+        [startEndpoint]="gm('/admin/add_account')"
         [startPayload]="{
             username: gameManagerAddAccountUsername(),
             password: gameManagerAddAccountPassword()
@@ -532,12 +544,12 @@
         <ng-template #inputs>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Steam Username</label>
-                    <input [ngModel]="gameManagerAddAccountUsername()" (ngModelChange)="gameManagerAddAccountUsername.set($event)" placeholder="bot_account_1" />
+                    <label for="addAccountUsername">Steam Username</label>
+                    <input id="addAccountUsername" [ngModel]="gameManagerAddAccountUsername()" (ngModelChange)="gameManagerAddAccountUsername.set($event)" placeholder="bot_account_1" />
                 </div>
                 <div class="form-group">
-                    <label>Steam Password</label>
-                    <input type="password" [ngModel]="gameManagerAddAccountPassword()" (ngModelChange)="gameManagerAddAccountPassword.set($event)" placeholder="••••••••" />
+                    <label for="addAccountPassword">Steam Password</label>
+                    <input id="addAccountPassword" type="password" [ngModel]="gameManagerAddAccountPassword()" (ngModelChange)="gameManagerAddAccountPassword.set($event)" placeholder="••••••••" />
                 </div>
             </div>
         </ng-template>
@@ -548,7 +560,7 @@
         title="Pool Status"
         startLabel="Fetch"
         method="GET"
-        startEndpoint="/gamemanager/api/gamemanager/admin/pool_status"
+        [startEndpoint]="gm('/admin/pool_status')"
     >
     </card-component>
 
@@ -558,13 +570,13 @@
     <card-component
         title="Mark Game Started"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/admin/game/started/' + gameManagerSessionLobbyIdStart()"
+        [startEndpoint]="gm('/admin/game/started/' + gameManagerSessionLobbyIdStart())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Lobby ID (GUID)</label>
-                <input [ngModel]="gameManagerSessionLobbyIdStart()" (ngModelChange)="gameManagerSessionLobbyIdStart.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
+                <label for="sessionLobbyIdStart">Lobby ID (GUID)</label>
+                <input id="sessionLobbyIdStart" [ngModel]="gameManagerSessionLobbyIdStart()" (ngModelChange)="gameManagerSessionLobbyIdStart.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
             </div>
         </ng-template>
     </card-component>
@@ -573,15 +585,18 @@
     <card-component
         title="Mark Game Finished"
         startLabel="Execute"
-        [startEndpoint]="'/gamemanager/api/gamemanager/admin/game/finished/' + gameManagerSessionLobbyIdFinish()"
+        [startEndpoint]="gm('/admin/game/finished/' + gameManagerSessionLobbyIdFinish())"
         [startPayload]="{}"
     >
         <ng-template #inputs>
             <div class="form-group">
-                <label>Lobby ID (GUID)</label>
-                <input [ngModel]="gameManagerSessionLobbyIdFinish()" (ngModelChange)="gameManagerSessionLobbyIdFinish.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
+                <label for="sessionLobbyIdFinish">Lobby ID (GUID)</label>
+                <input id="sessionLobbyIdFinish" [ngModel]="gameManagerSessionLobbyIdFinish()" (ngModelChange)="gameManagerSessionLobbyIdFinish.set($event)" placeholder="00000000-0000-0000-0000-000000000000" />
             </div>
         </ng-template>
     </card-component>
 
 </div>
+</section>
+
+</main>
