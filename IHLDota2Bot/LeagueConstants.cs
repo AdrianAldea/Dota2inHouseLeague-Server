@@ -6,7 +6,11 @@ namespace IHLDota2Bot;
 /// </summary>
 public static class LeagueConstants
 {
-    /// <summary>Players required to fill a full lobby (5v5 Dota match).</summary>
+    /// <summary>
+    /// Default players required to fill a lobby. Overridable at runtime via
+    /// <c>League:PlayersPerLobby</c> (see <see cref="Configuration.LeagueOptions"/>);
+    /// kept small here for testing. Set config to 10 for a full 5v5 Dota match.
+    /// </summary>
     public const int PlayersPerLobby = 2;
 
     /// <summary>Default rating assigned to newly registered players.</summary>

@@ -1,20 +1,23 @@
 using IHLDota2Bot;
+using IHLDota2Bot.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace IHLDota2Bot.Tests;
 
 /// <summary>
-/// Behavioural tests for the pure-domain <see cref="LobbyQueue"/>. The only
-/// dependency is an <see cref="ILogger{T}"/>, supplied here as a Moq stub. Tests
-/// are written against <see cref="LeagueConstants.PlayersPerLobby"/> rather than a
-/// hard-coded capacity so they stay correct if the lobby size is retuned.
+/// Behavioural tests for the pure-domain <see cref="LobbyQueue"/>. Dependencies
+/// are an <see cref="ILogger{T}"/> stub and <see cref="LeagueOptions"/>. Tests are
+/// written against the configured capacity rather than a hard-coded value so they
+/// stay correct if the lobby size is retuned.
 /// </summary>
 public class LobbyQueueTests
 {
-    private static readonly int Capacity = LeagueConstants.PlayersPerLobby;
+    private const int Capacity = 2;
 
-    private static LobbyQueue CreateQueue() => new(Mock.Of<ILogger<LobbyQueue>>());
+    private static LobbyQueue CreateQueue() =>
+        new(Mock.Of<ILogger<LobbyQueue>>(), Options.Create(new LeagueOptions { PlayersPerLobby = Capacity }));
 
     /// <summary>Joins <paramref name="count"/> distinct users, returning their ids.</summary>
     private static async Task<List<ulong>> FillAsync(LobbyQueue queue, int count)
@@ -32,7 +35,15 @@ public class LobbyQueueTests
     [Fact]
     public void Constructor_NullLogger_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new LobbyQueue(null!));
+        Assert.Throws<ArgumentNullException>(() =>
+            new LobbyQueue(null!, Options.Create(new LeagueOptions())));
+    }
+
+    [Fact]
+    public void Constructor_NullOptions_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), null!));
     }
 
     [Fact]
@@ -280,7 +291,7 @@ public class LobbyQueueTests
 
         var status = queue.GetQueueStatus();
 
-        Assert.Equal(LeagueConstants.PlayersPerLobby, status.PlayersPerLobby);
+        Assert.Equal(Capacity, status.PlayersPerLobby);
         Assert.Equal(1, status.TotalRegistered);
         Assert.Equal(1, status.CurrentLobbyPlayerCount);
         Assert.Equal(1, status.PlayersReady);
