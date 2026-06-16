@@ -143,19 +143,30 @@ Goal: dismantle the 732-line monolith.
       individual handler classes. The dispatcher short-circuits before the
       switch — zero behavior change for unmigrated commands (incremental
       migration strategy).
-- [ ] **Command-handler pattern (3b — state-changing commands)**: migrate
-      REGISTER, QUEUE, LEAVE, READY, UNREADY, UNREGISTER, LINK, REPORT,
-      CHALLENGE, ACCEPT_MATCH, DECLINE_MATCH, BAN, UNBAN, KICK, FORCE_START,
-      RESET_QUEUE, ADD_ACCOUNT into handlers; remove the legacy switch.
-- [ ] **Cross-cutting pipeline**: admin gating, parameter validation, rate
-      limiting, and structured per-command logging as middleware, not inline.
-- [ ] **Centralize messages**: move scattered usage/error strings into a single
-      catalog; dedupe the two `ReplyIfFailedAsync` overloads and the duplicated
-      mention-validation blocks.
-- [ ] **Add `IsAdmin`/authorization tests** and command-dispatch tests (mock
-      socket + mock `ISteamClient`).
+- [x] **Command-handler pattern (3b — state-changing commands)**: migrated the
+      remaining commands (REGISTER, LINK, UNREGISTER, QUEUE, LEAVE, READY,
+      UNREADY, REPORT, CHALLENGE, ACCEPT_MATCH, DECLINE_MATCH, BAN, UNBAN, KICK,
+      FORCE_START, RESET_QUEUE, ADD_ACCOUNT, COMMANDS) into handlers and
+      **deleted the legacy switch**. `DiscordService` is now a thin router
+      (parse → resolve handler → gate → invoke) and no longer depends on
+      `ISteamClient`. Handlers consume an `IDiscordCommandContext` abstraction so
+      they're unit-testable without the Discord gateway.
+- [x] **Cross-cutting pipeline**: admin gating is now declarative
+      (`IDiscordCommandHandler.RequiresAdmin`) and enforced once in the router
+      pipeline via the pure, testable `AdminPolicy`; per-command logging stays in
+      the pipeline. (Rate limiting is tracked with Phase 4, where it also appears.)
+- [x] **Centralize messages**: all usage/error strings live in `CommandMessages`;
+      the two `ReplyIfFailedAsync` overloads collapsed into one
+      `CommandReplies.ReplyIfFailedAsync`, and the duplicated mention-validation
+      now flows through `IDiscordCommandContext.FirstMentionedUserId`.
+- [x] **Add `IsAdmin`/authorization tests** and command-dispatch tests:
+      `AdminPolicyTests`, `DiscordCommandDispatcherTests` (routing + duplicate
+      registration), and `CommandHandlerTests` (mock `ISteamClient` + fake
+      context) — Discord test count 39 → 74.
 - [ ] **Evaluate slash commands** (Discord.Net 3.x) to replace `!`-prefix
-      parsing for discoverability and validation.
+      parsing for discoverability and validation. *(Deferred: the handler/
+      dispatcher pipeline is now transport-agnostic, so adding a slash-command
+      front-end later is additive — revisit as a dedicated change.)*
 
 ### Phase 4 — Resilience & Observability
 

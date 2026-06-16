@@ -14,16 +14,16 @@ public sealed class QueueStatusCommandHandler(ISteamClient steamClient) : IDisco
 {
     public DiscordAction Action => DiscordAction.STATUS;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         var status = await steamClient.GetQueueStatusAsync();
         if (status == null)
         {
-            await context.Channel.SendMessageAsync("Failed to fetch queue status.");
+            await context.ReplyAsync(CommandMessages.QueueStatusFailed);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatQueueStatus(status));
+        await context.ReplyAsync(MessagesFormatter.FormatQueueStatus(status));
     }
 }
 
@@ -32,19 +32,18 @@ public sealed class ProfileCommandHandler(ISteamClient steamClient) : IDiscordCo
 {
     public DiscordAction Action => DiscordAction.PROFILE;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
-        var author = context.Message.Author;
-        if (author == null) return;
+        if (context.AuthorId is not { } authorId) return;
 
-        var stats = await steamClient.GetPlayerStatsAsync(author.Id);
+        var stats = await steamClient.GetPlayerStatsAsync(authorId);
         if (stats == null)
         {
-            await context.Channel.SendMessageAsync("Profile not found. Register with `!register <steamId>` first.");
+            await context.ReplyAsync(CommandMessages.ProfileNotFound);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
+        await context.ReplyAsync(MessagesFormatter.FormatPlayerStats(stats));
     }
 }
 
@@ -53,8 +52,8 @@ public sealed class MyStatsCommandHandler(ISteamClient steamClient) : IDiscordCo
 {
     public DiscordAction Action => DiscordAction.MYSTATS;
 
-    public Task HandleAsync(DiscordCommandContext context) =>
-        StatsReply.ShowStatsAsync(steamClient, context, context.Message.Author?.Id);
+    public Task HandleAsync(IDiscordCommandContext context) =>
+        StatsReply.ShowStatsAsync(steamClient, context, context.AuthorId);
 }
 
 /// <summary>`!stats @user` — stats for a mentioned player (or the author).</summary>
@@ -62,29 +61,29 @@ public sealed class StatsCommandHandler(ISteamClient steamClient) : IDiscordComm
 {
     public DiscordAction Action => DiscordAction.STATS;
 
-    public Task HandleAsync(DiscordCommandContext context) =>
+    public Task HandleAsync(IDiscordCommandContext context) =>
         StatsReply.ShowStatsAsync(steamClient, context, context.ResolveTargetUserId());
 }
 
 /// <summary>Shared stats lookup used by both !mystats and !stats.</summary>
 internal static class StatsReply
 {
-    public static async Task ShowStatsAsync(ISteamClient steamClient, DiscordCommandContext context, ulong? userId)
+    public static async Task ShowStatsAsync(ISteamClient steamClient, IDiscordCommandContext context, ulong? userId)
     {
         if (userId is null)
         {
-            await context.Channel.SendMessageAsync("Could not resolve target user.");
+            await context.ReplyAsync(CommandMessages.CouldNotResolveUser);
             return;
         }
 
         var stats = await steamClient.GetPlayerStatsAsync(userId.Value);
         if (stats == null)
         {
-            await context.Channel.SendMessageAsync("Player is not registered.");
+            await context.ReplyAsync(CommandMessages.PlayerNotRegistered);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
+        await context.ReplyAsync(MessagesFormatter.FormatPlayerStats(stats));
     }
 }
 
@@ -93,7 +92,7 @@ public sealed class LeaderboardCommandHandler(ISteamClient steamClient) : IDisco
 {
     public DiscordAction Action => DiscordAction.LEADERBOARD;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         var top = 10;
         if (context.Parts.Length >= 2 && int.TryParse(context.Parts[1], out var parsed) && parsed > 0)
@@ -104,11 +103,11 @@ public sealed class LeaderboardCommandHandler(ISteamClient steamClient) : IDisco
         var leaderboard = await steamClient.GetLeaderboardAsync(top);
         if (leaderboard == null)
         {
-            await context.Channel.SendMessageAsync("Failed to fetch leaderboard.");
+            await context.ReplyAsync(CommandMessages.LeaderboardFailed);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatLeaderboard(leaderboard));
+        await context.ReplyAsync(MessagesFormatter.FormatLeaderboard(leaderboard));
     }
 }
 
@@ -117,23 +116,23 @@ public sealed class RankCommandHandler(ISteamClient steamClient) : IDiscordComma
 {
     public DiscordAction Action => DiscordAction.RANK;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         var target = context.ResolveTargetUserId();
         if (target is null)
         {
-            await context.Channel.SendMessageAsync("Could not resolve target user.");
+            await context.ReplyAsync(CommandMessages.CouldNotResolveUser);
             return;
         }
 
         var rank = await steamClient.GetPlayerRankAsync(target.Value);
         if (rank == null)
         {
-            await context.Channel.SendMessageAsync("Player is not registered.");
+            await context.ReplyAsync(CommandMessages.PlayerNotRegistered);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatRank(rank));
+        await context.ReplyAsync(MessagesFormatter.FormatRank(rank));
     }
 }
 
@@ -142,19 +141,18 @@ public sealed class CurrentMatchCommandHandler(ISteamClient steamClient) : IDisc
 {
     public DiscordAction Action => DiscordAction.MATCH;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
-        var author = context.Message.Author;
-        if (author == null) return;
+        if (context.AuthorId is not { } authorId) return;
 
-        var match = await steamClient.GetCurrentMatchAsync(author.Id);
+        var match = await steamClient.GetCurrentMatchAsync(authorId);
         if (match == null)
         {
-            await context.Channel.SendMessageAsync("You don't have an active match.");
+            await context.ReplyAsync(CommandMessages.NoActiveMatch);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, author.Id));
+        await context.ReplyAsync(MessagesFormatter.FormatMatch(match, authorId));
     }
 }
 
@@ -163,7 +161,7 @@ public sealed class RecentMatchesCommandHandler(ISteamClient steamClient) : IDis
 {
     public DiscordAction Action => DiscordAction.MATCHES;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         var top = 5;
         if (context.Parts.Length >= 2 && int.TryParse(context.Parts[1], out var parsed) && parsed > 0)
@@ -174,18 +172,18 @@ public sealed class RecentMatchesCommandHandler(ISteamClient steamClient) : IDis
         var targetUserId = context.ResolveTargetUserId();
         if (targetUserId is null)
         {
-            await context.Channel.SendMessageAsync("Could not resolve target user.");
+            await context.ReplyAsync(CommandMessages.CouldNotResolveUser);
             return;
         }
 
         var recent = await steamClient.GetRecentMatchesAsync(targetUserId.Value, top);
         if (recent == null)
         {
-            await context.Channel.SendMessageAsync("Failed to fetch recent matches.");
+            await context.ReplyAsync(CommandMessages.RecentMatchesFailed);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatRecentMatches(recent, targetUserId.Value));
+        await context.ReplyAsync(MessagesFormatter.FormatRecentMatches(recent, targetUserId.Value));
     }
 }
 
@@ -194,22 +192,22 @@ public sealed class MatchScoreCommandHandler(ISteamClient steamClient) : IDiscor
 {
     public DiscordAction Action => DiscordAction.SCORE;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         if (context.Parts.Length < 2 || !Guid.TryParse(context.Parts[1], out var matchId))
         {
-            await context.Channel.SendMessageAsync("Usage: `!score <matchId>`");
+            await context.ReplyAsync(CommandMessages.ScoreUsage);
             return;
         }
 
         var match = await steamClient.GetMatchByIdAsync(matchId);
         if (match == null)
         {
-            await context.Channel.SendMessageAsync("Match not found.");
+            await context.ReplyAsync(CommandMessages.MatchNotFound);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, context.Message.Author?.Id ?? 0));
+        await context.ReplyAsync(MessagesFormatter.FormatMatch(match, context.AuthorId ?? 0));
     }
 }
 
@@ -218,15 +216,17 @@ public sealed class PoolStatusCommandHandler(ISteamClient steamClient) : IDiscor
 {
     public DiscordAction Action => DiscordAction.POOL_STATUS;
 
-    public async Task HandleAsync(DiscordCommandContext context)
+    public bool RequiresAdmin => true;
+
+    public async Task HandleAsync(IDiscordCommandContext context)
     {
         var status = await steamClient.GetPoolStatusAsync();
         if (status == null)
         {
-            await context.Channel.SendMessageAsync("Failed to fetch pool status.");
+            await context.ReplyAsync(CommandMessages.PoolStatusFailed);
             return;
         }
 
-        await context.Channel.SendMessageAsync(MessagesFormatter.FormatPoolStatus(status));
+        await context.ReplyAsync(MessagesFormatter.FormatPoolStatus(status));
     }
 }
