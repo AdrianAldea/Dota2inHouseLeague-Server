@@ -19,7 +19,7 @@ export class CardComponent {
   @Input() title!: string;
   @Input() startEndpoint!: string;
   @Input() stopEndpoint?: string;
-  @Input() startLabel: string = "Start";
+  @Input() startLabel = "Start";
   @Input() startPayload: CardPayload = {};
   @Input() stopPayload: CardPayload = {};
   @Input() method: 'GET' | 'POST' = 'POST';
@@ -31,8 +31,7 @@ export class CardComponent {
   response = signal<unknown>(null);
 
   private readonly destroyRef = inject(DestroyRef);
-
-  constructor(private http: HttpClient) {}
+  private readonly http = inject(HttpClient);
 
   send(endpoint: string, payload: CardPayload = {}) {
     this.statusMessage.set('Sending request...');
