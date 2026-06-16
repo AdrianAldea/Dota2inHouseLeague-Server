@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Discord.Clients;
+using IHLDota2Bot.Discord.Commands;
 using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Enums;
 using IHLDota2Bot.Discord.Helpers;
@@ -13,6 +14,7 @@ namespace IHLDota2Bot.Discord.Services;
 public class DiscordService : IHostedService, IAsyncDisposable
 {
     private readonly ISteamClient steamClient;
+    private readonly DiscordCommandDispatcher dispatcher;
     private readonly ILogger<DiscordService> logger;
     private readonly DiscordOptions options;
     private readonly DiscordSocketClient discordClient;
@@ -20,16 +22,19 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
     public DiscordService(
         ISteamClient steamClient,
+        DiscordCommandDispatcher dispatcher,
         DiscordSocketClient discordClient,
         IOptions<DiscordOptions> options,
         ILogger<DiscordService> logger)
     {
         ArgumentNullException.ThrowIfNull(steamClient);
+        ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.steamClient = steamClient;
+        this.dispatcher = dispatcher;
         this.discordClient = discordClient;
         this.options = options.Value;
         this.logger = logger;
@@ -88,20 +93,23 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
         logger.LogInformation("Received command: {Action}", action);
 
+        // Migrated commands live in IDiscordCommandHandler implementations resolved
+        // by the dispatcher. The switch below still handles the commands that haven't
+        // been migrated yet (incremental — see REFACTORING_PLAN.md Phase 3).
+        if (dispatcher.TryGetHandler(action, out var handler))
+        {
+            await handler.HandleAsync(new DiscordCommandContext { Message = userMessage, Parts = parts });
+            return;
+        }
+
         switch (action)
         {
             case DiscordAction.REGISTER:
                 await RegisterPlayerAsync(userMessage, parts);
                 break;
-            case DiscordAction.PROFILE:
-                await ShowProfileAsync(userMessage);
-                break;
             case DiscordAction.COMMANDS:
             case DiscordAction.HELP:
                 await ShowCommandsAsync(userMessage, parts);
-                break;
-            case DiscordAction.PING:
-                await PingAsync(userMessage);
                 break;
             case DiscordAction.QUEUE:
                 await JoinQueueAsync(userMessage);
@@ -115,29 +123,11 @@ public class DiscordService : IHostedService, IAsyncDisposable
             case DiscordAction.UNREADY:
                 await MarkUnreadyAsync(userMessage);
                 break;
-            case DiscordAction.STATUS:
-                await ShowQueueStatusAsync(userMessage);
-                break;
             case DiscordAction.UNREGISTER:
                 await UnregisterAsync(userMessage);
                 break;
             case DiscordAction.LINK:
                 await LinkSteamIdAsync(userMessage, parts);
-                break;
-            case DiscordAction.MYSTATS:
-                await ShowStatsAsync(userMessage, userMessage.Author?.Id);
-                break;
-            case DiscordAction.STATS:
-                await ShowStatsAsync(userMessage, ResolveTargetUserId(userMessage));
-                break;
-            case DiscordAction.LEADERBOARD:
-                await ShowLeaderboardAsync(userMessage, parts);
-                break;
-            case DiscordAction.MATCH:
-                await ShowCurrentMatchAsync(userMessage);
-                break;
-            case DiscordAction.MATCHES:
-                await ShowRecentMatchesAsync(userMessage, parts);
                 break;
             case DiscordAction.REPORT:
                 await ReportMatchAsync(userMessage, parts);
@@ -169,64 +159,7 @@ public class DiscordService : IHostedService, IAsyncDisposable
             case DiscordAction.ADD_ACCOUNT:
                 await AddSteamAccountAsync(userMessage, parts);
                 break;
-            case DiscordAction.POOL_STATUS:
-                await ShowPoolStatusAsync(userMessage);
-                break;
-            case DiscordAction.RANK:
-                await ShowRankAsync(userMessage);
-                break;
-            case DiscordAction.VERSION:
-                await ShowVersionAsync(userMessage);
-                break;
-            case DiscordAction.SCORE:
-                await ShowMatchScoreAsync(userMessage, parts);
-                break;
         }
-    }
-
-    private async Task ShowRankAsync(SocketUserMessage message)
-    {
-        var target = ResolveTargetUserId(message);
-        if (target is null)
-        {
-            await message.Channel.SendMessageAsync("Could not resolve target user.");
-            return;
-        }
-
-        var rank = await steamClient.GetPlayerRankAsync(target.Value);
-        if (rank == null)
-        {
-            await message.Channel.SendMessageAsync("Player is not registered.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatRank(rank));
-    }
-
-    private async Task ShowVersionAsync(SocketUserMessage message)
-    {
-        var asm = typeof(DiscordService).Assembly;
-        var version = asm.GetName().Version?.ToString() ?? "unknown";
-        var commit = Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "unknown";
-        await message.Channel.SendMessageAsync($"**IHLDota2Bot**\nVersion: `{version}`\nCommit: `{commit}`");
-    }
-
-    private async Task ShowMatchScoreAsync(SocketUserMessage message, string[] parts)
-    {
-        if (parts.Length < 2 || !Guid.TryParse(parts[1], out var matchId))
-        {
-            await message.Channel.SendMessageAsync("Usage: `!score <matchId>`");
-            return;
-        }
-
-        var match = await steamClient.GetMatchByIdAsync(matchId);
-        if (match == null)
-        {
-            await message.Channel.SendMessageAsync("Match not found.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, message.Author?.Id ?? 0));
     }
 
     private static bool IsAdminAction(DiscordAction action) => action is
@@ -323,18 +256,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
         catch (Exception ex) { logger.LogWarning(ex, "Could not delete add_account message"); }
     }
 
-    private async Task ShowPoolStatusAsync(SocketUserMessage message)
-    {
-        var status = await steamClient.GetPoolStatusAsync();
-        if (status == null)
-        {
-            await message.Channel.SendMessageAsync("Failed to fetch pool status.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPoolStatus(status));
-    }
-
     private async Task ChallengePlayerAsync(SocketUserMessage message)
     {
         var author = message.Author;
@@ -369,46 +290,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
         await ReplyIfFailedAsync(message, result, "Failed to decline challenge.");
     }
 
-    private async Task ShowCurrentMatchAsync(SocketUserMessage message)
-    {
-        var author = message.Author;
-        if (author == null) return;
-
-        var match = await steamClient.GetCurrentMatchAsync(author.Id);
-        if (match == null)
-        {
-            await message.Channel.SendMessageAsync("You don't have an active match.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatMatch(match, author.Id));
-    }
-
-    private async Task ShowRecentMatchesAsync(SocketUserMessage message, string[] parts)
-    {
-        var top = 5;
-        if (parts.Length >= 2 && int.TryParse(parts[1], out var parsed) && parsed > 0)
-        {
-            top = Math.Min(parsed, 20);
-        }
-
-        var targetUserId = ResolveTargetUserId(message);
-        if (targetUserId is null)
-        {
-            await message.Channel.SendMessageAsync("Could not resolve target user.");
-            return;
-        }
-
-        var recent = await steamClient.GetRecentMatchesAsync(targetUserId.Value, top);
-        if (recent == null)
-        {
-            await message.Channel.SendMessageAsync("Failed to fetch recent matches.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatRecentMatches(recent, targetUserId.Value));
-    }
-
     private async Task ReportMatchAsync(SocketUserMessage message, string[] parts)
     {
         if (parts.Length < 2)
@@ -430,13 +311,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
         await ReplyIfFailedAsync(message, result, "Failed to report match.");
     }
 
-    private static ulong? ResolveTargetUserId(SocketUserMessage message)
-    {
-        // First mention wins; otherwise fall back to the message author
-        var mentioned = message.MentionedUsers?.FirstOrDefault();
-        return mentioned?.Id ?? message.Author?.Id;
-    }
-
     // The Game Manager already broadcasts every *successful* state-change to the
     // channel (lobby events, plus ban/report/challenge announcements with @mention
     // pings). Echoing the operation's reply here as well posted it twice — e.g.
@@ -452,42 +326,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
         result is { Success: true }
             ? Task.CompletedTask
             : message.Channel.SendMessageAsync(result?.Message ?? fallback);
-
-    private async Task ShowStatsAsync(SocketUserMessage message, ulong? userId)
-    {
-        if (userId is null)
-        {
-            await message.Channel.SendMessageAsync("Could not resolve target user.");
-            return;
-        }
-
-        var stats = await steamClient.GetPlayerStatsAsync(userId.Value);
-        if (stats == null)
-        {
-            await message.Channel.SendMessageAsync("Player is not registered.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
-    }
-
-    private async Task ShowLeaderboardAsync(SocketUserMessage message, string[] parts)
-    {
-        var top = 10;
-        if (parts.Length >= 2 && int.TryParse(parts[1], out var parsed) && parsed > 0)
-        {
-            top = Math.Min(parsed, 50);
-        }
-
-        var leaderboard = await steamClient.GetLeaderboardAsync(top);
-        if (leaderboard == null)
-        {
-            await message.Channel.SendMessageAsync("Failed to fetch leaderboard.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatLeaderboard(leaderboard));
-    }
 
     private async Task UnregisterAsync(SocketUserMessage message)
     {
@@ -517,11 +355,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
         var result = await steamClient.LinkSteamIdAsync(author.Id, steamId);
         await message.Channel.SendMessageAsync(result?.Message ?? "Failed to link Steam ID.");
-    }
-
-    private async Task PingAsync(SocketUserMessage message)
-    {
-        await message.Channel.SendMessageAsync($"Pong! Gateway latency: {discordClient.Latency}ms");
     }
 
     private async Task JoinQueueAsync(SocketUserMessage message)
@@ -560,18 +393,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
         await ReplyIfFailedAsync(message, result, "Failed to mark unready.");
     }
 
-    private async Task ShowQueueStatusAsync(SocketUserMessage message)
-    {
-        var status = await steamClient.GetQueueStatusAsync();
-        if (status == null)
-        {
-            await message.Channel.SendMessageAsync("Failed to fetch queue status.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatQueueStatus(status));
-    }
-
     private async Task RegisterPlayerAsync(SocketUserMessage message, string[] parts)
     {
         if (parts.Length < 2)
@@ -605,24 +426,6 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
         await message.Channel.SendMessageAsync(
             $"You have successfully registered as {registeredPlayer.Username} (SteamID: {registeredPlayer.SteamId})!");
-    }
-
-    private async Task ShowProfileAsync(SocketUserMessage message)
-    {
-        var author = message.Author;
-        if (author == null) return;
-
-        // /player/{id} used to be a separate shape; it now returns PlayerStatsResponse
-        // (same data as !mystats / !stats @user). Reuse the same formatter so the
-        // !profile and !stats output stays in sync.
-        var stats = await steamClient.GetPlayerStatsAsync(author.Id);
-        if (stats == null)
-        {
-            await message.Channel.SendMessageAsync("Profile not found. Register with `!register <steamId>` first.");
-            return;
-        }
-
-        await message.Channel.SendMessageAsync(MessagesFormatter.FormatPlayerStats(stats));
     }
 
     private static async Task ShowCommandsAsync(SocketUserMessage message, string[] parts)

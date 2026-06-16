@@ -1,6 +1,6 @@
 namespace IHLDota2Bot.Discord.Enums;
 
-internal enum DiscordAction
+public enum DiscordAction
 {
     REGISTER,
     PROFILE,

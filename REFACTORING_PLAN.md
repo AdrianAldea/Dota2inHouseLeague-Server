@@ -135,9 +135,18 @@ Goal: unlock unit testing and substitution.
 
 Goal: dismantle the 732-line monolith.
 
-- [ ] **Command-handler pattern**: one handler per command implementing a small
-      `IDiscordCommand` interface; replace the 94-line switch with a registry/
-      dispatcher keyed by `DiscordAction`.
+- [x] **Command-handler pattern (3a — read-only commands)**: introduced
+      `IDiscordCommandHandler`, `DiscordCommandDispatcher`, and
+      `DiscordCommandContext`; migrated all 12 read-only/info commands
+      (PING, VERSION, STATUS, PROFILE, MYSTATS, STATS, LEADERBOARD, RANK,
+      MATCH, MATCHES, SCORE, POOL_STATUS) out of the monolithic switch into
+      individual handler classes. The dispatcher short-circuits before the
+      switch — zero behavior change for unmigrated commands (incremental
+      migration strategy).
+- [ ] **Command-handler pattern (3b — state-changing commands)**: migrate
+      REGISTER, QUEUE, LEAVE, READY, UNREADY, UNREGISTER, LINK, REPORT,
+      CHALLENGE, ACCEPT_MATCH, DECLINE_MATCH, BAN, UNBAN, KICK, FORCE_START,
+      RESET_QUEUE, ADD_ACCOUNT into handlers; remove the legacy switch.
 - [ ] **Cross-cutting pipeline**: admin gating, parameter validation, rate
       limiting, and structured per-command logging as middleware, not inline.
 - [ ] **Centralize messages**: move scattered usage/error strings into a single

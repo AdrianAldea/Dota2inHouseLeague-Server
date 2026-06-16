@@ -1,6 +1,7 @@
 using Discord;
 using Discord.WebSocket;
 using IHLDota2Bot.Discord.Clients;
+using IHLDota2Bot.Discord.Commands;
 using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Extensions;
 using IHLDota2Bot.Discord.Services;
@@ -29,6 +30,22 @@ builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConf
 {
     GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
 }));
+
+// Command handlers — each handles exactly one DiscordAction.
+// Registered as IDiscordCommandHandler so DiscordCommandDispatcher can collect them all.
+builder.Services.AddSingleton<IDiscordCommandHandler, PingCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, VersionCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, QueueStatusCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, ProfileCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, MyStatsCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, StatsCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, LeaderboardCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, RankCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, CurrentMatchCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, RecentMatchesCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, MatchScoreCommandHandler>();
+builder.Services.AddSingleton<IDiscordCommandHandler, PoolStatusCommandHandler>();
+builder.Services.AddSingleton<DiscordCommandDispatcher>();
 
 builder.Services.AddSingleton<DiscordService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordService>());
