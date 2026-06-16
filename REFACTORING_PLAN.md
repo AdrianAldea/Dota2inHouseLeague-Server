@@ -1,6 +1,6 @@
 # Refactoring & Improvements Plan — Dota 2 In-House League Bot
 
-> Status: Proposed · Last updated: 2026-06-15
+> Status: In progress (Phases 0–7 substantially complete) · Last updated: 2026-06-16
 >
 > This document captures the results of a full-solution investigation and a
 > prioritized, phased plan to improve code quality, testability, resilience,
@@ -232,17 +232,33 @@ Goal: production-grade external-call behavior and insight.
 - [x] **Tests**: start with services and `LobbyMonitor` logic (Vitest).
       `GameManagerService`, `httpTimeoutInterceptor`, and `LobbyMonitor` logic
       covered (1 → 16 frontend tests).
-- [ ] **Accessibility pass**: ARIA labels, `label[for]` associations, focus
-      states, semantic landmarks; move the one inline style to CSS.
+- [x] **Accessibility pass**: the admin page now uses semantic landmarks
+      (`<header>`/`<main>`/`<section aria-labelledby>`), `label[for]`/`id`
+      associations on every field, and `:focus-visible` keyboard focus rings; the
+      lone inline `grid-column` style moved to a `.form-group--wide` class. The
+      hardcoded `/discord` and `/gamemanager` prefixes also moved out of the
+      template into `environment`-backed `gm()`/`discord()`/`server()` helpers.
 - [ ] **Routing**: replace the inlined single page once a second view appears.
+      *(Deferred: still a single view.)*
 
 ### Phase 7 — Test Depth (cross-cutting, ongoing)
 
-- [ ] Endpoint integration tests for `MatchEndpoints`/`PlayerEndpoints` beyond
-      the happy path (error/edge cases).
-- [ ] Tests for `Dota2Service` and `LobbyPoolManager` orchestration.
+- [x] Endpoint integration tests for `MatchEndpoints`/`PlayerEndpoints` beyond
+      the happy path (`MatchEndpointsEdgeCaseTests`, `PlayerEndpointsEdgeCaseTests`):
+      404s for unknown resources, repeat-report rejection, top-N limiting,
+      empty-list vs. not-found semantics, link validation, re-register round-trip.
+- [~] Tests for `Dota2Service` and `LobbyPoolManager` orchestration.
+      `LobbyPoolManagerOrchestrationTests` covers the queue join/leave/ready/kick/
+      reset delegation chain and the `AddSteamAccount` credential guards;
+      `Dota2Service` is exercised end-to-end through the HTTP integration suites
+      (endpoint → `Dota2Service` → repositories) rather than in isolation.
 - [ ] Functional tests for ServiceDefaults (resilience/OTel) beyond smoke tests.
-- [ ] Contract tests for Discord ↔ Game Manager HTTP boundary.
+      *(Deferred: deeper tests here mostly re-assert Aspire framework behavior.)*
+- [x] Contract tests for Discord ↔ Game Manager HTTP boundary
+      (`DiscordSteamClientContractTests`): challenge/accept/decline/report flows,
+      ban/unban, rank, recent matches, queue status, and unregister driven through
+      the real `SteamClient` against the live TestServer, proving endpoint shapes
+      and Common-DTO serialization stay in sync across the two projects.
 
 ## 4. Quick Wins (low effort, high value)
 
