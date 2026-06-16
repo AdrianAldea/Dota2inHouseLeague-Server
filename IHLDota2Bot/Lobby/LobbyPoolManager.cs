@@ -4,6 +4,7 @@ using IHLDota2Bot.Common.Requests;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
+using IHLDota2Bot.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot;
@@ -18,6 +19,7 @@ public class LobbyPoolManager : IHostedService
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
     private readonly SteamGcClientPool steamGcPool;
+    private readonly GameMetrics gameMetrics;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
     private readonly Dictionary<string, LobbySession> activeSessions = new();
@@ -33,6 +35,7 @@ public class LobbyPoolManager : IHostedService
         DiscordClient discordClient,
         IMatchRepository matchRepository,
         SteamGcClientPool steamGcPool,
+        GameMetrics gameMetrics,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
     {
@@ -41,6 +44,7 @@ public class LobbyPoolManager : IHostedService
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(matchRepository);
         ArgumentNullException.ThrowIfNull(steamGcPool);
+        ArgumentNullException.ThrowIfNull(gameMetrics);
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -49,8 +53,13 @@ public class LobbyPoolManager : IHostedService
         this.discordClient = discordClient;
         this.matchRepository = matchRepository;
         this.steamGcPool = steamGcPool;
+        this.gameMetrics = gameMetrics;
         this.steamOptions = steamOptions.Value;
         this.logger = logger;
+
+        // Expose live queue depth to the observable gauge (snapshotted under the
+        // queue's lock via GetStats).
+        gameMetrics.SetQueueDepthProvider(() => lobbyQueue.GetStats().CurrentLobbyPlayerCount);
 
         // LobbyQueue is pure domain. We own the Discord-facing translation of its events.
         this.lobbyQueue.LobbyReady += OnLobbyReady;
@@ -251,6 +260,7 @@ public class LobbyPoolManager : IHostedService
                 var match = await matchRepository.CreateMatchAsync(lobby.Id, teamAssignments);
                 logger.LogInformation("Match {MatchId} created for lobby {LobbyId}", match.Id, lobby.Id);
                 matchPersisted = true;
+                gameMetrics.RecordMatchCreated();
             }
             catch (Exception ex)
             {
@@ -384,7 +394,11 @@ public class LobbyPoolManager : IHostedService
     }
 
     private void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
-        RunHandlerSafely(nameof(OnLobbyCreated), () => SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count)));
+        RunHandlerSafely(nameof(OnLobbyCreated), () =>
+        {
+            gameMetrics.RecordLobbyCreated();
+            return SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count));
+        });
 
     private void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e) =>
         RunHandlerSafely(nameof(OnPlayerJoined), () => SafeBroadcastAsync(LobbyMessages.PlayerJoined(e.Player.Username, e.Lobby.Players.Count)));
@@ -483,7 +497,7 @@ public class LobbyPoolManager : IHostedService
         GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
     }
 
-    public async Task NotifyGameFinishedAsync(string lobbyId)
+    public async Task NotifyGameFinishedAsync(string lobbyId, string outcome = GameMetrics.OutcomeCompleted)
     {
         LobbySession? session;
         lock (lockObject)
@@ -506,6 +520,9 @@ public class LobbyPoolManager : IHostedService
             logger.LogDebug("NotifyGameFinishedAsync: session {LobbyId} not found", lobbyId);
             return;
         }
+
+        // Lobby-ready → finish wall-clock time, tagged by how the match ended.
+        gameMetrics.RecordMatchFinished(outcome, (session.FinishedAt ?? DateTime.UtcNow) - session.StartedAt);
 
         // Each cleanup step is wrapped independently so a failure in step N
         // doesn't strand steps N+1..end. The previous form was sequential
@@ -600,7 +617,7 @@ public class LobbyPoolManager : IHostedService
             logger.LogError(ex, "DestroyLobbyAsync: failed to settle match for lobby {LobbyId}", lobbyId);
         }
 
-        await NotifyGameFinishedAsync(lobbyId);
+        await NotifyGameFinishedAsync(lobbyId, GameMetrics.OutcomeCancelled);
     }
 
     /// <summary>

@@ -40,6 +40,7 @@ public class LobbyPoolManagerTests
             discordClient,
             matchRepository,
             steamGcPool,
+            new IHLDota2Bot.Telemetry.GameMetrics(),
             steamOptions,
             Mock.Of<ILogger<LobbyPoolManager>>());
     }
