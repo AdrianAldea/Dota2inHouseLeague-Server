@@ -87,7 +87,10 @@ Goal: make every later change verifiable and reversible.
       `EnsureCreated` bootstrap note, Aspire-assigned ports/Swagger, `npm test`/
       `npm run lint`, accurate Docker guidance.
 - [x] **Remove the empty `.gitmodules`**.
-- [ ] Consider `TreatWarningsAsErrors` (or a ruleset) once the build is clean.
+- [x] **`TreatWarningsAsErrors`**: a solution-root `Directory.Build.props` sets
+      `TreatWarningsAsErrors=true` for every project (build was already 0-warning),
+      and the frontend `lint` script runs with `--max-warnings 0`, so any new
+      compiler/analyzer/ESLint warning now fails CI.
 
 ### Phase 1 — Correctness & Safety (backend)
 
@@ -247,13 +250,18 @@ Goal: production-grade external-call behavior and insight.
       the happy path (`MatchEndpointsEdgeCaseTests`, `PlayerEndpointsEdgeCaseTests`):
       404s for unknown resources, repeat-report rejection, top-N limiting,
       empty-list vs. not-found semantics, link validation, re-register round-trip.
-- [~] Tests for `Dota2Service` and `LobbyPoolManager` orchestration.
+- [x] Tests for `Dota2Service` and `LobbyPoolManager` orchestration.
       `LobbyPoolManagerOrchestrationTests` covers the queue join/leave/ready/kick/
       reset delegation chain and the `AddSteamAccount` credential guards;
-      `Dota2Service` is exercised end-to-end through the HTTP integration suites
-      (endpoint → `Dota2Service` → repositories) rather than in isolation.
-- [ ] Functional tests for ServiceDefaults (resilience/OTel) beyond smoke tests.
-      *(Deferred: deeper tests here mostly re-assert Aspire framework behavior.)*
+      `Dota2ServiceTests` covers the coordination logic in isolation (registration/
+      ban guards in `JoinQueueAsync`, self-challenge + unregistered guards,
+      link/ban/unban/unregister failure paths, and the `ReportMatchAsync`
+      null-`LobbyId` pool-notify guard).
+- [x] Functional tests for ServiceDefaults (resilience/OTel) beyond smoke tests.
+      `ServiceDefaultsTests` now also asserts the `self` liveness check resolves,
+      the `MapDefaultEndpoints` Development-vs-Production route gating, the OTel
+      logging options (`IncludeFormattedMessage`/`IncludeScopes`), and the OTLP
+      exporter opt-in (present → providers resolve; absent → no-op).
 - [x] Contract tests for Discord ↔ Game Manager HTTP boundary
       (`DiscordSteamClientContractTests`): challenge/accept/decline/report flows,
       ban/unban, rank, recent matches, queue status, and unregister driven through
