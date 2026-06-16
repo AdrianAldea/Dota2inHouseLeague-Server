@@ -16,8 +16,8 @@ public sealed class PingCommandHandler : IDiscordCommandHandler
 
     public DiscordAction Action => DiscordAction.PING;
 
-    public Task HandleAsync(DiscordCommandContext context) =>
-        context.Channel.SendMessageAsync($"Pong! Gateway latency: {discordClient.Latency}ms");
+    public Task HandleAsync(IDiscordCommandContext context) =>
+        context.ReplyAsync($"Pong! Gateway latency: {discordClient.Latency}ms");
 }
 
 /// <summary>`!version` — bot version + build sha.</summary>
@@ -25,11 +25,11 @@ public sealed class VersionCommandHandler : IDiscordCommandHandler
 {
     public DiscordAction Action => DiscordAction.VERSION;
 
-    public Task HandleAsync(DiscordCommandContext context)
+    public Task HandleAsync(IDiscordCommandContext context)
     {
         var asm = typeof(VersionCommandHandler).Assembly;
         var version = asm.GetName().Version?.ToString() ?? "unknown";
         var commit = Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "unknown";
-        return context.Channel.SendMessageAsync($"**IHLDota2Bot**\nVersion: `{version}`\nCommit: `{commit}`");
+        return context.ReplyAsync($"**IHLDota2Bot**\nVersion: `{version}`\nCommit: `{commit}`");
     }
 }

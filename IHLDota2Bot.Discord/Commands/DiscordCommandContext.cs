@@ -1,20 +1,28 @@
-using Discord;
 using Discord.WebSocket;
 
 namespace IHLDota2Bot.Discord.Commands;
 
 /// <summary>
-/// Per-message data handed to a command handler: the originating message and the
-/// whitespace-split command tokens (the command word itself is at index 0).
+/// Production <see cref="IDiscordCommandContext"/> backed by a live
+/// <see cref="SocketUserMessage"/> from the Discord gateway.
 /// </summary>
-public sealed class DiscordCommandContext
+public sealed class DiscordCommandContext : IDiscordCommandContext
 {
     public required SocketUserMessage Message { get; init; }
     public required string[] Parts { get; init; }
 
-    public IMessageChannel Channel => Message.Channel;
+    public ulong? AuthorId => Message.Author?.Id;
 
-    /// <summary>First @mention if present, otherwise the message author.</summary>
-    public ulong? ResolveTargetUserId() =>
-        Message.MentionedUsers?.FirstOrDefault()?.Id ?? Message.Author?.Id;
+    public string? AuthorUsername => Message.Author?.Username;
+
+    public ulong? FirstMentionedUserId => Message.MentionedUsers?.FirstOrDefault()?.Id;
+
+    public IReadOnlyList<ulong> MentionedUserIds =>
+        Message.MentionedUsers?.Select(u => u.Id).ToList() ?? [];
+
+    public ulong? ResolveTargetUserId() => FirstMentionedUserId ?? AuthorId;
+
+    public Task ReplyAsync(string message) => Message.Channel.SendMessageAsync(message);
+
+    public Task DeleteSourceMessageAsync() => Message.DeleteAsync();
 }
