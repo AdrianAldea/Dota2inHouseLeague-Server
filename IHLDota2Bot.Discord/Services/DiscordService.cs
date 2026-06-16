@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using Discord;
 using Discord.WebSocket;
 using IHLDota2Bot.Discord.Commands;
 using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Enums;
 using IHLDota2Bot.Discord.Helpers;
+using IHLDota2Bot.Discord.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot.Discord.Services;
@@ -18,6 +20,8 @@ namespace IHLDota2Bot.Discord.Services;
 public class DiscordService : IHostedService, IAsyncDisposable
 {
     private readonly DiscordCommandDispatcher dispatcher;
+    private readonly CommandRateLimiter rateLimiter;
+    private readonly DiscordCommandTelemetry telemetry;
     private readonly ILogger<DiscordService> logger;
     private readonly DiscordOptions options;
     private readonly DiscordSocketClient discordClient;
@@ -25,16 +29,22 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
     public DiscordService(
         DiscordCommandDispatcher dispatcher,
+        CommandRateLimiter rateLimiter,
+        DiscordCommandTelemetry telemetry,
         DiscordSocketClient discordClient,
         IOptions<DiscordOptions> options,
         ILogger<DiscordService> logger)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(rateLimiter);
+        ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.dispatcher = dispatcher;
+        this.rateLimiter = rateLimiter;
+        this.telemetry = telemetry;
         this.discordClient = discordClient;
         this.options = options.Value;
         this.logger = logger;
@@ -93,13 +103,42 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
         if (handler.RequiresAdmin && !IsAdmin(userMessage))
         {
+            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeDenied, 0);
             await userMessage.Channel.SendMessageAsync(CommandMessages.NotAuthorized);
+            return;
+        }
+
+        // Throttle ordinary users to curb spam. Admin commands bypass the limit so
+        // moderation isn't blocked when the channel is busy.
+        if (!handler.RequiresAdmin
+            && userMessage.Author is { } author
+            && !rateLimiter.TryAcquire(author.Id, out var retryAfter))
+        {
+            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeRateLimited, 0);
+            await userMessage.Channel.SendMessageAsync(
+                $"Slow down — try again in {Math.Ceiling(retryAfter.TotalSeconds)}s.");
             return;
         }
 
         logger.LogInformation("Received command: {Action}", action);
 
-        await handler.HandleAsync(new DiscordCommandContext { Message = userMessage, Parts = parts });
+        using var activity = DiscordCommandTelemetry.ActivitySource.StartActivity("discord.command.handle");
+        activity?.SetTag("discord.command", action.ToString());
+
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            await handler.HandleAsync(new DiscordCommandContext { Message = userMessage, Parts = parts });
+            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeHandled,
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeFailed,
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            logger.LogError(ex, "Command handler for {Action} threw", action);
+        }
     }
 
     private bool IsAdmin(SocketUserMessage message)

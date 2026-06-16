@@ -172,13 +172,24 @@ Goal: dismantle the 732-line monolith.
 
 Goal: production-grade external-call behavior and insight.
 
+- [x] **Rate limiting** on Discord commands (4a): per-user sliding-window
+      `CommandRateLimiter` (configurable via `Discord:RateLimit`, default 5
+      commands / 5s, disabled at 0). Enforced in the router pipeline; admin
+      commands bypass it. Backed by `TimeProvider` for deterministic tests.
+- [~] **Custom metrics & tracing** (4a — command pipeline done): `DiscordCommandTelemetry`
+      emits a `discord.commands.handled` counter (tagged command + outcome:
+      handled/failed/denied/rate_limited) and a `discord.commands.duration`
+      histogram, plus a per-command `ActivitySource` span, surfaced through the
+      existing OpenTelemetry pipeline. The router now also catches/observes handler
+      exceptions instead of letting them escape to the gateway.
+      *Still to do (4b): backend domain metrics — lobby creation rate, match
+      completion latency, queue depth.*
 - [ ] **Explicit HTTP policies** for Discord/Steam clients: timeouts, retry with
       jitter, circuit breaker (Polly / standard resilience handler tuning); stop
-      swallowing exceptions into `null` without classification.
-- [ ] **Custom metrics & tracing**: lobby creation rate, match completion
-      latency, queue depth, command throughput — emit via the existing
-      OpenTelemetry pipeline (Activity sources + meters).
-- [ ] **Rate limiting** on Discord commands (per-user/per-command).
+      swallowing exceptions into `null` without classification. *(The Aspire
+      standard resilience handler already applies to every HTTP client via
+      ServiceDefaults; remaining work is per-client tuning + exception
+      classification in `SteamClient`.)*
 
 ### Phase 5 — Data & Security
 
