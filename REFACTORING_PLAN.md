@@ -176,14 +176,16 @@ Goal: production-grade external-call behavior and insight.
       `CommandRateLimiter` (configurable via `Discord:RateLimit`, default 5
       commands / 5s, disabled at 0). Enforced in the router pipeline; admin
       commands bypass it. Backed by `TimeProvider` for deterministic tests.
-- [~] **Custom metrics & tracing** (4a — command pipeline done): `DiscordCommandTelemetry`
-      emits a `discord.commands.handled` counter (tagged command + outcome:
-      handled/failed/denied/rate_limited) and a `discord.commands.duration`
-      histogram, plus a per-command `ActivitySource` span, surfaced through the
-      existing OpenTelemetry pipeline. The router now also catches/observes handler
-      exceptions instead of letting them escape to the gateway.
-      *Still to do (4b): backend domain metrics — lobby creation rate, match
-      completion latency, queue depth.*
+- [x] **Custom metrics & tracing**: both sides instrumented and surfaced through
+      the existing OpenTelemetry pipeline.
+      *Discord (4a):* `DiscordCommandTelemetry` — `discord.commands.handled`
+      counter (tagged command + outcome: handled/failed/denied/rate_limited),
+      `discord.commands.duration` histogram, and a per-command `ActivitySource`
+      span; the router now catches/observes handler exceptions instead of letting
+      them escape to the gateway.
+      *Backend (4b):* `GameMetrics` — `ihl.lobbies.created` / `ihl.matches.created`
+      / `ihl.matches.finished` (tagged outcome) counters, an `ihl.matches.duration`
+      histogram (lobby-ready → finish), and an `ihl.queue.depth` observable gauge.
 - [ ] **Explicit HTTP policies** for Discord/Steam clients: timeouts, retry with
       jitter, circuit breaker (Polly / standard resilience handler tuning); stop
       swallowing exceptions into `null` without classification. *(The Aspire

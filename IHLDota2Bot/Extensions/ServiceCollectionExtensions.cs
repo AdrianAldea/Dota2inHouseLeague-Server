@@ -3,8 +3,10 @@ using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
+using IHLDota2Bot.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Metrics;
 
 namespace IHLDota2Bot.Extensions;
 
@@ -45,6 +47,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMatchRepository, MatchRepository>();
         services.AddSingleton<IChallengeRepository, ChallengeRepository>();
         services.AddHostedService<DatabaseInitializer>();
+
+        // Domain telemetry: register the meter singleton and subscribe the OTel
+        // metrics pipeline to it.
+        services.AddSingleton<GameMetrics>();
+        services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(GameMetrics.MeterName));
 
         services.AddSingleton<DiscordClient>();
         services.AddSingleton<SteamAccountPool>();
