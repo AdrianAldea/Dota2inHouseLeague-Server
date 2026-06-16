@@ -197,8 +197,10 @@ Goal: production-grade external-call behavior and insight.
 
 ### Phase 5 — Data & Security
 
-- [ ] **Adopt EF Core migrations** in place of `EnsureCreated`; add an initial
-      migration and wire `DatabaseInitializer` to migrate.
+- [x] **Adopt EF Core migrations** in place of `EnsureCreated`; add an initial
+      migration and wire `DatabaseInitializer` to migrate. Legacy `EnsureCreated`
+      databases are auto-baselined (`SchemaUpgradePlanner`); non-relational
+      providers (in-memory tests) fall back to `EnsureCreated`.
 - [ ] **Server-side authorization** on admin API endpoints (don't rely solely on
       the Discord layer).
 - [ ] **Verify `PlayersPerLobby`** (currently 2) is intentional vs. a 5v5/test
