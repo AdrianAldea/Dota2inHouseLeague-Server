@@ -6,6 +6,7 @@ using IHLDota2Bot.Discord.Configuration;
 using IHLDota2Bot.Discord.Extensions;
 using IHLDota2Bot.Discord.Services;
 using IHLDota2Bot.Discord.Telemetry;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -23,6 +24,18 @@ builder.Services.AddHttpClient(SteamClient.HttpClientName, (sp, client) =>
 {
     var options = sp.GetRequiredService<IOptions<SteamClientOptions>>().Value;
     client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
+});
+
+// Tune the (already-applied) Aspire standard resilience handler for this client.
+// These calls back a user's `!command`, so favour failing fast over long retries:
+// shorter per-attempt + total timeouts and fewer retries than the global default.
+builder.Services.Configure<HttpStandardResilienceOptions>(SteamClient.HttpClientName, resilience =>
+{
+    resilience.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+    resilience.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
+    resilience.Retry.MaxRetryAttempts = 2;
+    // SamplingDuration must stay >= 2 × AttemptTimeout; keep the generous default window.
+    resilience.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
 });
 
 builder.Services.AddSingleton<ISteamClient, SteamClient>();

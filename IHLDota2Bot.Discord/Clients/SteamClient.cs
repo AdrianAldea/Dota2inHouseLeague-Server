@@ -20,6 +20,20 @@ public class SteamClient : ISteamClient
         this.logger = logger;
     }
 
+    /// <summary>
+    /// Logs a failed Game Manager call at a level chosen by its
+    /// <see cref="SteamClientErrorClassifier.FailureKind"/> and returns <c>null</c>,
+    /// preserving the "null means failure" contract every caller relies on while
+    /// distinguishing transient timeouts / open circuits from real transport errors.
+    /// </summary>
+    private TResult? LogFailure<TResult>(Exception ex, string operation) where TResult : class
+    {
+        var kind = SteamClientErrorClassifier.Classify(ex);
+        logger.Log(SteamClientErrorClassifier.LevelFor(kind), ex,
+            "Game Manager request failed [{Kind}] during {Operation}", kind, operation);
+        return null;
+    }
+
     public async Task<RegisteredPlayer?> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -30,8 +44,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to register player {UserId}", request.UserId);
-            return null;
+            return LogFailure<RegisteredPlayer>(ex, $"register player {request.UserId}");
         }
     }
 
@@ -64,8 +77,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch stats for user {UserId}", id);
-            return null;
+            return LogFailure<PlayerStatsResponse>(ex, $"fetch stats for user {id}");
         }
     }
 
@@ -77,8 +89,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch leaderboard");
-            return null;
+            return LogFailure<LeaderboardResponse>(ex, "fetch leaderboard");
         }
     }
 
@@ -93,8 +104,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch current match for user {UserId}", id);
-            return null;
+            return LogFailure<MatchSummary>(ex, $"fetch current match for user {id}");
         }
     }
 
@@ -106,8 +116,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch recent matches for user {UserId}", id);
-            return null;
+            return LogFailure<RecentMatchesResponse>(ex, $"fetch recent matches for user {id}");
         }
     }
 
@@ -121,8 +130,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to report match for user {UserId}", id);
-            return null;
+            return LogFailure<QueueOperationResponse>(ex, $"report match for user {id}");
         }
     }
 
@@ -145,8 +153,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to {Action} for user {UserId}", action, userId);
-            return null;
+            return LogFailure<ChallengeOperationResponse>(ex, $"{action} for user {userId}");
         }
     }
 
@@ -158,8 +165,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch queue status");
-            return null;
+            return LogFailure<QueueStatusResponse>(ex, "fetch queue status");
         }
     }
 
@@ -173,8 +179,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to {Action} for user {UserId}", action, userId);
-            return null;
+            return LogFailure<QueueOperationResponse>(ex, $"{action} for user {userId}");
         }
     }
 
@@ -212,8 +217,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to add Steam account {Username}", username);
-            return null;
+            return LogFailure<QueueOperationResponse>(ex, $"add Steam account {username}");
         }
     }
 
@@ -228,8 +232,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch rank for user {UserId}", id);
-            return null;
+            return LogFailure<RankResponse>(ex, $"fetch rank for user {id}");
         }
     }
 
@@ -244,8 +247,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch match {MatchId}", matchId);
-            return null;
+            return LogFailure<MatchSummary>(ex, $"fetch match {matchId}");
         }
     }
 
@@ -257,8 +259,7 @@ public class SteamClient : ISteamClient
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fetch pool status");
-            return null;
+            return LogFailure<PoolStatusResponse>(ex, "fetch pool status");
         }
     }
 }
