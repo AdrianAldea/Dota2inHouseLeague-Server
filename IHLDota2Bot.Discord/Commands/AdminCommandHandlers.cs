@@ -110,11 +110,12 @@ public sealed class AddAccountCommandHandler(ISteamClient steamClient, ILogger<A
             return;
         }
 
-        var result = await steamClient.AddSteamAccountAsync(context.Parts[1], context.Parts[2]);
-        await context.ReplyAsync(result?.Message ?? CommandMessages.AddAccountFailed);
-
-        // Try to delete the original message so the password doesn't sit in chat history.
+        // Scrub the password from chat first — before the API round-trip — so the
+        // plaintext credential sits in channel history for as short a time as possible.
         try { await context.DeleteSourceMessageAsync(); }
         catch (Exception ex) { logger.LogWarning(ex, "Could not delete add_account message"); }
+
+        var result = await steamClient.AddSteamAccountAsync(context.Parts[1], context.Parts[2]);
+        await context.ReplyAsync(result?.Message ?? CommandMessages.AddAccountFailed);
     }
 }

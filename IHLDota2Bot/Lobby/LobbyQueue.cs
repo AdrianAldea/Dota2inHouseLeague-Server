@@ -1,4 +1,6 @@
 using IHLDota2Bot.Common.DTOs;
+using IHLDota2Bot.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot;
 
@@ -18,6 +20,9 @@ public class LobbyQueue
     private readonly ILogger<LobbyQueue> logger;
     private Lobby currentLobby;
 
+    /// <summary>Players required to fill a lobby (configurable via <c>League:PlayersPerLobby</c>).</summary>
+    public int PlayersPerLobby { get; }
+
     public event EventHandler<LobbyCreatedEventArgs>? LobbyCreated;
     public event EventHandler<PlayerJoinedEventArgs>? PlayerJoined;
     public event EventHandler<PlayerLeftEventArgs>? PlayerLeft;
@@ -29,11 +34,13 @@ public class LobbyQueue
     public event EventHandler<LobbyResetEventArgs>? LobbyReset;
     public event EventHandler<LobbyFinishedEventArgs>? LobbyFinished;
 
-    public LobbyQueue(ILogger<LobbyQueue> logger)
+    public LobbyQueue(ILogger<LobbyQueue> logger, IOptions<LeagueOptions> leagueOptions)
     {
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(leagueOptions);
 
         this.logger = logger;
+        PlayersPerLobby = leagueOptions.Value.PlayersPerLobby;
         currentLobby = CreateLobbyUnlocked();
     }
 
@@ -66,11 +73,11 @@ public class LobbyQueue
 
             if (player.CurrentLobbyId != null)
             {
-                message = $"{username} is already in lobby {player.CurrentLobbyId} ({currentLobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+                message = $"{username} is already in lobby {player.CurrentLobbyId} ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
-            else if (currentLobby.Players.Count >= LeagueConstants.PlayersPerLobby)
+            else if (currentLobby.Players.Count >= PlayersPerLobby)
             {
-                message = $"Current lobby is full ({currentLobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+                message = $"Current lobby is full ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
             else
             {
@@ -79,13 +86,13 @@ public class LobbyQueue
                 player.IsReady = false;
                 added = true;
 
-                if (currentLobby.Players.Count == LeagueConstants.PlayersPerLobby)
+                if (currentLobby.Players.Count == PlayersPerLobby)
                 {
                     currentLobby.State = LobbyState.Waiting;
                     lobbyFull = true;
                 }
 
-                message = $"{username} joined the queue ({currentLobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+                message = $"{username} joined the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
         }
 
@@ -120,7 +127,7 @@ public class LobbyQueue
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
                 removed = true;
-                message = $"{player.Username} left the queue ({currentLobby.Players.Count}/{LeagueConstants.PlayersPerLobby})";
+                message = $"{player.Username} left the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
         }
 
@@ -184,7 +191,7 @@ public class LobbyQueue
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
                 kicked = true;
-                message = $"{player.Username} was kicked from the lobby ({currentLobby.Players.Count}/{LeagueConstants.PlayersPerLobby}).";
+                message = $"{player.Username} was kicked from the lobby ({currentLobby.Players.Count}/{PlayersPerLobby}).";
             }
         }
 
@@ -280,7 +287,7 @@ public class LobbyQueue
             {
                 CurrentLobbyId = currentLobby.Id,
                 CurrentLobbyPlayerCount = currentLobby.Players.Count,
-                PlayersPerLobby = LeagueConstants.PlayersPerLobby,
+                PlayersPerLobby = PlayersPerLobby,
                 PlayersReady = currentLobby.Players.Count(p => p.IsReady),
                 TotalRegistered = registeredPlayers.Count,
                 WaitingPlayers = registeredPlayers.Count(p => p.CurrentLobbyId == null),
@@ -341,7 +348,7 @@ public class LobbyQueue
     {
         var lobby = lobbies.FirstOrDefault(l => l.Id == lobbyId);
         if (lobby == null) return false;
-        return lobby.Players.Count == LeagueConstants.PlayersPerLobby && lobby.Players.All(p => p.IsReady);
+        return lobby.Players.Count == PlayersPerLobby && lobby.Players.All(p => p.IsReady);
     }
 
     public Task FinishLobbyAsync(string lobbyId)
@@ -378,7 +385,7 @@ public class LobbyQueue
             LobbyCreated?.Invoke(this, new LobbyCreatedEventArgs { Lobby = newLobby });
             logger.LogInformation("New lobby created: {LobbyId} with {Count} players", newLobby.Id, newLobby.Players.Count);
 
-            if (newLobby.Players.Count == LeagueConstants.PlayersPerLobby)
+            if (newLobby.Players.Count == PlayersPerLobby)
                 LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = newLobby });
         }
 
@@ -398,7 +405,7 @@ public class LobbyQueue
 
         var availablePlayers = registeredPlayers
             .Where(p => p.CurrentLobbyId == null)
-            .Take(LeagueConstants.PlayersPerLobby)
+            .Take(PlayersPerLobby)
             .ToList();
 
         foreach (var player in availablePlayers)
@@ -435,6 +442,7 @@ public class LobbyQueue
             {
                 TotalRegisteredPlayers = registeredPlayers.Count,
                 CurrentLobby = currentLobby,
+                PlayersPerLobby = PlayersPerLobby,
                 CurrentLobbyPlayerCount = currentLobby.Players.Count,
                 PlayersReady = currentLobby.Players.Count(p => p.IsReady),
                 WaitingPlayers = registeredPlayers.Count(p => p.CurrentLobbyId == null),

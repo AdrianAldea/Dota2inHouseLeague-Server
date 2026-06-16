@@ -36,7 +36,7 @@ public class LobbyPoolManagerTests
 
         return new LobbyPoolManager(
             new SteamAccountPool(Mock.Of<ILogger<SteamAccountPool>>()),
-            new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>()),
+            new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), Options.Create(new LeagueOptions())),
             discordClient,
             matchRepository,
             steamGcPool,

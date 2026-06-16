@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.Configure<SteamOptions>(configuration.GetSection(SteamOptions.SectionName));
         services.Configure<DiscordClientOptions>(configuration.GetSection(DiscordClientOptions.SectionName));
         services.Configure<AdminApiKeyOptions>(configuration.GetSection(AdminApiKeyOptions.SectionName));
+        services.Configure<LeagueOptions>(configuration.GetSection(LeagueOptions.SectionName));
 
         services
             .AddAuthentication(AdminApiKeyAuthenticationHandler.SchemeName)

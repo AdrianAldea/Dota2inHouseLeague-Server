@@ -86,24 +86,42 @@ git clone https://github.com/AdrianAldea/dota2ihnhouseleague.git
 cd dota2ihnhouseleague
 ```
 
-#### 2. Configure Environment Variables
+#### 2. Configure Secrets
 
-Create or update configuration files with required credentials:
+All credentials are read from configuration but **must never be committed**. The
+`appsettings.json` files ship with empty placeholders only — supply real values
+via [.NET user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets)
+(local dev) or environment variables (deployment). The database connection string
+is provided automatically by the Aspire AppHost, so you don't set it by hand.
 
-```json
-{
-  "Steam": {
-    "ApiKey": "your_steam_api_key"
-  },
-  "Discord": {
-    "BotToken": "your_discord_bot_token",
-    "ServiceName": "discord-service"
-  },
-  "ConnectionStrings": {
-    "Dota2inHouseLeagueDB": "Server=your_server;Database=Dota2IHL;Trusted_Connection=true;"
-  }
-}
+**Game Manager (`IHLDota2Bot`)**
+
+```bash
+cd IHLDota2Bot
+dotnet user-secrets set "Steam:BotAccount:Username" "your_steam_bot_username"
+dotnet user-secrets set "Steam:BotAccount:Password" "your_steam_bot_password"
+# Shared secret that gates the admin API (must match the Discord side below).
+dotnet user-secrets set "GameManager:AdminApiKey" "a_long_random_string"
 ```
+
+**Discord bot (`IHLDota2Bot.Discord`)**
+
+```bash
+cd IHLDota2Bot.Discord
+dotnet user-secrets set "Discord:Token" "your_discord_bot_token"
+dotnet user-secrets set "Discord:ChannelId" "your_channel_id"
+# Same value as GameManager:AdminApiKey so admin commands authenticate.
+dotnet user-secrets set "SteamClient:ApiKey" "a_long_random_string"
+```
+
+The equivalent environment variables use `__` as the section separator, e.g.
+`Discord__Token`, `GameManager__AdminApiKey`, `Steam__BotAccount__Password`.
+
+> If `GameManager:AdminApiKey` is left empty the admin endpoints are **unsecured**
+> (a startup warning is logged). Always set it in any shared/production environment.
+
+Optional tuning (safe defaults, no secret): `League:PlayersPerLobby` controls how
+many players fill a lobby (default `2` for testing; set to `10` for full 5v5).
 
 #### 3. Backend Setup
 
@@ -122,10 +140,11 @@ dotnet restore
 dotnet run
 ```
 
-The database schema is created automatically on startup (currently via EF Core
-`EnsureCreated` — migrating to versioned EF Core migrations is tracked in
-`REFACTORING_PLAN.md`). Service URLs and ports are assigned by Aspire; open the
-**Aspire dashboard** printed in the console to see each service's endpoint.
+The database schema is created and kept up to date automatically on startup via
+EF Core migrations (databases originally created by the older `EnsureCreated`
+path are adopted into migration control transparently). Service URLs and ports
+are assigned by Aspire; open the **Aspire dashboard** printed in the console to
+see each service's endpoint.
 
 #### 4. Frontend Setup
 

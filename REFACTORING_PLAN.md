@@ -205,10 +205,14 @@ Goal: production-grade external-call behavior and insight.
       the Discord layer). `AdminApiKeyAuthenticationHandler` validates `X-Api-Key`
       header; `ApiKeyHandler` injects it from the Discord service. Key flows via
       user-secrets / env var; unconfigured = warning + open (dev ergonomics).
-- [ ] **Verify `PlayersPerLobby`** (currently 2) is intentional vs. a 5v5/test
-      value; surface league sizing via config.
-- [ ] **Secrets review**: confirm all tokens/keys flow through user-secrets/env;
-      avoid plaintext credential paths (e.g. `add_account`).
+- [x] **Verify `PlayersPerLobby`** (currently 2) is intentional vs. a 5v5/test
+      value; surface league sizing via config. Confirmed intentional (testing);
+      now configurable via `League:PlayersPerLobby` (`LeagueOptions`), default 2.
+- [x] **Secrets review**: confirm all tokens/keys flow through user-secrets/env;
+      avoid plaintext credential paths (e.g. `add_account`). Both projects carry
+      `UserSecretsId`; appsettings ship empty placeholders only; `add_account`
+      now scrubs the password *before* the API call; README documents every
+      secret via user-secrets/env.
 
 ### Phase 6 — Frontend Hardening
 

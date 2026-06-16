@@ -4,6 +4,7 @@ public class QueueStats
 {
     public int TotalRegisteredPlayers { get; set; }
     public Lobby? CurrentLobby { get; set; }
+    public int PlayersPerLobby { get; set; }
     public int CurrentLobbyPlayerCount { get; set; }
     public int PlayersReady { get; set; }
     public int WaitingPlayers { get; set; }
@@ -12,5 +13,5 @@ public class QueueStats
 
     public override string ToString() =>
         $"Queue: Registered={TotalRegisteredPlayers}, Waiting={WaitingPlayers}, " +
-        $"Current Lobby={CurrentLobbyPlayerCount}/{LeagueConstants.PlayersPerLobby} (Ready: {PlayersReady})";
+        $"Current Lobby={CurrentLobbyPlayerCount}/{PlayersPerLobby} (Ready: {PlayersReady})";
 }
