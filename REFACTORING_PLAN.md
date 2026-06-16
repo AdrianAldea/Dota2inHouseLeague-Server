@@ -186,12 +186,14 @@ Goal: production-grade external-call behavior and insight.
       *Backend (4b):* `GameMetrics` — `ihl.lobbies.created` / `ihl.matches.created`
       / `ihl.matches.finished` (tagged outcome) counters, an `ihl.matches.duration`
       histogram (lobby-ready → finish), and an `ihl.queue.depth` observable gauge.
-- [ ] **Explicit HTTP policies** for Discord/Steam clients: timeouts, retry with
-      jitter, circuit breaker (Polly / standard resilience handler tuning); stop
-      swallowing exceptions into `null` without classification. *(The Aspire
-      standard resilience handler already applies to every HTTP client via
-      ServiceDefaults; remaining work is per-client tuning + exception
-      classification in `SteamClient`.)*
+- [x] **Explicit HTTP policies** (4c): the Aspire standard resilience handler
+      (timeout + retry-with-jitter + circuit breaker) already applies to every
+      client via ServiceDefaults; the `SteamClient` now tunes it for interactive
+      use via named `HttpStandardResilienceOptions` (5s per-attempt, 15s total,
+      2 retries). Failures are no longer swallowed undifferentiated — a
+      `SteamClientErrorClassifier` sorts them (timeout / open-circuit / cancelled /
+      transport / unexpected) so transient conditions log as warnings and only
+      real faults log as errors, while preserving the "null means failure" contract.
 
 ### Phase 5 — Data & Security
 
