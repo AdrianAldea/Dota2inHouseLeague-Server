@@ -4,6 +4,7 @@ using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -28,7 +29,9 @@ public class LobbyPoolManagerOrchestrationTests
 
         var steamOptions = Options.Create(new SteamOptions());
         var steamGcPool = new SteamGcClientPool(
-            steamOptions, discordClient, NullLoggerFactory.Instance, Mock.Of<ILogger<SteamGcClientPool>>());
+            steamOptions, discordClient, NullLoggerFactory.Instance,
+            Mock.Of<IHostEnvironment>(e => e.ContentRootPath == Path.GetTempPath()),
+            Mock.Of<ILogger<SteamGcClientPool>>());
 
         var repo = matchRepository ?? Mock.Of<IMatchRepository>(r =>
             r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>())
