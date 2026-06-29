@@ -9,6 +9,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The native SQLite binary (SQLitePCLRaw.lib.e_sqlite3) is pulled in transitively by
+         Microsoft.EntityFrameworkCore.Sqlite 10.0.9 for the DatabaseInitializer tests.
+         GHSA-2m69-gcr7-jv3q flags every version <= 2.1.11 and there is no patched 2.x release —
+         the fix only ships in the SQLitePCLRaw 3.x stack, which EF Core 10 doesn't reference.
+         Suppress the advisory here (test-only project, never shipped) until EF Core moves to 3.x. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
