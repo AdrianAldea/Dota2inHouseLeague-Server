@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+             xmlns:conv="using:IHLDota2Bot.Desktop.Converters"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+             x:Class="IHLDota2Bot.Desktop.Views.ShellView"
+             x:DataType="vm:ShellViewModel">
+
+    <Grid ColumnDefinitions="248,*">
+
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Background="{DynamicResource BgSunkenBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="*,Auto">
+                <ListBox Grid.Row="0" Classes="nav" Margin="0,18,0,0"
+                         ItemsSource="{Binding NavItems}"
+                         SelectedItem="{Binding SelectedNav}"/>
+
+                <!-- Player chip + logout -->
+                <Border Grid.Row="1" Margin="14,0,14,16" Classes="cardElevated" Padding="12">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0" Width="40" Height="40" CornerRadius="999"
+                                Background="{DynamicResource AccentBrush}">
+                            <TextBlock Text="{Binding PlayerInitial}" FontWeight="Bold"
+                                       FontSize="17" Foreground="#1B1205"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" FontSize="14"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                           Text="{Binding RatingValue, Converter={x:Static conv:RatingToTierNameConverter.Instance}}"
+                                           Foreground="{Binding RatingValue, Converter={x:Static conv:RatingToTierBrushConverter.Instance}}"/>
+                                <TextBlock Text="{Binding PlayerRating, StringFormat='· {0}'}" Classes="muted"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="winbtn" Width="34" Height="34"
+                                Command="{Binding LogoutCommand}" ToolTip.Tip="Log out">
+                            <PathIcon Data="{StaticResource IconLogout}" Width="15" Height="15"
+                                      Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Content -->
+        <ContentControl Grid.Column="1" Content="{Binding CurrentPage}"/>
+    </Grid>
+</UserControl>

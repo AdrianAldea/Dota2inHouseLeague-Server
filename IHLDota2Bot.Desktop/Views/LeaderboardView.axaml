@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+             xmlns:conv="using:IHLDota2Bot.Desktop.Converters"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="760"
+             x:Class="IHLDota2Bot.Desktop.Views.LeaderboardView"
+             x:DataType="vm:LeaderboardViewModel">
+
+    <ScrollViewer>
+        <StackPanel Margin="36" Spacing="18" MaxWidth="1040">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+                <TextBlock Text="Leaderboard" Classes="h1"/>
+                <Border Classes="pill" VerticalAlignment="Center" IsVisible="{Binding IsOffline}"
+                        Background="#332512" BorderBrush="#5A3F1A">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <TextBlock Text="●" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentSolidBrush}"/>
+                        <TextBlock Text="Offline — sample data" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Border Classes="card" Padding="0">
+                <StackPanel>
+                    <!-- Column header -->
+                    <Grid ColumnDefinitions="70,*,110,110,90" Margin="22,16,22,10">
+                        <TextBlock Grid.Column="0" Text="RANK" Classes="caption"/>
+                        <TextBlock Grid.Column="1" Text="PLAYER" Classes="caption"/>
+                        <TextBlock Grid.Column="2" Text="RATING" Classes="caption" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="3" Text="W / L" Classes="caption" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="WIN%" Classes="caption" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource BorderBrush}"/>
+
+                    <ItemsControl ItemsSource="{Binding Entries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="70,*,110,110,90" Margin="22,0" Height="54">
+                                    <TextBlock Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" FontSize="15"
+                                               Text="{Binding Rank, StringFormat='#{0}'}"
+                                               Foreground="{DynamicResource AccentSolidBrush}"/>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="14"
+                                               Text="{Binding Username}"/>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7"
+                                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                 Fill="{Binding Rating, Converter={x:Static conv:RatingToTierBrushConverter.Instance}}"/>
+                                        <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Rating}"
+                                                   Foreground="{Binding Rating, Converter={x:Static conv:RatingToTierBrushConverter.Instance}}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                               Classes="body" Text="{Binding Wins, StringFormat='{}{0} W'}"/>
+                                    <TextBlock Grid.Column="4" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                               FontWeight="SemiBold" Text="{Binding WinRate, StringFormat='{}{0:P0}'}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
