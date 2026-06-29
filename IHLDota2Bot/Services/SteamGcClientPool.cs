@@ -1,6 +1,5 @@
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace IHLDota2Bot.Services;
@@ -20,20 +19,17 @@ public sealed class SteamGcClientPool : IHostedService
     private readonly ILoggerFactory loggerFactory;
     private ISteamGcClient? defaultClient;
     private readonly bool enableReconnect;
-    private readonly SteamTokenStore tokenStore;
     private readonly ILogger<SteamGcClientPool> logger;
 
     public SteamGcClientPool(
         IOptions<SteamOptions> steamOptions,
         DiscordClient discordClient,
         ILoggerFactory loggerFactory,
-        IHostEnvironment hostEnvironment,
         ILogger<SteamGcClientPool> logger)
     {
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(loggerFactory);
-        ArgumentNullException.ThrowIfNull(hostEnvironment);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.discordClient = discordClient;
@@ -43,11 +39,6 @@ public sealed class SteamGcClientPool : IHostedService
 
         var options = steamOptions.Value;
         enableReconnect = options.EnableReconnect;
-
-        // Persist refresh tokens into the project's appsettings.json (Steam:RefreshTokens)
-        // rather than a per-machine file, so they travel with the configuration. The host
-        // content root is the directory the app reads appsettings.json from.
-        tokenStore = new SteamTokenStore(Path.Combine(hostEnvironment.ContentRootPath, "appsettings.json"));
 
         // BotAccount comes first so it becomes the default — used by the admin
         // /create passthrough and as a sensible "first" choice for ad-hoc ops.
@@ -230,6 +221,6 @@ public sealed class SteamGcClientPool : IHostedService
         // Use a per-account logger category so multi-bot log lines stay distinguishable
         // in the Aspire dashboard without having to read every message body.
         var perAccountLogger = loggerFactory.CreateLogger($"IHLDota2Bot.Services.SteamGcClient[{username}]");
-        return new SteamGcClient(username, password, discordClient, perAccountLogger, enableReconnect, tokenStore);
+        return new SteamGcClient(username, password, discordClient, perAccountLogger, enableReconnect);
     }
 }

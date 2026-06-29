@@ -6,7 +6,6 @@ using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Entities;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -33,9 +32,7 @@ public class LobbyPoolManagerTests
 
         var steamOptions = Options.Create(new SteamOptions()); // no configured accounts
         var steamGcPool = new SteamGcClientPool(
-            steamOptions, discordClient, NullLoggerFactory.Instance,
-            Mock.Of<IHostEnvironment>(e => e.ContentRootPath == Path.GetTempPath()),
-            Mock.Of<ILogger<SteamGcClientPool>>());
+            steamOptions, discordClient, NullLoggerFactory.Instance, Mock.Of<ILogger<SteamGcClientPool>>());
 
         return new LobbyPoolManager(
             new SteamAccountPool(Mock.Of<ILogger<SteamAccountPool>>()),
