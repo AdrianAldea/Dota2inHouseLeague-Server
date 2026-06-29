@@ -17,6 +17,7 @@ public static class GameManagerEndpoints
         group.MapLobbyEndpoints();
         group.MapMatchEndpoints();
         group.MapChallengeEndpoints();
+        group.MapMeEndpoints();
 
         // Admin routes require authentication. When AdminApiKey is non-empty in
         // config, only callers presenting the correct X-Api-Key header are allowed;

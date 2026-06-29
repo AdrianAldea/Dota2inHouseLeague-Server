@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using IHLDota2Bot.Auth;
 using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
@@ -5,8 +7,10 @@ using IHLDota2Bot.Data;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
 using IHLDota2Bot.Telemetry;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
 
 namespace IHLDota2Bot.Extensions;
@@ -25,12 +29,47 @@ public static class ServiceCollectionExtensions
         services.Configure<DiscordClientOptions>(configuration.GetSection(DiscordClientOptions.SectionName));
         services.Configure<AdminApiKeyOptions>(configuration.GetSection(AdminApiKeyOptions.SectionName));
         services.Configure<LeagueOptions>(configuration.GetSection(LeagueOptions.SectionName));
+        services.Configure<PlayerJwtOptions>(configuration.GetSection(PlayerJwtOptions.SectionName));
 
+        // Player-JWT signing key, shared by the issuer and the JwtBearer validator. When
+        // no key is configured we generate an ephemeral one (dev mode) — Program.cs warns.
+        var jwtOptions = configuration.GetSection(PlayerJwtOptions.SectionName).Get<PlayerJwtOptions>() ?? new PlayerJwtOptions();
+        var keyBytes = string.IsNullOrWhiteSpace(jwtOptions.SigningKey)
+            ? RandomNumberGenerator.GetBytes(32)
+            : Encoding.UTF8.GetBytes(jwtOptions.SigningKey);
+        var signingKey = new SymmetricSecurityKey(keyBytes);
+        services.AddSingleton(new PlayerSigningKey(signingKey));
+        services.AddSingleton<PlayerTokenService>();
+        services.AddHttpClient<SteamOpenIdService>();
+
+        // Two auth schemes: AdminApiKey (default — admin endpoints) + JwtBearer (players).
         services
             .AddAuthentication(AdminApiKeyAuthenticationHandler.SchemeName)
             .AddScheme<AdminApiKeyAuthenticationHandler.SchemeOptions, AdminApiKeyAuthenticationHandler>(
-                AdminApiKeyAuthenticationHandler.SchemeName, _ => { });
-        services.AddAuthorization();
+                AdminApiKeyAuthenticationHandler.SchemeName, _ => { })
+            .AddJwtBearer(options =>
+            {
+                options.MapInboundClaims = false; // keep claim names (sub, steamId, …) verbatim
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtOptions.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwtOptions.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = signingKey,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(1),
+                    NameClaimType = PlayerClaims.Subject,
+                };
+            });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("Player", policy =>
+                policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                      .RequireAuthenticatedUser());
+        });
 
         services.AddHttpClient(DiscordClient.HttpClientName, (sp, client) =>
         {

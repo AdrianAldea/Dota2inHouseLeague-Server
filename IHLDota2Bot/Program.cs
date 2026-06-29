@@ -22,6 +22,17 @@ if (string.IsNullOrEmpty(apiKeyOpts.AdminApiKey))
         "the GameManager__AdminApiKey environment variable for production.");
 }
 
+// Warn when no JWT signing key is configured: an ephemeral key is generated so dev
+// works, but player tokens won't survive a restart and differ across instances.
+var playerJwtOpts = app.Services.GetRequiredService<IOptions<PlayerJwtOptions>>().Value;
+if (string.IsNullOrEmpty(playerJwtOpts.SigningKey))
+{
+    app.Logger.LogWarning(
+        "Player JWT signing key is not configured (PlayerJwt:SigningKey). " +
+        "Using an ephemeral per-process key — tokens won't survive a restart. " +
+        "Set PlayerJwt__SigningKey via user-secrets or environment variable for production.");
+}
+
 app.UseLobbyShutdownHooks();
 
 app.UseAuthentication();
