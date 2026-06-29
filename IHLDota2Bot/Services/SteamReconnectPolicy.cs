@@ -44,4 +44,18 @@ public static class SteamReconnectPolicy
         EResult.Banned => true,
         _ => false
     };
+
+    /// <summary>
+    /// True when a logon performed with a persisted refresh token failed because the
+    /// token itself is no longer good (expired or revoked). The client should discard
+    /// the stored token and fall back to a fresh credential auth on the next connect,
+    /// rather than treating it as a permanent credential failure.
+    /// </summary>
+    public static bool IsStaleTokenResult(EResult result) => result switch
+    {
+        EResult.Expired => true,
+        EResult.AccessDenied => true,
+        EResult.InvalidPassword => true,    // Steam reports a dead access token this way too
+        _ => false
+    };
 }

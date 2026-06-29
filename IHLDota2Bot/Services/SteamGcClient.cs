@@ -3,6 +3,7 @@ using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Common.Requests;
 using ProtoBuf;
 using SteamKit2;
+using SteamKit2.Authentication;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
@@ -45,6 +46,14 @@ public sealed class SteamGcClient : ISteamGcClient
 
     private readonly string username;
     private readonly string password;
+    private readonly bool enableReconnect;
+    private readonly SteamTokenStore tokenStore;
+
+    // True while the in-flight logon is using a persisted refresh token rather than a
+    // fresh credential auth. Lets OnLoggedOn know that a rejection means the stored
+    // token is stale (clear it and re-auth on the next connect) rather than bad creds.
+    private volatile bool loggingOnWithStoredToken;
+
     private readonly DiscordClient discordClient;
     private readonly ILogger logger;
 
@@ -89,7 +98,7 @@ public sealed class SteamGcClient : ISteamGcClient
     public event EventHandler<LobbyLaunchedEventArgs>? LobbyLaunched;
     public event EventHandler<MatchCompletedEventArgs>? MatchCompleted;
 
-    public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger)
+    public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger, bool enableReconnect = true, SteamTokenStore? tokenStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
@@ -98,6 +107,8 @@ public sealed class SteamGcClient : ISteamGcClient
 
         this.username = username;
         this.password = password;
+        this.enableReconnect = enableReconnect;
+        this.tokenStore = tokenStore ?? new SteamTokenStore();
         this.discordClient = discordClient;
         this.logger = logger;
 
@@ -678,12 +689,80 @@ public sealed class SteamGcClient : ISteamGcClient
 
     private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
     {
-        logger.LogInformation("[{Username}] Connected to Steam; attempting authentication", username);
-        steamUser.LogOn(new SteamUser.LogOnDetails
+        logger.LogInformation("[{Username}] Connected to Steam; starting authentication", username);
+        // SteamKit2 3.x no longer logs on with a bare username/password — Steam rejects
+        // that legacy path. We run an authentication session that exchanges credentials
+        // for a refresh token (handling any SteamGuard challenge), persist the token, and
+        // log on with it; subsequent connects reuse the stored token. This round-trips to
+        // Steam asynchronously, so it must run OFF the callback pump thread — otherwise it
+        // would block RunWaitCallbacks, which is what dispatches the very responses the
+        // auth session is awaiting.
+        _ = Task.Run(AuthenticateAndLogOnAsync);
+    }
+
+    private async Task AuthenticateAndLogOnAsync()
+    {
+        try
         {
-            Username = username,
-            Password = password
-        });
+            var refreshToken = tokenStore.TryLoad(username);
+
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                logger.LogInformation("[{Username}] Logging on with stored refresh token", username);
+                loggingOnWithStoredToken = true;
+                steamUser.LogOn(new SteamUser.LogOnDetails
+                {
+                    Username = username,
+                    AccessToken = refreshToken
+                });
+                return;
+            }
+
+            logger.LogInformation("[{Username}] No stored token; beginning credential auth session", username);
+
+            // UserConsoleAuthenticator prompts on the console if Steam issues a SteamGuard
+            // challenge. With SteamGuard disabled it's never invoked; the session returns a
+            // token immediately. In a non-interactive host a guard challenge would block on
+            // Console input — see the one-time-login note in the code review/docs.
+            var authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(new AuthSessionDetails
+            {
+                Username = username,
+                Password = password,
+                IsPersistentSession = true,
+                Authenticator = new UserConsoleAuthenticator()
+            });
+
+            var pollResult = await authSession.PollingWaitForResultAsync();
+
+            // Steam returns the canonical account name; persist + log on with that so the
+            // token and the logon identity always agree (case/alias differences included).
+            tokenStore.Save(pollResult.AccountName, pollResult.RefreshToken);
+            logger.LogInformation("[{Username}] Credential auth succeeded; refresh token stored", username);
+
+            loggingOnWithStoredToken = false;
+            steamUser.LogOn(new SteamUser.LogOnDetails
+            {
+                Username = pollResult.AccountName,
+                AccessToken = pollResult.RefreshToken
+            });
+        }
+        catch (AuthenticationException ex)
+        {
+            // Steam rejected the credentials themselves (bad password, guard failure, …).
+            // Retrying the same secrets can't succeed, so stop the reconnect loop and drop
+            // any stale token; fix the configured credentials and restart.
+            logger.LogError(ex, "[{Username}] Steam credential authentication was rejected; not retrying", username);
+            authenticationFailed = true;
+            tokenStore.Clear(username);
+            steamClient.Disconnect();
+        }
+        catch (Exception ex)
+        {
+            // Transient failure (network, Steam hiccup). Disconnect so OnDisconnected owns
+            // the backoff/reconnect decision rather than leaving the client half-connected.
+            logger.LogError(ex, "[{Username}] Steam authentication threw; disconnecting to let reconnect policy decide", username);
+            steamClient.Disconnect();
+        }
     }
 
     private void OnDisconnected(SteamKit2.SteamClient.DisconnectedCallback callback)
@@ -711,6 +790,15 @@ public sealed class SteamGcClient : ISteamGcClient
             logger.LogError(
                 "[{Username}] Not reconnecting: Steam rejected this account's credentials. " +
                 "Fix the configured username/password (and SteamGuard, if enabled) and restart.",
+                username);
+            return;
+        }
+
+        if (!enableReconnect)
+        {
+            logger.LogWarning(
+                "[{Username}] Not reconnecting: reconnect is disabled (Steam:EnableReconnect=false). " +
+                "Restart the process to reconnect.",
                 username);
             return;
         }
@@ -758,7 +846,16 @@ public sealed class SteamGcClient : ISteamGcClient
         if (callback.Result != EResult.OK)
         {
             logger.LogError("[{Username}] Steam authentication failed: {Result}", username, callback.Result);
-            if (SteamReconnectPolicy.IsNonRetryableLogonResult(callback.Result))
+
+            // A logon with a stored refresh token that's expired/revoked comes back as
+            // Expired/AccessDenied/InvalidPassword. Drop the token so the next connect
+            // falls back to a fresh credential auth rather than replaying a dead token.
+            if (loggingOnWithStoredToken && SteamReconnectPolicy.IsStaleTokenResult(callback.Result))
+            {
+                logger.LogWarning("[{Username}] Stored refresh token rejected ({Result}); clearing it to re-auth on next connect", username, callback.Result);
+                tokenStore.Clear(username);
+            }
+            else if (SteamReconnectPolicy.IsNonRetryableLogonResult(callback.Result))
             {
                 authenticationFailed = true;
                 logger.LogError(
@@ -769,6 +866,7 @@ public sealed class SteamGcClient : ISteamGcClient
         }
 
         isLoggedOn = true;
+        loggingOnWithStoredToken = false;
         reconnectAttempts = 0;
         logger.LogInformation("[{Username}] Steam authentication successful", username);
         steamFriends.SetPersonaState(EPersonaState.Online);

@@ -17,12 +17,21 @@ DockerBootstrap.EnsureRunning();
 
 var builder = DistributedApplication.CreateBuilder(args);
 
+// Pin the SA password to an explicit parameter instead of letting Aspire generate a
+// random one. A generated password is only persisted in user secrets, so it silently
+// regenerates whenever those secrets are missing (fresh clone, cleared secrets, another
+// machine) — which both changes the SSMS connection string AND breaks login against the
+// existing data volume, whose master DB still holds the original password. Pinning it
+// makes the connection string (Server=127.0.0.1,52001; User ID=sa) identical every run.
+// The value lives in user secrets under "Parameters:sql-password" and must match the
+// password baked into the existing volume's master DB.
+var sqlPassword = builder.AddParameter("sql-password", secret: true);
+
 // A named data volume keeps the SQL data outside the container's writable layer, so
 // the database (registrations, matches, ratings) survives container recreation —
 // Docker Desktop restarts, prunes, or Aspire reprovisioning. Without it, data lived
 // only inside the container and was wiped whenever the container was recreated.
-// The SA password is a stable persisted parameter, so it matches the volume's master DB.
-var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", port: 52001)
+var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", password: sqlPassword, port: 52001)
     .WithDataVolume("dota2ihl-sql-data")
     .WithLifetime(ContainerLifetime.Persistent);
 

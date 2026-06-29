@@ -18,6 +18,7 @@ public sealed class SteamGcClientPool : IHostedService
     private readonly DiscordClient discordClient;
     private readonly ILoggerFactory loggerFactory;
     private ISteamGcClient? defaultClient;
+    private readonly bool enableReconnect;
     private readonly ILogger<SteamGcClientPool> logger;
 
     public SteamGcClientPool(
@@ -37,6 +38,7 @@ public sealed class SteamGcClientPool : IHostedService
         clientsByUsername = new Dictionary<string, ISteamGcClient>(StringComparer.OrdinalIgnoreCase);
 
         var options = steamOptions.Value;
+        enableReconnect = options.EnableReconnect;
 
         // BotAccount comes first so it becomes the default — used by the admin
         // /create passthrough and as a sensible "first" choice for ad-hoc ops.
@@ -219,6 +221,6 @@ public sealed class SteamGcClientPool : IHostedService
         // Use a per-account logger category so multi-bot log lines stay distinguishable
         // in the Aspire dashboard without having to read every message body.
         var perAccountLogger = loggerFactory.CreateLogger($"IHLDota2Bot.Services.SteamGcClient[{username}]");
-        return new SteamGcClient(username, password, discordClient, perAccountLogger);
+        return new SteamGcClient(username, password, discordClient, perAccountLogger, enableReconnect);
     }
 }
