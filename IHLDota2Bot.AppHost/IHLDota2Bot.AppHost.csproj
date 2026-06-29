@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IHLDota2Bot.Desktop\IHLDota2Bot.Desktop.csproj" />
     <ProjectReference Include="..\IHLDota2Bot.Discord\IHLDota2Bot.Discord.csproj" />
     <ProjectReference Include="..\IHLDota2Bot\IHLDota2Bot.csproj" />
   </ItemGroup>

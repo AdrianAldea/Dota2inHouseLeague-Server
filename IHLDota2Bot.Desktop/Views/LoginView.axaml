@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="IHLDota2Bot.Desktop.Views.LoginView"
+             x:DataType="vm:LoginViewModel">
+
+    <Panel>
+        <Border Classes="card" Width="430" Padding="44" CornerRadius="18"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Spacing="24">
+
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <Border Width="66" Height="66" CornerRadius="16" Background="{DynamicResource AccentBrush}">
+                        <PathIcon Data="{StaticResource IconBolt}" Width="32" Height="32" Foreground="#1B1205"/>
+                    </Border>
+                    <TextBlock Text="DOTA IHL" Classes="h1" HorizontalAlignment="Center"/>
+                    <TextBlock Classes="body" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="320"
+                               Text="Sign in to queue, climb the ladder, and track your matches."/>
+                </StackPanel>
+
+                <Button Classes="accent" HorizontalAlignment="Stretch"
+                        Command="{Binding SignInCommand}" IsEnabled="{Binding !IsBusy}">
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                        <PathIcon Data="{StaticResource IconSteam}" Width="18" Height="18" Foreground="#1B1205"/>
+                        <TextBlock Text="SIGN IN THROUGH STEAM" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <StackPanel Spacing="8" IsVisible="{Binding IsBusy}" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="220" Height="4"
+                                 Foreground="{DynamicResource AccentBrush}"
+                                 Background="{DynamicResource SurfaceHoverBrush}"/>
+                    <TextBlock Text="Continue in your browser…" Classes="muted" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" TextAlignment="Center"
+                           Foreground="{DynamicResource LossBrush}" FontSize="13"
+                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            </StackPanel>
+        </Border>
+    </Panel>
+</UserControl>

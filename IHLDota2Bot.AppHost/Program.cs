@@ -17,7 +17,13 @@ DockerBootstrap.EnsureRunning();
 
 var builder = DistributedApplication.CreateBuilder(args);
 
+// A named data volume keeps the SQL data outside the container's writable layer, so
+// the database (registrations, matches, ratings) survives container recreation —
+// Docker Desktop restarts, prunes, or Aspire reprovisioning. Without it, data lived
+// only inside the container and was wiped whenever the container was recreated.
+// The SA password is a stable persisted parameter, so it matches the volume's master DB.
 var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", port: 52001)
+    .WithDataVolume("dota2ihl-sql-data")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var db = sql.AddDatabase("Dota2inHouseLeagueDB");
@@ -41,5 +47,18 @@ builder.AddNpmApp("Dota2inHouseLeague-FrontEnd", "../IHLDota2BotFrontEnd")
     .WithHttpEndpoint(port: 4200, targetPort: 4200, isProxied: false)
     .WithExternalHttpEndpoints()
     .WaitFor(dota2);
+
+// Avalonia desktop player client. Registered as an AppHost-managed resource (so it's
+// reaped on shutdown) but with explicit start: it shows in the dashboard and only
+// launches when you click Start, rather than popping a GUI window on every run. It
+// reads its backend URL from IHL_API_BASE, which we point at the Game Manager's
+// (dynamically assigned) endpoint instead of the appsettings.json default. Excluded
+// from the manifest since a GUI client isn't a deployable service. Waits for the
+// backend so auth calls land.
+builder.AddProject<Projects.IHLDota2Bot_Desktop>("Dota2inHouseLeague-Desktop")
+    .WithEnvironment("IHL_API_BASE", dota2.GetEndpoint("http"))
+    .WaitFor(dota2)
+    .WithExplicitStart()
+    .ExcludeFromManifest();
 
 builder.Build().Run();

@@ -1,0 +1,67 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Premium dark palette. Single source of truth for the app's look — change
+        a value here and it propagates everywhere via {DynamicResource}.
+    -->
+
+    <!-- Base surfaces (near-black → elevated) -->
+    <Color x:Key="BgBaseColor">#0B0C10</Color>
+    <Color x:Key="BgSunkenColor">#0E1016</Color>
+    <Color x:Key="SurfaceColor">#15171F</Color>
+    <Color x:Key="SurfaceElevatedColor">#1C1F2A</Color>
+    <Color x:Key="SurfaceHoverColor">#232734</Color>
+    <Color x:Key="BorderColor">#2A2F3C</Color>
+    <Color x:Key="BorderStrongColor">#3A4150</Color>
+
+    <!-- Text -->
+    <Color x:Key="TextPrimaryColor">#F5F7FA</Color>
+    <Color x:Key="TextSecondaryColor">#9BA3B4</Color>
+    <Color x:Key="TextMutedColor">#5F6675</Color>
+
+    <!-- Accent (FaceIt-style orange → amber) -->
+    <Color x:Key="AccentColor">#FF6A2B</Color>
+    <Color x:Key="AccentHotColor">#FF8A3D</Color>
+    <Color x:Key="AccentAmberColor">#FFB23D</Color>
+
+    <!-- Status -->
+    <Color x:Key="WinColor">#3FD6A0</Color>
+    <Color x:Key="LossColor">#FF5C5C</Color>
+    <Color x:Key="ReadyColor">#3FD6A0</Color>
+    <Color x:Key="IdleColor">#9BA3B4</Color>
+
+    <!-- ── Brushes ── -->
+    <SolidColorBrush x:Key="BgBaseBrush" Color="{StaticResource BgBaseColor}"/>
+    <SolidColorBrush x:Key="BgSunkenBrush" Color="{StaticResource BgSunkenColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{StaticResource SurfaceElevatedColor}"/>
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHoverColor}"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}"/>
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}"/>
+
+    <SolidColorBrush x:Key="AccentSolidBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="WinBrush" Color="{StaticResource WinColor}"/>
+    <SolidColorBrush x:Key="LossBrush" Color="{StaticResource LossColor}"/>
+    <SolidColorBrush x:Key="ReadyBrush" Color="{StaticResource ReadyColor}"/>
+
+    <!-- Accent gradient used for primary buttons, hero highlights, the brand mark -->
+    <LinearGradientBrush x:Key="AccentBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Offset="0" Color="{StaticResource AccentColor}"/>
+        <GradientStop Offset="1" Color="{StaticResource AccentAmberColor}"/>
+    </LinearGradientBrush>
+
+    <!-- Subtle vertical sheen for elevated cards / hero panel -->
+    <LinearGradientBrush x:Key="HeroBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0" Color="#1F2330"/>
+        <GradientStop Offset="1" Color="#14161E"/>
+    </LinearGradientBrush>
+
+    <!-- Shared shape metrics -->
+    <CornerRadius x:Key="RadiusSm">8</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">12</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">18</CornerRadius>
+</ResourceDictionary>

@@ -1,0 +1,144 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="760"
+             x:Class="IHLDota2Bot.Desktop.Views.PlayView"
+             x:DataType="vm:PlayViewModel">
+
+    <UserControl.Styles>
+        <!-- Slot tile -->
+        <Style Selector="Border.slot">
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        </Style>
+        <Style Selector="Border.slot.empty">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+        </Style>
+        <Style Selector="Border.avatar">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="CornerRadius" Value="999"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+        </Style>
+        <Style Selector="ProgressBar.ready">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+            <Setter Property="Height" Value="8"/>
+            <Setter Property="CornerRadius" Value="999"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="36" Spacing="24" MaxWidth="1040" HorizontalAlignment="Stretch">
+
+            <Border Classes="pill" HorizontalAlignment="Left" IsVisible="{Binding IsOffline}"
+                    Background="#332512" BorderBrush="#5A3F1A">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Text="●" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentSolidBrush}"/>
+                    <TextBlock Text="Offline — sample data" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Match-ready banner -->
+            <Border IsVisible="{Binding MatchReady}" CornerRadius="12" Padding="18,14"
+                    Background="#16352A" BorderBrush="{DynamicResource ReadyBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource IconCheck}" Width="20" Height="20"
+                              Foreground="{DynamicResource ReadyBrush}"/>
+                    <TextBlock Text="Match ready — launch Dota 2 and join the lobby!" FontWeight="SemiBold"
+                               FontSize="14" VerticalAlignment="Center"
+                               Foreground="{DynamicResource ReadyBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Hero -->
+            <Border CornerRadius="18" Padding="34" Background="{DynamicResource HeroBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="QUICK MATCH" Classes="caption"
+                                   Foreground="{DynamicResource AccentSolidBrush}"/>
+                        <TextBlock Text="Ready to climb?" Classes="h1"/>
+                        <TextBlock Classes="body" MaxWidth="430" TextWrapping="Wrap"
+                                   Text="Jump into the queue and we'll build a balanced 5v5 lobby. Ready up when the match is found."/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="12" MinWidth="210">
+                        <Button Classes="accent" HorizontalAlignment="Stretch"
+                                Command="{Binding ToggleQueueCommand}"
+                                IsVisible="{Binding !InQueue}" Content="FIND MATCH"/>
+                        <Button Classes="accent" HorizontalAlignment="Stretch"
+                                Command="{Binding ReadyCommand}"
+                                IsVisible="{Binding InQueue}" Content="READY UP"/>
+                        <Button Classes="ghost" HorizontalAlignment="Stretch"
+                                Command="{Binding ToggleQueueCommand}"
+                                IsVisible="{Binding InQueue}" Content="LEAVE QUEUE"/>
+                        <TextBlock Classes="muted" HorizontalAlignment="Center"
+                                   IsVisible="{Binding InQueue}" Text="● Searching for players…"
+                                   Foreground="{DynamicResource AccentSolidBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Live lobby -->
+            <Border Classes="card" Padding="26">
+                <StackPanel Spacing="18">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                            <TextBlock Text="LIVE LOBBY" Classes="caption"/>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="h2" Text="{Binding PlayersReady}"/>
+                                <TextBlock Classes="h2" Text="/" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <TextBlock Classes="h2" Text="{Binding PlayersPerLobby}"/>
+                                <TextBlock Classes="h2" Text="ready" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Border Grid.Column="1" Classes="pill" VerticalAlignment="Top">
+                            <TextBlock Text="Captains Mode" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </Border>
+                    </Grid>
+
+                    <ProgressBar Classes="ready" Minimum="0"
+                                 Maximum="{Binding PlayersPerLobby}" Value="{Binding PlayersReady}"/>
+
+                    <ItemsControl ItemsSource="{Binding Slots}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Classes="slot" Classes.empty="{Binding IsEmpty}" Margin="5">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Border Grid.Column="0" Classes="avatar">
+                                            <TextBlock Text="{Binding Initial}" FontWeight="Bold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center"
+                                                   FontWeight="SemiBold" FontSize="14"
+                                                   Text="{Binding Name, FallbackValue='Open slot'}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12"
+                                                   FontWeight="SemiBold" Text="{Binding StatusText}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
