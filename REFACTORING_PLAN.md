@@ -111,12 +111,20 @@ Goal: eliminate crash/race risks.
       backoff (5s → 2min cap, reset on successful logon) and a non-retryable
       auth guard (bad password / SteamGuard / disabled / banned) that stops the
       reconnect loop instead of hammering Steam with credentials that can't work.
-- [~] **Match/Steam consistency**: the lobby-ready path already persists the
-      match in the DB *first* and rolls back the in-memory reservation + pool
-      account if the write fails (so a DB failure can't strand a lobby), and
-      both the GC `MatchCompleted` path and admin destroy settle the DB row
-      idempotently. Left as-is; revisit if a transactional boundary across the
-      DB and Steam GC is needed later.
+- [x] **Match/Steam consistency**: the lobby-ready path persists the match in
+      the DB *first* and rolls back the in-memory reservation + pool account if
+      the write fails (so a DB failure can't strand a lobby); both the GC
+      `MatchCompleted` path and admin destroy settle the DB row idempotently.
+      The remaining gap — a match committed and account reserved, then the Steam
+      GC failing to create the Dota lobby — now triggers a **compensating
+      rollback** (`RollbackLaunchAsync`): the launch/complete handlers are
+      detached, the match is cancelled (no rating change), the account is
+      released, the session is dropped, and the channel is notified so players
+      can re-queue, instead of announcing a phantom lobby and stranding an
+      `InProgress` match until the next startup's stale reconciliation. The GC
+      pool was put behind `ISteamGcClientPool` so the rollback is unit-tested
+      (`LobbyPoolManagerLaunchRollbackTests`). The bot-offline / no-client
+      branches still deliberately keep the match for an admin to finish.
 
 ### Phase 2 — Abstractions & Testability
 

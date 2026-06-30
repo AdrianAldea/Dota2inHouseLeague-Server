@@ -16,6 +16,9 @@ internal static class LobbyMessages
     public static string PersistFailed(string lobbyId, string accountUsername) =>
         $"⚠️ Lobby {lobbyId} could not be persisted to the database. Account {accountUsername} released; please retry.";
 
+    public static string LaunchFailed(string lobbyId, string accountUsername) =>
+        $"⚠️ Lobby {lobbyId} could not be created on Steam. Match cancelled and account {accountUsername} released; please retry.";
+
     public static string LobbyReady(string lobbyId, string lobbyName, string lobbyPassword, string accountUsername) =>
         $"Lobby {lobbyId} is ready! Steam lobby `{lobbyName}` (password `{lobbyPassword}`). Assigned account: {accountUsername}";
 

@@ -11,7 +11,7 @@ namespace IHLDota2Bot.Services;
 /// accounts via <see cref="TryAddAccountAsync"/> so an `!add_account` flow can
 /// reach a real Steam connection — not just bookkeeping.
 /// </summary>
-public sealed class SteamGcClientPool : IHostedService
+public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
 {
     private readonly Dictionary<string, ISteamGcClient> clientsByUsername;
     private readonly Lock lockObject = new();

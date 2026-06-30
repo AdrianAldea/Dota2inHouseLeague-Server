@@ -18,7 +18,7 @@ public class LobbyPoolManager : IHostedService
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
-    private readonly SteamGcClientPool steamGcPool;
+    private readonly ISteamGcClientPool steamGcPool;
     private readonly GameMetrics gameMetrics;
     private readonly ILogger<LobbyPoolManager> logger;
     private readonly SteamOptions steamOptions;
@@ -34,7 +34,7 @@ public class LobbyPoolManager : IHostedService
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
         IMatchRepository matchRepository,
-        SteamGcClientPool steamGcPool,
+        ISteamGcClientPool steamGcPool,
         GameMetrics gameMetrics,
         IOptions<SteamOptions> steamOptions,
         ILogger<LobbyPoolManager> logger)
@@ -303,6 +303,12 @@ public class LobbyPoolManager : IHostedService
             }
             else
             {
+                // Subscribe before CreateLobbyAsync — the GC snapshot can land
+                // immediately. Handlers self-detach once they fire for this lobby.
+                // Hoisted out of the try so the catch can detach them on rollback.
+                var lobbyId = lobby.Id;
+                EventHandler<LobbyLaunchedEventArgs>? handler = null;
+                EventHandler<MatchCompletedEventArgs>? completedHandler = null;
                 try
                 {
                     var steamIds = lobby.Players
@@ -315,10 +321,6 @@ public class LobbyPoolManager : IHostedService
                         logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players; auto-launch disabled", lobby.Id);
                     }
 
-                    // Subscribe before CreateLobbyAsync — the GC snapshot can land
-                    // immediately. Handler self-detaches once it fires for this lobby.
-                    var lobbyId = lobby.Id;
-                    EventHandler<LobbyLaunchedEventArgs>? handler = null;
                     handler = async (_, args) =>
                     {
                         if (args.AppLobbyId != lobbyId) return;
@@ -340,7 +342,6 @@ public class LobbyPoolManager : IHostedService
                     // The GC tells us the result when the match reaches POSTGAME.
                     // Subscribe a self-detaching handler so the win is recorded and
                     // posted to Discord without anyone having to !report it.
-                    EventHandler<MatchCompletedEventArgs>? completedHandler = null;
                     completedHandler = async (_, args) =>
                     {
                         if (args.AppLobbyId != lobbyId) return;
@@ -372,7 +373,18 @@ public class LobbyPoolManager : IHostedService
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}", lobby.Id);
+                    // The Steam GC actively failed to stand up the Dota lobby, so — unlike
+                    // the bot-offline branches above, which deliberately keep the match for
+                    // an admin to finish — there is definitively no game for these players.
+                    // Don't announce a lobby that doesn't exist and don't leave the match
+                    // InProgress with the account reserved: detach the now-stale launch/
+                    // complete handlers and run the compensating rollback so the DB and
+                    // Steam agree and the players can re-queue.
+                    logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}; rolling back reservation", lobby.Id);
+                    if (handler != null) botClient.LobbyLaunched -= handler;
+                    if (completedHandler != null) botClient.MatchCompleted -= completedHandler;
+                    await RollbackLaunchAsync(lobby, account, session);
+                    return;
                 }
             }
 
@@ -391,6 +403,49 @@ public class LobbyPoolManager : IHostedService
         {
             logger.LogError(ex, "Error handling LobbyReady event");
         }
+    }
+
+    /// <summary>
+    /// Compensating rollback for the window between persisting a match and the Steam GC
+    /// actually creating the Dota lobby. The match was committed and the account reserved,
+    /// but the GC call threw — so there is no lobby. Cancel the DB match (no rating change),
+    /// release the pool account, drop the in-memory session, and tell the channel so the
+    /// players can re-queue. This closes the DB↔Steam consistency gap that would otherwise
+    /// leave an orphaned InProgress match until the next startup's stale reconciliation.
+    /// </summary>
+    private async Task RollbackLaunchAsync(Lobby lobby, SteamAccount account, LobbySession session)
+    {
+        try
+        {
+            // Null winner => Cancelled, no rating change; no-op if already settled.
+            var result = await matchRepository.CompleteMatchByLobbyAsync(lobby.Id, winningTeam: null);
+            logger.LogInformation("RollbackLaunchAsync: {Message}", result.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "RollbackLaunchAsync: failed to cancel match for lobby {LobbyId}", lobby.Id);
+        }
+
+        lock (lockObject)
+        {
+            activeSessions.Remove(lobby.Id);
+            lobby.SteamAccountId = null;
+        }
+
+        try
+        {
+            await accountPool.ReleaseAccountAsync(account.Id);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "RollbackLaunchAsync: failed to release account {AccountId} for lobby {LobbyId}", account.Id, lobby.Id);
+        }
+
+        // The match was created then immediately cancelled — record the finish so the
+        // lobby→finish lifecycle metric stays balanced against RecordMatchCreated.
+        gameMetrics.RecordMatchFinished(GameMetrics.OutcomeCancelled, DateTime.UtcNow - session.StartedAt);
+
+        await SafeBroadcastAsync(LobbyMessages.LaunchFailed(lobby.Id, account.Username));
     }
 
     private void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
