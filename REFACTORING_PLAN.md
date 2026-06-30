@@ -18,7 +18,7 @@ The solution is a .NET Aspire–orchestrated, multi-project system:
 | `IHLDota2Bot.Common` | Shared DTOs / requests / enums | ~15 files |
 | `IHLDota2Bot.ServiceDefaults` | OpenTelemetry, resilience, health checks | small |
 | `IHLDota2Bot.AppHost` | Aspire orchestration | small |
-| `IHLDota2Bot.Desktop` | Avalonia player client (Steam login, MVVM) | ~40 files |
+| `IHLDota2Bot.Desktop` | Avalonia player client (Steam login, MVVM) | ~46 files |
 | `IHLDota2BotFrontEnd` | Angular 21 admin dashboard | ~482 LOC, 0 tests |
 | `*.Tests` / `IntegrationTests` | xUnit + Moq, in-memory EF, WebApplicationFactory | partial |
 
