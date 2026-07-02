@@ -99,7 +99,7 @@ public partial class PlayViewModel : ViewModelBase
         }
     }
 
-    private async Task RefreshAsync()
+    public override async Task RefreshAsync()
     {
         try
         {

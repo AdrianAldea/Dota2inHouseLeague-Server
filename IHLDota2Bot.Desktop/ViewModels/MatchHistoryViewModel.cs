@@ -39,7 +39,7 @@ public partial class MatchHistoryViewModel : ViewModelBase
     {
         _api = api;
         _myId = session.Me?.UserId ?? 0;
-        _ = LoadAsync();
+        _ = RefreshAsync();
     }
 
     partial void OnSelectedMatchChanged(MatchListItem? value) => OnPropertyChanged(nameof(IsDetailOpen));
@@ -50,7 +50,7 @@ public partial class MatchHistoryViewModel : ViewModelBase
     [RelayCommand]
     private void CloseDetail() => SelectedMatch = null;
 
-    private async Task LoadAsync()
+    public override async Task RefreshAsync()
     {
         try
         {

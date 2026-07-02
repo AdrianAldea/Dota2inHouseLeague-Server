@@ -41,10 +41,10 @@ public partial class ProfileViewModel : ViewModelBase
     {
         _api = api;
         _myId = session.Me?.UserId ?? 0;
-        _ = LoadAsync();
+        _ = RefreshAsync();
     }
 
-    private async Task LoadAsync()
+    public override async Task RefreshAsync()
     {
         try
         {

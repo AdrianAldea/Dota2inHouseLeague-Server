@@ -31,10 +31,10 @@ public partial class LeaderboardViewModel : ViewModelBase
     public LeaderboardViewModel(ApiClient api)
     {
         _api = api;
-        _ = LoadAsync();
+        _ = RefreshAsync();
     }
 
-    private async Task LoadAsync()
+    public override async Task RefreshAsync()
     {
         IsLoading = true;
         try
