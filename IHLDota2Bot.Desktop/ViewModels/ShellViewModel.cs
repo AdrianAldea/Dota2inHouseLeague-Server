@@ -65,8 +65,13 @@ public partial class ShellViewModel : ViewModelBase
 
     partial void OnSelectedNavChanged(NavItem? value)
     {
-        if (value is not null)
-            CurrentPage = value.Page;
+        if (value is null)
+            return;
+
+        CurrentPage = value.Page;
+        // Re-fetch on activation so a screen reflects server state that changed while it
+        // was in the background (e.g. new rating/record after a match finished).
+        _ = value.Page.RefreshAsync();
     }
 
     [RelayCommand]
