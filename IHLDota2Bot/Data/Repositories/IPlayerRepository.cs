@@ -14,6 +14,15 @@ public interface IPlayerRepository
         CancellationToken cancellationToken = default
     );
     Task<List<PlayerEntity>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Batch lookup by user id (e.g. the ten members of a full lobby in one query).
+    /// Ids without a matching row are simply absent from the result.
+    /// </summary>
+    Task<List<PlayerEntity>> GetByUserIdsAsync(
+        IReadOnlyCollection<ulong> userIds,
+        CancellationToken cancellationToken = default
+    );
     Task<PlayerEntity> UpsertAsync(
         PlayerEntity player,
         CancellationToken cancellationToken = default

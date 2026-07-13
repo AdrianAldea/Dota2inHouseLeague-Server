@@ -12,6 +12,7 @@ using IHLDota2Bot.Data.Entities;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
 using IHLDota2Bot.Telemetry;
+using IHLDota2Bot.Tests.TestSupport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -121,6 +122,7 @@ public class LobbyPoolManagerLaunchRollbackTests
             new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), Options.Create(new LeagueOptions())),
             discordClient,
             repo,
+            PlayerRepositoryStubs.Empty(),
             gcPool,
             new GameMetrics(),
             Options.Create(new SteamOptions()),

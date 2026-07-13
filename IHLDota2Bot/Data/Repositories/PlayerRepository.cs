@@ -55,6 +55,18 @@ public class PlayerRepository : IPlayerRepository
         return await context.Players.AsNoTracking().ToListAsync(cancellationToken);
     }
 
+    public async Task<List<PlayerEntity>> GetByUserIdsAsync(
+        IReadOnlyCollection<ulong> userIds,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context
+            .Players.AsNoTracking()
+            .Where(p => userIds.Contains(p.UserId))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<PlayerEntity> UpsertAsync(
         PlayerEntity player,
         CancellationToken cancellationToken = default

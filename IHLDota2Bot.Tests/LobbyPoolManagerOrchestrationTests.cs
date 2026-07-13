@@ -4,6 +4,7 @@ using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data.Repositories;
 using IHLDota2Bot.Services;
+using IHLDota2Bot.Tests.TestSupport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -54,6 +55,7 @@ public class LobbyPoolManagerOrchestrationTests
             new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), Options.Create(new LeagueOptions())),
             discordClient,
             repo,
+            PlayerRepositoryStubs.Empty(),
             steamGcPool,
             new IHLDota2Bot.Telemetry.GameMetrics(),
             steamOptions,
