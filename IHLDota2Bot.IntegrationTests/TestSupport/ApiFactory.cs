@@ -1,4 +1,5 @@
 using IHLDota2Bot.Clients;
+using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data;
 using IHLDota2Bot.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -17,9 +18,11 @@ namespace IHLDota2Bot.IntegrationTests.TestSupport;
 ///   <item>The Discord webhook HttpClient → <see cref="StubOkHandler"/>.</item>
 /// </list>
 /// Everything else is the real wiring: minimal-API endpoints, <c>Dota2Service</c>,
-/// the EF repositories, <c>EloCalculator</c>, and the hosted services. The hosted
-/// services start cleanly because the default config has no Steam accounts, so the
-/// Steam pool never opens a real connection.
+/// the EF repositories, <c>EloCalculator</c>, and the hosted services. Steam
+/// credentials are force-cleared via <c>PostConfigure&lt;SteamOptions&gt;</c> so the
+/// pool builds zero clients and never opens a real connection — regardless of what
+/// the developer's user-secrets or environment contain (the TestServer runs in
+/// Development and would otherwise load them).
 ///
 /// <para><see cref="Dota2Service"/> is only an assembly marker for the entry point
 /// (the app's top-level <c>Program</c> is internal); the factory never instantiates it.</para>
@@ -38,6 +41,16 @@ public sealed class ApiFactory : WebApplicationFactory<Dota2Service>
 
         builder.ConfigureServices(services =>
         {
+            // Tests must be hermetic: strip every Steam account so SteamGcClientPool
+            // builds no clients and the boot-time auto-connect has nothing to start.
+            // PostConfigure runs after config binding, so this also neutralises real
+            // credentials coming from the developer's user-secrets or env vars.
+            services.PostConfigure<SteamOptions>(options =>
+            {
+                options.BotAccount = new SteamAccountCredentials();
+                options.PoolAccounts = [];
+            });
+
             // Drop the SQL Server DbContext factory wiring and replace it with a
             // shared in-memory store. Catches the factory, options, source and
             // (EF 9+) options-configuration descriptors closed over AppDbContext.
