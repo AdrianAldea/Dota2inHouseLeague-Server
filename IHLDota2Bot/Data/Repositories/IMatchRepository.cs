@@ -5,8 +5,15 @@ namespace IHLDota2Bot.Data.Repositories;
 
 public interface IMatchRepository
 {
-    Task<MatchEntity> CreateMatchAsync(string? lobbyId, IEnumerable<(ulong UserId, MatchTeam Team)> players, CancellationToken cancellationToken = default);
-    Task<MatchSummary?> GetCurrentMatchForPlayerAsync(ulong userId, CancellationToken cancellationToken = default);
+    Task<MatchEntity> CreateMatchAsync(
+        string? lobbyId,
+        IEnumerable<(ulong UserId, MatchTeam Team)> players,
+        CancellationToken cancellationToken = default
+    );
+    Task<MatchSummary?> GetCurrentMatchForPlayerAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    );
     Task<MatchSummary?> GetByIdAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -15,14 +22,25 @@ public interface IMatchRepository
     /// Lets the admin panel jump straight from an active lobby to its match details
     /// without first discovering the match GUID.
     /// </summary>
-    Task<MatchSummary?> GetByLobbyIdAsync(string lobbyId, CancellationToken cancellationToken = default);
-    Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(ulong userId, int top, CancellationToken cancellationToken = default);
+    Task<MatchSummary?> GetByLobbyIdAsync(
+        string lobbyId,
+        CancellationToken cancellationToken = default
+    );
+    Task<RecentMatchesResponse> GetRecentMatchesForPlayerAsync(
+        ulong userId,
+        int top,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// Mark a match completed, set the winner, and apply rating/wins/losses to participants.
     /// Returns null if the match isn't found, or the (possibly already-completed) match summary otherwise.
     /// </summary>
-    Task<ReportMatchResult> ReportMatchAsync(ulong reporterUserId, MatchTeam winningTeam, CancellationToken cancellationToken = default);
+    Task<ReportMatchResult> ReportMatchAsync(
+        ulong reporterUserId,
+        MatchTeam winningTeam,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// Settles the InProgress match for <paramref name="lobbyId"/> using a result
@@ -33,7 +51,11 @@ public interface IMatchRepository
     /// change. Idempotent: a no-op returning the existing summary if the match
     /// is already settled or no InProgress match exists for the lobby.
     /// </summary>
-    Task<ReportMatchResult> CompleteMatchByLobbyAsync(string lobbyId, MatchTeam? winningTeam, CancellationToken cancellationToken = default);
+    Task<ReportMatchResult> CompleteMatchByLobbyAsync(
+        string lobbyId,
+        MatchTeam? winningTeam,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// All matches still marked InProgress whose CreatedAt is older than <paramref name="olderThanUtc"/>.
@@ -41,7 +63,10 @@ public interface IMatchRepository
     /// stranded by a crash / kill mid-game (the in-memory <c>LobbySession</c> is gone but the DB row
     /// would otherwise stay InProgress forever).
     /// </summary>
-    Task<List<MatchEntity>> GetStaleInProgressMatchesAsync(DateTime olderThanUtc, CancellationToken cancellationToken = default);
+    Task<List<MatchEntity>> GetStaleInProgressMatchesAsync(
+        DateTime olderThanUtc,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// Marks a match as Cancelled. Does not touch player Wins/Losses/Rating —

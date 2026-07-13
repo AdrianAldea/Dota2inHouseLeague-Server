@@ -31,14 +31,13 @@ internal static class InMemoryDb
         factory
             .Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new AppDbContext(options));
-        factory
-            .Setup(f => f.CreateDbContext())
-            .Returns(() => new AppDbContext(options));
+        factory.Setup(f => f.CreateDbContext()).Returns(() => new AppDbContext(options));
 
         return factory;
     }
 
     /// <summary>Opens a throwaway context against the same store for arrange/assert.</summary>
-    public static async Task<AppDbContext> NewContextAsync(this Mock<IDbContextFactory<AppDbContext>> factory)
-        => await factory.Object.CreateDbContextAsync();
+    public static async Task<AppDbContext> NewContextAsync(
+        this Mock<IDbContextFactory<AppDbContext>> factory
+    ) => await factory.Object.CreateDbContextAsync();
 }

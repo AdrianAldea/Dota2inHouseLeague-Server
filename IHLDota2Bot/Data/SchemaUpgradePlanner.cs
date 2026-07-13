@@ -19,7 +19,7 @@ public enum SchemaUpgradeAction
     /// path. Record the initial migration as already applied (so its <c>Up()</c>
     /// isn't replayed over existing tables), then migrate any later migrations.
     /// </summary>
-    BaselineThenMigrate
+    BaselineThenMigrate,
 }
 
 /// <summary>
@@ -35,7 +35,8 @@ public static class SchemaUpgradePlanner
     public static SchemaUpgradeAction Decide(
         bool databaseExists,
         bool migrationsHistoryExists,
-        bool hasApplicationTables)
+        bool hasApplicationTables
+    )
     {
         // Nothing there yet (no database, or an empty one): migrations create it all.
         if (!databaseExists || !hasApplicationTables)

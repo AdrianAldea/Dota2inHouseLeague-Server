@@ -21,7 +21,9 @@ public class SteamClientTests
 
     [Fact]
     public void Constructor_NullFactory_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => new SteamClient(null!, Mock.Of<ILogger<SteamClient>>()));
+        Assert.Throws<ArgumentNullException>(() =>
+            new SteamClient(null!, Mock.Of<ILogger<SteamClient>>())
+        );
 
     [Fact]
     public void Constructor_NullLogger_Throws()
@@ -33,11 +35,24 @@ public class SteamClientTests
     [Fact]
     public async Task RegisterPlayer_PostsToRegisterEndpoint_AndReturnsPlayer()
     {
-        var http = MockHttp.ReturningJson(new RegisteredPlayer { SteamId = "76561", Username = "alice", UserId = "42" });
+        var http = MockHttp.ReturningJson(
+            new RegisteredPlayer
+            {
+                SteamId = "76561",
+                Username = "alice",
+                UserId = "42",
+            }
+        );
         var client = Create(http);
 
         var result = await client.RegisterPlayerAsync(
-            new RegisterPlayerRequest { SteamId = 76561, UserId = 42, Username = "alice" });
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561,
+                UserId = 42,
+                Username = "alice",
+            }
+        );
 
         Assert.NotNull(result);
         Assert.Equal("alice", result!.Username);
@@ -49,7 +64,9 @@ public class SteamClientTests
     [Fact]
     public async Task JoinQueue_PostsToUserScopedQueueEndpoint()
     {
-        var http = MockHttp.ReturningJson(new QueueOperationResponse { Success = true, Message = "joined" });
+        var http = MockHttp.ReturningJson(
+            new QueueOperationResponse { Success = true, Message = "joined" }
+        );
         var client = Create(http);
 
         var result = await client.JoinQueueAsync(123);
@@ -78,7 +95,9 @@ public class SteamClientTests
     [Fact]
     public async Task ReportMatch_EncodesWinnerInThePath()
     {
-        var http = MockHttp.ReturningJson(new QueueOperationResponse { Success = true, Message = "ok" });
+        var http = MockHttp.ReturningJson(
+            new QueueOperationResponse { Success = true, Message = "ok" }
+        );
         var client = Create(http);
 
         await client.ReportMatchAsync(123, MatchTeam.Radiant);
@@ -91,7 +110,9 @@ public class SteamClientTests
     [Fact]
     public async Task BanPlayer_WithReason_EscapesReasonIntoQueryString()
     {
-        var http = MockHttp.ReturningJson(new QueueOperationResponse { Success = true, Message = "banned" });
+        var http = MockHttp.ReturningJson(
+            new QueueOperationResponse { Success = true, Message = "banned" }
+        );
         var client = Create(http);
 
         await client.BanPlayerAsync(5, "afk farmer");
@@ -104,7 +125,9 @@ public class SteamClientTests
     [Fact]
     public async Task BanPlayer_WithoutReason_OmitsQueryString()
     {
-        var http = MockHttp.ReturningJson(new QueueOperationResponse { Success = true, Message = "banned" });
+        var http = MockHttp.ReturningJson(
+            new QueueOperationResponse { Success = true, Message = "banned" }
+        );
         var client = Create(http);
 
         await client.BanPlayerAsync(5, reason: null);
@@ -126,15 +149,17 @@ public class SteamClientTests
     [Fact]
     public async Task GetPlayerStats_Ok_ReturnsDeserializedStats()
     {
-        var http = MockHttp.ReturningJson(new PlayerStatsResponse
-        {
-            UserId = 7,
-            Username = "alice",
-            SteamId = "steam-7",
-            Rating = 1100,
-            Wins = 3,
-            Losses = 1,
-        });
+        var http = MockHttp.ReturningJson(
+            new PlayerStatsResponse
+            {
+                UserId = 7,
+                Username = "alice",
+                SteamId = "steam-7",
+                Rating = 1100,
+                Wins = 3,
+                Losses = 1,
+            }
+        );
         var client = Create(http);
 
         var stats = await client.GetPlayerStatsAsync(7);

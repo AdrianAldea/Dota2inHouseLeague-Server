@@ -24,18 +24,24 @@ public class SteamAccountPool
             var existing = accounts.FirstOrDefault(a => a.Username == username);
             if (existing != null)
             {
-                logger.LogInformation("Account {Username} already exists in pool (state {State})", username, existing.State);
+                logger.LogInformation(
+                    "Account {Username} already exists in pool (state {State})",
+                    username,
+                    existing.State
+                );
                 return Task.CompletedTask;
             }
 
-            accounts.Add(new SteamAccount
-            {
-                Id = Guid.NewGuid().ToString(),
-                Username = username,
-                Password = password,
-                State = AccountState.Ready,
-                RegisteredAt = DateTime.UtcNow
-            });
+            accounts.Add(
+                new SteamAccount
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Username = username,
+                    Password = password,
+                    State = AccountState.Ready,
+                    RegisteredAt = DateTime.UtcNow,
+                }
+            );
             logger.LogInformation("Account {Username} registered in pool", username);
         }
         return Task.CompletedTask;
@@ -50,7 +56,10 @@ public class SteamAccountPool
             if (available != null)
             {
                 available.State = AccountState.InUse;
-                logger.LogInformation("Account {Username} reserved (now InUse)", available.Username);
+                logger.LogInformation(
+                    "Account {Username} reserved (now InUse)",
+                    available.Username
+                );
             }
             else
             {
@@ -102,7 +111,11 @@ public class SteamAccountPool
                 account.State = AccountState.InUse;
                 account.CurrentLobbyId = lobbyId;
                 account.LastUsedAt = DateTime.UtcNow;
-                logger.LogInformation("Account {Username} marked in use for lobby {LobbyId}", account.Username, lobbyId);
+                logger.LogInformation(
+                    "Account {Username} marked in use for lobby {LobbyId}",
+                    account.Username,
+                    lobbyId
+                );
             }
         }
         return Task.CompletedTask;
@@ -118,7 +131,7 @@ public class SteamAccountPool
                 ReadyAccounts = accounts.Count(a => a.State == AccountState.Ready),
                 InUseAccounts = accounts.Count(a => a.State == AccountState.InUse),
                 OnCooldownAccounts = accounts.Count(a => a.State == AccountState.Cooldown),
-                Accounts = accounts.ToList()
+                Accounts = accounts.ToList(),
             };
         }
     }

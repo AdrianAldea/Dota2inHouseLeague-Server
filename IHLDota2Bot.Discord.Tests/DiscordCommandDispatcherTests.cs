@@ -11,7 +11,8 @@ namespace IHLDota2Bot.Discord.Tests;
 /// </summary>
 public class DiscordCommandDispatcherTests
 {
-    private sealed class StubHandler(DiscordAction action, bool requiresAdmin = false) : IDiscordCommandHandler
+    private sealed class StubHandler(DiscordAction action, bool requiresAdmin = false)
+        : IDiscordCommandHandler
     {
         public DiscordAction Action => action;
         public bool RequiresAdmin => requiresAdmin;
@@ -51,7 +52,7 @@ public class DiscordCommandDispatcherTests
         var handlers = new IDiscordCommandHandler[]
         {
             new StubHandler(DiscordAction.PING),
-            new StubHandler(DiscordAction.PING)
+            new StubHandler(DiscordAction.PING),
         };
 
         Assert.Throws<ArgumentException>(() => new DiscordCommandDispatcher(handlers));

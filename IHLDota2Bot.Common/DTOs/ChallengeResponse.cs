@@ -6,7 +6,7 @@ public enum ChallengeStatus
     Accepted = 1,
     Declined = 2,
     Expired = 3,
-    Cancelled = 4
+    Cancelled = 4,
 }
 
 public record ChallengeResponse

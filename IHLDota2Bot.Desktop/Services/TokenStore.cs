@@ -14,7 +14,9 @@ public sealed class TokenStore
 {
     private readonly string _path = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "IHLDota", "token.bin");
+        "IHLDota",
+        "token.bin"
+    );
 
     public void Save(string token)
     {
@@ -23,7 +25,11 @@ public sealed class TokenStore
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var data = Encoding.UTF8.GetBytes(token);
             var bytes = OperatingSystem.IsWindows()
-                ? ProtectedData.Protect(data, optionalEntropy: null, DataProtectionScope.CurrentUser)
+                ? ProtectedData.Protect(
+                    data,
+                    optionalEntropy: null,
+                    DataProtectionScope.CurrentUser
+                )
                 : data;
             File.WriteAllBytes(_path, bytes);
         }
@@ -42,7 +48,11 @@ public sealed class TokenStore
 
             var bytes = File.ReadAllBytes(_path);
             var data = OperatingSystem.IsWindows()
-                ? ProtectedData.Unprotect(bytes, optionalEntropy: null, DataProtectionScope.CurrentUser)
+                ? ProtectedData.Unprotect(
+                    bytes,
+                    optionalEntropy: null,
+                    DataProtectionScope.CurrentUser
+                )
                 : bytes;
             return Encoding.UTF8.GetString(data);
         }

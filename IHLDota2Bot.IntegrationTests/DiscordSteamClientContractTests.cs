@@ -21,7 +21,13 @@ public class DiscordSteamClientContractTests : IntegrationTestBase
 
     private async Task RegisterAsync(SteamClient steam, ulong userId, string username) =>
         await steam.RegisterPlayerAsync(
-            new RegisterPlayerRequest { SteamId = 76561198000000000 + userId, UserId = userId, Username = username });
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000000 + userId,
+                UserId = userId,
+                Username = username,
+            }
+        );
 
     // ── Challenge / accept / decline / report ─────────────────────────────────
 

@@ -16,16 +16,20 @@ namespace IHLDota2Bot.Tests;
 /// </summary>
 public class MatchRepositoryTests
 {
-    private static PlayerEntity Player(ulong id, int rating = 1000) => new()
-    {
-        UserId = id,
-        Username = $"player{id}",
-        SteamId = $"steam-{id}",
-        Rating = rating,
-        RegisteredAt = DateTime.UtcNow,
-    };
+    private static PlayerEntity Player(ulong id, int rating = 1000) =>
+        new()
+        {
+            UserId = id,
+            Username = $"player{id}",
+            SteamId = $"steam-{id}",
+            Rating = rating,
+            RegisteredAt = DateTime.UtcNow,
+        };
 
-    private static async Task SeedPlayersAsync(Mock<IDbContextFactory<AppDbContext>> factory, params PlayerEntity[] players)
+    private static async Task SeedPlayersAsync(
+        Mock<IDbContextFactory<AppDbContext>> factory,
+        params PlayerEntity[] players
+    )
     {
         await using var ctx = await factory.NewContextAsync();
         ctx.Players.AddRange(players);
@@ -38,8 +42,10 @@ public class MatchRepositoryTests
         var factory = InMemoryDb.CreateFactory();
         var repo = new MatchRepository(factory.Object);
 
-        var match = await repo.CreateMatchAsync("lobby-1",
-            [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]);
+        var match = await repo.CreateMatchAsync(
+            "lobby-1",
+            [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]
+        );
 
         Assert.NotEqual(Guid.Empty, match.Id);
 
@@ -131,7 +137,7 @@ public class MatchRepositoryTests
         Assert.Equal(MatchStatus.Completed, result.Match!.Status);
 
         await using var ctx = await factory.NewContextAsync();
-        Assert.Equal(984, (await ctx.Players.FindAsync(1UL))!.Rating);  // Radiant lost
+        Assert.Equal(984, (await ctx.Players.FindAsync(1UL))!.Rating); // Radiant lost
         Assert.Equal(1016, (await ctx.Players.FindAsync(2UL))!.Rating); // Dire won
     }
 
@@ -192,9 +198,25 @@ public class MatchRepositoryTests
         await using (var ctx = await factory.NewContextAsync())
         {
             ctx.Matches.AddRange(
-                new MatchEntity { Id = Guid.NewGuid(), Status = MatchStatus.InProgress, CreatedAt = DateTime.UtcNow.AddHours(-3) }, // stale
-                new MatchEntity { Id = Guid.NewGuid(), Status = MatchStatus.InProgress, CreatedAt = DateTime.UtcNow },               // fresh
-                new MatchEntity { Id = Guid.NewGuid(), Status = MatchStatus.Completed,  CreatedAt = DateTime.UtcNow.AddHours(-5) });  // settled
+                new MatchEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Status = MatchStatus.InProgress,
+                    CreatedAt = DateTime.UtcNow.AddHours(-3),
+                }, // stale
+                new MatchEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Status = MatchStatus.InProgress,
+                    CreatedAt = DateTime.UtcNow,
+                }, // fresh
+                new MatchEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Status = MatchStatus.Completed,
+                    CreatedAt = DateTime.UtcNow.AddHours(-5),
+                }
+            ); // settled
             await ctx.SaveChangesAsync();
         }
 
@@ -215,7 +237,7 @@ public class MatchRepositoryTests
         Assert.True(await repo.CancelMatchAsync(match.Id));
         Assert.Equal(MatchStatus.Cancelled, (await repo.GetByIdAsync(match.Id))!.Status);
 
-        Assert.False(await repo.CancelMatchAsync(match.Id));      // already settled
+        Assert.False(await repo.CancelMatchAsync(match.Id)); // already settled
         Assert.False(await repo.CancelMatchAsync(Guid.NewGuid())); // unknown match
     }
 
@@ -227,9 +249,15 @@ public class MatchRepositoryTests
         await SeedPlayersAsync(factory, Player(1), Player(2));
 
         // One completed, one still in progress.
-        await repo.CreateMatchAsync("lobby-done", [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]);
+        await repo.CreateMatchAsync(
+            "lobby-done",
+            [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]
+        );
         await repo.CompleteMatchByLobbyAsync("lobby-done", MatchTeam.Radiant);
-        await repo.CreateMatchAsync("lobby-live", [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]);
+        await repo.CreateMatchAsync(
+            "lobby-live",
+            [(1UL, MatchTeam.Radiant), (2UL, MatchTeam.Dire)]
+        );
 
         var recent = await repo.GetRecentMatchesForPlayerAsync(1, top: 5);
 

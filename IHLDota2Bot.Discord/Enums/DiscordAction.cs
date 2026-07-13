@@ -32,5 +32,5 @@ public enum DiscordAction
     POOL_STATUS,
     RANK,
     VERSION,
-    SCORE
+    SCORE,
 }

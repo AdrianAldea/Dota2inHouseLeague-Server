@@ -1,5 +1,4 @@
 <Project>
-
   <!--
     Solution-wide build settings. Phase 0 of the refactoring plan: now that the
     build is clean (0 warnings), promote warnings to errors so quality can't
@@ -9,5 +8,4 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-
 </Project>

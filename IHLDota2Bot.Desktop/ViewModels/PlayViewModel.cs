@@ -137,8 +137,12 @@ public partial class PlayViewModel : ViewModelBase
         Slots.Clear();
         var filled = new (string Name, bool Ready)[]
         {
-            ("Miracle-", true), ("Topson", true), ("Ceb", true),
-            ("SumaiL", false), ("Arteezy", true), ("Puppey", true),
+            ("Miracle-", true),
+            ("Topson", true),
+            ("Ceb", true),
+            ("SumaiL", false),
+            ("Arteezy", true),
+            ("Puppey", true),
         };
         foreach (var (name, ready) in filled)
             Slots.Add(new QueueSlot { Name = name, IsReady = ready });

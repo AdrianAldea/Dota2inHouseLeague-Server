@@ -1,8 +1,8 @@
+using System.Net;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Extensions;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
-using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +19,8 @@ builder.Services.AddGameManager(builder.Configuration);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
-    options.KnownProxies.Add(IPAddress.Loopback);      // 127.0.0.1
-    options.KnownProxies.Add(IPAddress.IPv6Loopback);  // ::1
+    options.KnownProxies.Add(IPAddress.Loopback); // 127.0.0.1
+    options.KnownProxies.Add(IPAddress.IPv6Loopback); // ::1
 });
 
 var app = builder.Build();
@@ -31,9 +31,10 @@ var apiKeyOpts = app.Services.GetRequiredService<IOptions<AdminApiKeyOptions>>()
 if (string.IsNullOrEmpty(apiKeyOpts.AdminApiKey))
 {
     app.Logger.LogWarning(
-        "Admin API key is not configured (GameManager:AdminApiKey). " +
-        "Admin endpoints are unrestricted. Set the key via user-secrets or " +
-        "the GameManager__AdminApiKey environment variable for production.");
+        "Admin API key is not configured (GameManager:AdminApiKey). "
+            + "Admin endpoints are unrestricted. Set the key via user-secrets or "
+            + "the GameManager__AdminApiKey environment variable for production."
+    );
 }
 
 // Warn when no JWT signing key is configured: an ephemeral key is generated so dev
@@ -42,9 +43,10 @@ var playerJwtOpts = app.Services.GetRequiredService<IOptions<PlayerJwtOptions>>(
 if (string.IsNullOrEmpty(playerJwtOpts.SigningKey))
 {
     app.Logger.LogWarning(
-        "Player JWT signing key is not configured (PlayerJwt:SigningKey). " +
-        "Using an ephemeral per-process key — tokens won't survive a restart. " +
-        "Set PlayerJwt__SigningKey via user-secrets or environment variable for production.");
+        "Player JWT signing key is not configured (PlayerJwt:SigningKey). "
+            + "Using an ephemeral per-process key — tokens won't survive a restart. "
+            + "Set PlayerJwt__SigningKey via user-secrets or environment variable for production."
+    );
 }
 
 // Apply forwarded headers before anything reads Scheme/Host (Steam OpenID realm/return_to).

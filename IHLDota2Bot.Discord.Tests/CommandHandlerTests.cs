@@ -24,7 +24,12 @@ public class CommandHandlerTests
     [Fact]
     public async Task Register_NoSteamId_RepliesUsage()
     {
-        var ctx = new FakeCommandContext { Parts = ["register"], AuthorId = 1, AuthorUsername = "alice" };
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["register"],
+            AuthorId = 1,
+            AuthorUsername = "alice",
+        };
         await new RegisterCommandHandler(Steam().Object).HandleAsync(ctx);
         Assert.Equal(CommandMessages.RegisterUsage, ctx.SingleReply());
     }
@@ -32,7 +37,12 @@ public class CommandHandlerTests
     [Fact]
     public async Task Register_NonNumericSteamId_RepliesInvalid()
     {
-        var ctx = new FakeCommandContext { Parts = ["register", "notanid"], AuthorId = 1, AuthorUsername = "alice" };
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["register", "notanid"],
+            AuthorId = 1,
+            AuthorUsername = "alice",
+        };
         await new RegisterCommandHandler(Steam().Object).HandleAsync(ctx);
         Assert.Equal(CommandMessages.InvalidSteamId, ctx.SingleReply());
     }
@@ -41,9 +51,27 @@ public class CommandHandlerTests
     public async Task Register_Valid_PostsRequestAndConfirms()
     {
         var steam = Steam();
-        steam.Setup(s => s.RegisterPlayerAsync(It.IsAny<RegisterPlayerRequest>(), It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new RegisteredPlayer { SteamId = "76561", Username = "alice", UserId = "1" });
-        var ctx = new FakeCommandContext { Parts = ["register", "76561"], AuthorId = 1, AuthorUsername = "alice" };
+        steam
+            .Setup(s =>
+                s.RegisterPlayerAsync(
+                    It.IsAny<RegisterPlayerRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new RegisteredPlayer
+                {
+                    SteamId = "76561",
+                    Username = "alice",
+                    UserId = "1",
+                }
+            );
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["register", "76561"],
+            AuthorId = 1,
+            AuthorUsername = "alice",
+        };
 
         await new RegisterCommandHandler(steam.Object).HandleAsync(ctx);
 
@@ -55,9 +83,20 @@ public class CommandHandlerTests
     public async Task Register_ApiReturnsNull_RepliesFailure()
     {
         var steam = Steam();
-        steam.Setup(s => s.RegisterPlayerAsync(It.IsAny<RegisterPlayerRequest>(), It.IsAny<CancellationToken>()))
-             .ReturnsAsync((RegisteredPlayer?)null);
-        var ctx = new FakeCommandContext { Parts = ["register", "76561"], AuthorId = 1, AuthorUsername = "alice" };
+        steam
+            .Setup(s =>
+                s.RegisterPlayerAsync(
+                    It.IsAny<RegisterPlayerRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((RegisteredPlayer?)null);
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["register", "76561"],
+            AuthorId = 1,
+            AuthorUsername = "alice",
+        };
 
         await new RegisterCommandHandler(steam.Object).HandleAsync(ctx);
 
@@ -70,8 +109,9 @@ public class CommandHandlerTests
     public async Task JoinQueue_Success_StaysSilent()
     {
         var steam = Steam();
-        steam.Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "joined" });
+        steam
+            .Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "joined" });
         var ctx = new FakeCommandContext { Parts = ["queue"], AuthorId = 7 };
 
         await new JoinQueueCommandHandler(steam.Object).HandleAsync(ctx);
@@ -83,8 +123,11 @@ public class CommandHandlerTests
     public async Task JoinQueue_Failure_RepliesWithApiMessage()
     {
         var steam = Steam();
-        steam.Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = false, Message = "You are banned." });
+        steam
+            .Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new QueueOperationResponse { Success = false, Message = "You are banned." }
+            );
         var ctx = new FakeCommandContext { Parts = ["queue"], AuthorId = 7 };
 
         await new JoinQueueCommandHandler(steam.Object).HandleAsync(ctx);
@@ -96,8 +139,9 @@ public class CommandHandlerTests
     public async Task JoinQueue_NullResponse_RepliesFallback()
     {
         var steam = Steam();
-        steam.Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
-             .ReturnsAsync((QueueOperationResponse?)null);
+        steam
+            .Setup(s => s.JoinQueueAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueueOperationResponse?)null);
         var ctx = new FakeCommandContext { Parts = ["queue"], AuthorId = 7 };
 
         await new JoinQueueCommandHandler(steam.Object).HandleAsync(ctx);
@@ -127,13 +171,17 @@ public class CommandHandlerTests
     public async Task Report_ValidWinner_CallsApiCaseInsensitively()
     {
         var steam = Steam();
-        steam.Setup(s => s.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "ok" });
+        steam
+            .Setup(s => s.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "ok" });
         var ctx = new FakeCommandContext { Parts = ["report", "RADIANT"], AuthorId = 1 };
 
         await new ReportMatchCommandHandler(steam.Object).HandleAsync(ctx);
 
-        steam.Verify(s => s.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()), Times.Once);
+        steam.Verify(
+            s => s.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
         Assert.Empty(ctx.Replies);
     }
 
@@ -151,7 +199,12 @@ public class CommandHandlerTests
     public async Task Challenge_SelfMentionOnly_RepliesUsage()
     {
         // Mentioning only yourself is not a valid opponent.
-        var ctx = new FakeCommandContext { Parts = ["challenge"], AuthorId = 1, MentionedUserIds = [1] };
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["challenge"],
+            AuthorId = 1,
+            MentionedUserIds = [1],
+        };
         await new ChallengeCommandHandler(Steam().Object).HandleAsync(ctx);
         Assert.Equal(CommandMessages.ChallengeUsage, ctx.SingleReply());
     }
@@ -160,9 +213,15 @@ public class CommandHandlerTests
     public async Task Challenge_ValidOpponent_CallsApi()
     {
         var steam = Steam();
-        steam.Setup(s => s.ChallengePlayerAsync(1, 2, It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new ChallengeOperationResponse { Success = true, Message = "sent" });
-        var ctx = new FakeCommandContext { Parts = ["challenge"], AuthorId = 1, MentionedUserIds = [2] };
+        steam
+            .Setup(s => s.ChallengePlayerAsync(1, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChallengeOperationResponse { Success = true, Message = "sent" });
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["challenge"],
+            AuthorId = 1,
+            MentionedUserIds = [2],
+        };
 
         await new ChallengeCommandHandler(steam.Object).HandleAsync(ctx);
 
@@ -190,22 +249,37 @@ public class CommandHandlerTests
     public async Task Ban_WithReason_PassesReasonThrough()
     {
         var steam = Steam();
-        steam.Setup(s => s.BanPlayerAsync(2, "afk farmer", It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "banned" });
-        var ctx = new FakeCommandContext { Parts = ["ban", "<@2>", "afk", "farmer"], AuthorId = 1, MentionedUserIds = [2] };
+        steam
+            .Setup(s => s.BanPlayerAsync(2, "afk farmer", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "banned" });
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["ban", "<@2>", "afk", "farmer"],
+            AuthorId = 1,
+            MentionedUserIds = [2],
+        };
 
         await new BanCommandHandler(steam.Object).HandleAsync(ctx);
 
-        steam.Verify(s => s.BanPlayerAsync(2, "afk farmer", It.IsAny<CancellationToken>()), Times.Once);
+        steam.Verify(
+            s => s.BanPlayerAsync(2, "afk farmer", It.IsAny<CancellationToken>()),
+            Times.Once
+        );
     }
 
     [Fact]
     public async Task Ban_NoReason_PassesNull()
     {
         var steam = Steam();
-        steam.Setup(s => s.BanPlayerAsync(2, null, It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "banned" });
-        var ctx = new FakeCommandContext { Parts = ["ban", "<@2>"], AuthorId = 1, MentionedUserIds = [2] };
+        steam
+            .Setup(s => s.BanPlayerAsync(2, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "banned" });
+        var ctx = new FakeCommandContext
+        {
+            Parts = ["ban", "<@2>"],
+            AuthorId = 1,
+            MentionedUserIds = [2],
+        };
 
         await new BanCommandHandler(steam.Object).HandleAsync(ctx);
 
@@ -218,7 +292,10 @@ public class CommandHandlerTests
     public async Task AddAccount_TooFewArgs_RepliesUsage_DoesNotDelete()
     {
         var ctx = new FakeCommandContext { Parts = ["add_account", "onlyuser"], AuthorId = 1 };
-        await new AddAccountCommandHandler(Steam().Object, Mock.Of<ILogger<AddAccountCommandHandler>>()).HandleAsync(ctx);
+        await new AddAccountCommandHandler(
+            Steam().Object,
+            Mock.Of<ILogger<AddAccountCommandHandler>>()
+        ).HandleAsync(ctx);
 
         Assert.Equal(CommandMessages.AddAccountUsage, ctx.SingleReply());
         Assert.False(ctx.SourceDeleted);
@@ -228,11 +305,15 @@ public class CommandHandlerTests
     public async Task AddAccount_Valid_RepliesAndDeletesSourceMessage()
     {
         var steam = Steam();
-        steam.Setup(s => s.AddSteamAccountAsync("bot1", "pw", It.IsAny<CancellationToken>()))
-             .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "added bot1" });
+        steam
+            .Setup(s => s.AddSteamAccountAsync("bot1", "pw", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new QueueOperationResponse { Success = true, Message = "added bot1" });
         var ctx = new FakeCommandContext { Parts = ["add_account", "bot1", "pw"], AuthorId = 1 };
 
-        await new AddAccountCommandHandler(steam.Object, Mock.Of<ILogger<AddAccountCommandHandler>>()).HandleAsync(ctx);
+        await new AddAccountCommandHandler(
+            steam.Object,
+            Mock.Of<ILogger<AddAccountCommandHandler>>()
+        ).HandleAsync(ctx);
 
         Assert.Equal("added bot1", ctx.SingleReply());
         Assert.True(ctx.SourceDeleted); // password message scrubbed from chat
@@ -275,8 +356,9 @@ public class CommandHandlerTests
     public async Task MyStats_NotRegistered_Replies()
     {
         var steam = Steam();
-        steam.Setup(s => s.GetPlayerStatsAsync(5, It.IsAny<CancellationToken>()))
-             .ReturnsAsync((PlayerStatsResponse?)null);
+        steam
+            .Setup(s => s.GetPlayerStatsAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerStatsResponse?)null);
         var ctx = new FakeCommandContext { Parts = ["mystats"], AuthorId = 5 };
 
         await new MyStatsCommandHandler(steam.Object).HandleAsync(ctx);

@@ -33,13 +33,18 @@ public static class DockerBootstrap
         // Never let Docker bootstrapping block AppHost startup indefinitely: run it
         // on a background thread and continue after a hard cap. Join returns as soon
         // as the work finishes (the normal case is fast when Docker is already up).
-        var worker = new Thread(EnsureRunningCore) { IsBackground = true, Name = "DockerBootstrap" };
+        var worker = new Thread(EnsureRunningCore)
+        {
+            IsBackground = true,
+            Name = "DockerBootstrap",
+        };
         worker.Start();
         if (!worker.Join(OverallTimeout))
         {
             Console.Error.WriteLine(
-                $"[DockerBootstrap] Still preparing Docker after {OverallTimeout.TotalSeconds:F0}s; continuing AppHost " +
-                "startup so it can't hang. If containers fail to start, start Docker Desktop and retry.");
+                $"[DockerBootstrap] Still preparing Docker after {OverallTimeout.TotalSeconds:F0}s; continuing AppHost "
+                    + "startup so it can't hang. If containers fail to start, start Docker Desktop and retry."
+            );
         }
     }
 
@@ -56,14 +61,20 @@ public static class DockerBootstrap
             // app there, so just report if it's not reachable.
             if (!OperatingSystem.IsWindows())
             {
-                Console.Error.WriteLine("[DockerBootstrap] Docker engine not reachable. Ensure the Docker daemon is running.");
+                Console.Error.WriteLine(
+                    "[DockerBootstrap] Docker engine not reachable. Ensure the Docker daemon is running."
+                );
                 return;
             }
 
-            Console.WriteLine("[DockerBootstrap] Docker engine not responding; launching Docker Desktop...");
+            Console.WriteLine(
+                "[DockerBootstrap] Docker engine not responding; launching Docker Desktop..."
+            );
             if (!TryStartDockerDesktop(out var error))
             {
-                Console.Error.WriteLine($"[DockerBootstrap] Could not launch Docker Desktop ({error}). Please start it manually.");
+                Console.Error.WriteLine(
+                    $"[DockerBootstrap] Could not launch Docker Desktop ({error}). Please start it manually."
+                );
                 return;
             }
 
@@ -72,19 +83,24 @@ public static class DockerBootstrap
             {
                 if (IsEngineReady())
                 {
-                    Console.WriteLine($"[DockerBootstrap] Docker engine ready after {sw.Elapsed.TotalSeconds:F0}s.");
+                    Console.WriteLine(
+                        $"[DockerBootstrap] Docker engine ready after {sw.Elapsed.TotalSeconds:F0}s."
+                    );
                     return;
                 }
                 Thread.Sleep(PollInterval);
             }
 
             Console.Error.WriteLine(
-                $"[DockerBootstrap] Docker engine still not ready after {StartupTimeout.TotalSeconds:F0}s; " +
-                "Aspire may fail to start its containers.");
+                $"[DockerBootstrap] Docker engine still not ready after {StartupTimeout.TotalSeconds:F0}s; "
+                    + "Aspire may fail to start its containers."
+            );
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[DockerBootstrap] Could not ensure Docker is running: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[DockerBootstrap] Could not ensure Docker is running: {ex.Message}"
+            );
         }
     }
 
@@ -103,7 +119,7 @@ public static class DockerBootstrap
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WorkingDirectory = DockerWorkingDir
+                WorkingDirectory = DockerWorkingDir,
             };
             psi.ArgumentList.Add("version");
             psi.ArgumentList.Add("--format");
@@ -113,14 +129,21 @@ public static class DockerBootstrap
             // Drain stderr on a background thread so it can't fill its pipe buffer
             // and deadlock the stdout read below.
             process.ErrorDataReceived += static (_, _) => { };
-            if (!process.Start()) return false;
+            if (!process.Start())
+                return false;
             process.BeginErrorReadLine();
 
             var stdout = process.StandardOutput.ReadToEnd();
 
             if (!process.WaitForExit((int)ProbeTimeout.TotalMilliseconds))
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                { /* ignore */
+                }
                 return false;
             }
 
@@ -140,9 +163,23 @@ public static class DockerBootstrap
 
         string[] candidates =
         [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Docker", "Docker", "Docker Desktop.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Docker", "Docker", "Docker Desktop.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Docker", "Docker Desktop.exe"),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "Docker",
+                "Docker",
+                "Docker Desktop.exe"
+            ),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                "Docker",
+                "Docker",
+                "Docker Desktop.exe"
+            ),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Docker",
+                "Docker Desktop.exe"
+            ),
         ];
 
         var exe = candidates.FirstOrDefault(File.Exists);

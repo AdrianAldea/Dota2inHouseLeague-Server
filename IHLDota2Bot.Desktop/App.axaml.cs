@@ -50,11 +50,13 @@ public partial class App : Application
         services.AddTransient<AuthHeaderHandler>();
 
         // Typed client rooted at {ApiBaseUrl}/api/; the handler attaches the Bearer token.
-        services.AddHttpClient<ApiClient>(client =>
-        {
-            client.BaseAddress = new Uri($"{settings.ApiBaseUrl.TrimEnd('/')}/api/");
-            client.Timeout = TimeSpan.FromSeconds(8);
-        }).AddHttpMessageHandler<AuthHeaderHandler>();
+        services
+            .AddHttpClient<ApiClient>(client =>
+            {
+                client.BaseAddress = new Uri($"{settings.ApiBaseUrl.TrimEnd('/')}/api/");
+                client.Timeout = TimeSpan.FromSeconds(8);
+            })
+            .AddHttpMessageHandler<AuthHeaderHandler>();
 
         // View-models
         services.AddTransient<MainWindowViewModel>();

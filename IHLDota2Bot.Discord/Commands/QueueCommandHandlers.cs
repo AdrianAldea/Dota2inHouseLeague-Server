@@ -9,7 +9,6 @@ namespace IHLDota2Bot.Discord.Commands;
 /// the Game Manager broadcast on success, so they reply only on failure
 /// (see <see cref="CommandReplies"/>).
 /// </summary>
-
 /// <summary>`!queue` / `!q` — join the matchmaking queue.</summary>
 public sealed class JoinQueueCommandHandler(ISteamClient steamClient) : IDiscordCommandHandler
 {
@@ -17,10 +16,16 @@ public sealed class JoinQueueCommandHandler(ISteamClient steamClient) : IDiscord
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.JoinQueueAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.JoinQueueFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.JoinQueueFailed
+        );
     }
 }
 
@@ -31,10 +36,16 @@ public sealed class LeaveQueueCommandHandler(ISteamClient steamClient) : IDiscor
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.LeaveQueueAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.LeaveQueueFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.LeaveQueueFailed
+        );
     }
 }
 
@@ -45,10 +56,16 @@ public sealed class ReadyCommandHandler(ISteamClient steamClient) : IDiscordComm
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.MarkReadyAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.MarkReadyFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.MarkReadyFailed
+        );
     }
 }
 
@@ -59,9 +76,15 @@ public sealed class UnreadyCommandHandler(ISteamClient steamClient) : IDiscordCo
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.MarkUnreadyAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.MarkUnreadyFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.MarkUnreadyFailed
+        );
     }
 }

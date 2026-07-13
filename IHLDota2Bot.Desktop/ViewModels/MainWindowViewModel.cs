@@ -48,7 +48,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsLoading = false;
     }
 
-    private void OnSessionChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Navigate);
+    private void OnSessionChanged(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(Navigate);
 
     private void Navigate()
     {
@@ -63,7 +64,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             CurrentView = Resolve<ShellViewModel>();
     }
 
-    private static T Resolve<T>() where T : notnull => App.Services.GetRequiredService<T>();
+    private static T Resolve<T>()
+        where T : notnull => App.Services.GetRequiredService<T>();
 
     public void Dispose()
     {

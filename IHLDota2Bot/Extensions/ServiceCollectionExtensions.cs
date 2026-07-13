@@ -23,17 +23,28 @@ public static class ServiceCollectionExtensions
     /// DbContext factory, repositories, the lobby/pool system, and the hosted
     /// services that drive them. Keeps Program.cs to a readable startup outline.
     /// </summary>
-    public static IServiceCollection AddGameManager(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddGameManager(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
     {
         services.Configure<SteamOptions>(configuration.GetSection(SteamOptions.SectionName));
-        services.Configure<DiscordClientOptions>(configuration.GetSection(DiscordClientOptions.SectionName));
-        services.Configure<AdminApiKeyOptions>(configuration.GetSection(AdminApiKeyOptions.SectionName));
+        services.Configure<DiscordClientOptions>(
+            configuration.GetSection(DiscordClientOptions.SectionName)
+        );
+        services.Configure<AdminApiKeyOptions>(
+            configuration.GetSection(AdminApiKeyOptions.SectionName)
+        );
         services.Configure<LeagueOptions>(configuration.GetSection(LeagueOptions.SectionName));
-        services.Configure<PlayerJwtOptions>(configuration.GetSection(PlayerJwtOptions.SectionName));
+        services.Configure<PlayerJwtOptions>(
+            configuration.GetSection(PlayerJwtOptions.SectionName)
+        );
 
         // Player-JWT signing key, shared by the issuer and the JwtBearer validator. When
         // no key is configured we generate an ephemeral one (dev mode) — Program.cs warns.
-        var jwtOptions = configuration.GetSection(PlayerJwtOptions.SectionName).Get<PlayerJwtOptions>() ?? new PlayerJwtOptions();
+        var jwtOptions =
+            configuration.GetSection(PlayerJwtOptions.SectionName).Get<PlayerJwtOptions>()
+            ?? new PlayerJwtOptions();
         var keyBytes = string.IsNullOrWhiteSpace(jwtOptions.SigningKey)
             ? RandomNumberGenerator.GetBytes(32)
             : Encoding.UTF8.GetBytes(jwtOptions.SigningKey);
@@ -45,8 +56,10 @@ public static class ServiceCollectionExtensions
         // Two auth schemes: AdminApiKey (default — admin endpoints) + JwtBearer (players).
         services
             .AddAuthentication(AdminApiKeyAuthenticationHandler.SchemeName)
-            .AddScheme<AdminApiKeyAuthenticationHandler.SchemeOptions, AdminApiKeyAuthenticationHandler>(
-                AdminApiKeyAuthenticationHandler.SchemeName, _ => { })
+            .AddScheme<
+                AdminApiKeyAuthenticationHandler.SchemeOptions,
+                AdminApiKeyAuthenticationHandler
+            >(AdminApiKeyAuthenticationHandler.SchemeName, _ => { })
             .AddJwtBearer(options =>
             {
                 options.MapInboundClaims = false; // keep claim names (sub, steamId, …) verbatim
@@ -66,29 +79,44 @@ public static class ServiceCollectionExtensions
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy("Player", policy =>
-                policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-                      .RequireAuthenticatedUser());
+            options.AddPolicy(
+                "Player",
+                policy =>
+                    policy
+                        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                        .RequireAuthenticatedUser()
+            );
         });
 
-        services.AddHttpClient(DiscordClient.HttpClientName, (sp, client) =>
-        {
-            var options = sp.GetRequiredService<IOptions<DiscordClientOptions>>().Value;
-            client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
-        });
+        services.AddHttpClient(
+            DiscordClient.HttpClientName,
+            (sp, client) =>
+            {
+                var options = sp.GetRequiredService<IOptions<DiscordClientOptions>>().Value;
+                client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
+            }
+        );
 
         services.AddDbContextFactory<AppDbContext>(options =>
         {
-            var connectionString = configuration.GetConnectionString("Dota2inHouseLeagueDB")
-                ?? throw new InvalidOperationException("Connection string 'Dota2inHouseLeagueDB' is not configured.");
+            var connectionString =
+                configuration.GetConnectionString("Dota2inHouseLeagueDB")
+                ?? throw new InvalidOperationException(
+                    "Connection string 'Dota2inHouseLeagueDB' is not configured."
+                );
             // A freshly-provisioned SQL Server container accepts TCP connections before the
             // engine is ready for the login handshake, so the first connections can fail
             // transiently ("connection forcibly closed during pre-login handshake"). Retry
             // on transient failures so startup rides out the container warming up.
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(
-                maxRetryCount: 10,
-                maxRetryDelay: TimeSpan.FromSeconds(10),
-                errorNumbersToAdd: null));
+            options.UseSqlServer(
+                connectionString,
+                sql =>
+                    sql.EnableRetryOnFailure(
+                        maxRetryCount: 10,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorNumbersToAdd: null
+                    )
+            );
         });
 
         services.AddSingleton<IPlayerRepository, PlayerRepository>();

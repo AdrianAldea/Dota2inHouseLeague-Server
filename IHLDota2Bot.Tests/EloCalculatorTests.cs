@@ -63,7 +63,11 @@ public class EloCalculatorTests
     public void ComputeDeltas_UsesTeamAverages_NotRawTotals()
     {
         // Both averages are 1000 → behaves exactly like an even 1v1.
-        var (radiant, dire) = EloCalculator.ComputeDeltas([800, 1200], [900, 1100], MatchTeam.Radiant);
+        var (radiant, dire) = EloCalculator.ComputeDeltas(
+            [800, 1200],
+            [900, 1100],
+            MatchTeam.Radiant
+        );
 
         Assert.Equal(16, radiant);
         Assert.Equal(-16, dire);
@@ -111,9 +115,13 @@ public class EloCalculatorTests
 
     [Theory]
     [InlineData(1000, 1000, MatchTeam.Radiant)]
-    [InlineData(2400, 100, MatchTeam.Dire)]   // extreme mismatch
+    [InlineData(2400, 100, MatchTeam.Dire)] // extreme mismatch
     [InlineData(100, 2400, MatchTeam.Radiant)]
-    public void ComputeDeltas_MagnitudeNeverExceedsKFactor(int radiantRating, int direRating, MatchTeam winner)
+    public void ComputeDeltas_MagnitudeNeverExceedsKFactor(
+        int radiantRating,
+        int direRating,
+        MatchTeam winner
+    )
     {
         var (radiant, _) = EloCalculator.ComputeDeltas([radiantRating], [direRating], winner);
         Assert.True(Math.Abs(radiant) <= LeagueConstants.EloKFactor);

@@ -21,6 +21,8 @@ public sealed class DiscordCommandDispatcher
         this.handlers = handlers.ToDictionary(h => h.Action);
     }
 
-    public bool TryGetHandler(DiscordAction action, [NotNullWhen(true)] out IDiscordCommandHandler? handler) =>
-        handlers.TryGetValue(action, out handler);
+    public bool TryGetHandler(
+        DiscordAction action,
+        [NotNullWhen(true)] out IDiscordCommandHandler? handler
+    ) => handlers.TryGetValue(action, out handler);
 }

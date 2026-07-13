@@ -20,13 +20,20 @@ public class PlayerTokenServiceTests
     private static (PlayerTokenService Service, TokenValidationParameters Validation) Build()
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Options.SigningKey));
-        var service = new PlayerTokenService(Microsoft.Extensions.Options.Options.Create(Options), new PlayerSigningKey(key));
+        var service = new PlayerTokenService(
+            Microsoft.Extensions.Options.Options.Create(Options),
+            new PlayerSigningKey(key)
+        );
         var validation = new TokenValidationParameters
         {
-            ValidateIssuer = true, ValidIssuer = Options.Issuer,
-            ValidateAudience = true, ValidAudience = Options.Audience,
-            ValidateIssuerSigningKey = true, IssuerSigningKey = key,
-            ValidateLifetime = true, ClockSkew = TimeSpan.FromMinutes(1),
+            ValidateIssuer = true,
+            ValidIssuer = Options.Issuer,
+            ValidateAudience = true,
+            ValidAudience = Options.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = key,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
         };
         return (service, validation);
     }
@@ -35,7 +42,12 @@ public class PlayerTokenServiceTests
     public void CreateToken_RegisteredPlayer_RoundTripsClaims()
     {
         var (service, validation) = Build();
-        var token = service.CreateToken(userId: 76561198000000001, steamId: "76561198000000001", username: "Dendi", registered: true);
+        var token = service.CreateToken(
+            userId: 76561198000000001,
+            steamId: "76561198000000001",
+            username: "Dendi",
+            registered: true
+        );
 
         var handler = new JwtSecurityTokenHandler();
         handler.InboundClaimTypeMap.Clear(); // keep raw claim names (sub, steamId, …)
@@ -51,7 +63,12 @@ public class PlayerTokenServiceTests
     public void CreateToken_Unregistered_OmitsNameAndFlagsNotRegistered()
     {
         var (service, validation) = Build();
-        var token = service.CreateToken(userId: 76561198000000002, steamId: "76561198000000002", username: null, registered: false);
+        var token = service.CreateToken(
+            userId: 76561198000000002,
+            steamId: "76561198000000002",
+            username: null,
+            registered: false
+        );
 
         var handler = new JwtSecurityTokenHandler();
         handler.InboundClaimTypeMap.Clear();
@@ -72,10 +89,13 @@ public class PlayerTokenServiceTests
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("a-totally-different-signing-key-here!!")),
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes("a-totally-different-signing-key-here!!")
+            ),
         };
 
         Assert.ThrowsAny<SecurityTokenException>(() =>
-            new JwtSecurityTokenHandler().ValidateToken(token, wrongKeyValidation, out _));
+            new JwtSecurityTokenHandler().ValidateToken(token, wrongKeyValidation, out _)
+        );
     }
 }

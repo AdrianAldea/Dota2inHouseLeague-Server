@@ -42,21 +42,30 @@ public sealed class ApiFactory : WebApplicationFactory<Dota2Service>
             // shared in-memory store. Catches the factory, options, source and
             // (EF 9+) options-configuration descriptors closed over AppDbContext.
             var efDescriptors = services
-                .Where(d => d.ServiceType == typeof(DbContextOptions)
-                    || (d.ServiceType.IsGenericType
-                        && d.ServiceType.GetGenericArguments().Contains(typeof(AppDbContext))))
+                .Where(d =>
+                    d.ServiceType == typeof(DbContextOptions)
+                    || (
+                        d.ServiceType.IsGenericType
+                        && d.ServiceType.GetGenericArguments().Contains(typeof(AppDbContext))
+                    )
+                )
                 .ToList();
             foreach (var d in efDescriptors)
             {
                 services.Remove(d);
             }
 
-            services.AddDbContextFactory<AppDbContext>(o => o.UseInMemoryDatabase("ihl-itests", dbRoot));
+            services.AddDbContextFactory<AppDbContext>(o =>
+                o.UseInMemoryDatabase("ihl-itests", dbRoot)
+            );
 
             // Re-point the Discord webhook client at a benign local address with a
             // 200-stub primary handler (last registration wins for both).
             services
-                .AddHttpClient(DiscordClient.HttpClientName, c => c.BaseAddress = new Uri("http://localhost/"))
+                .AddHttpClient(
+                    DiscordClient.HttpClientName,
+                    c => c.BaseAddress = new Uri("http://localhost/")
+                )
                 .ConfigurePrimaryHttpMessageHandler(() => new StubOkHandler());
         });
     }

@@ -21,5 +21,5 @@ public enum LobbyState
     Waiting,
     Ready,
     InProgress,
-    Finished
+    Finished,
 }

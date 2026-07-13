@@ -1,48 +1,94 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
-             x:Class="IHLDota2Bot.Desktop.Views.RegistrationView"
-             x:DataType="vm:RegistrationViewModel">
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+  mc:Ignorable="d"
+  d:DesignWidth="900"
+  d:DesignHeight="700"
+  x:Class="IHLDota2Bot.Desktop.Views.RegistrationView"
+  x:DataType="vm:RegistrationViewModel"
+>
+  <Panel>
+    <Border
+      Classes="card"
+      Width="430"
+      Padding="44"
+      CornerRadius="18"
+      HorizontalAlignment="Center"
+      VerticalAlignment="Center"
+    >
+      <StackPanel Spacing="22">
+        <StackPanel Spacing="10" HorizontalAlignment="Center">
+          <Border
+            Width="56"
+            Height="56"
+            CornerRadius="14"
+            Background="{DynamicResource AccentBrush}"
+          >
+            <PathIcon
+              Data="{StaticResource IconProfile}"
+              Width="28"
+              Height="28"
+              Foreground="#1B1205"
+            />
+          </Border>
+          <TextBlock Text="Create your account" Classes="h2" HorizontalAlignment="Center" />
+          <TextBlock
+            Classes="body"
+            TextWrapping="Wrap"
+            TextAlignment="Center"
+            MaxWidth="320"
+            Text="First time here — pick a display name to join the league."
+          />
+        </StackPanel>
 
-    <Panel>
-        <Border Classes="card" Width="430" Padding="44" CornerRadius="18"
-                HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel Spacing="22">
-
-                <StackPanel Spacing="10" HorizontalAlignment="Center">
-                    <Border Width="56" Height="56" CornerRadius="14" Background="{DynamicResource AccentBrush}">
-                        <PathIcon Data="{StaticResource IconProfile}" Width="28" Height="28" Foreground="#1B1205"/>
-                    </Border>
-                    <TextBlock Text="Create your account" Classes="h2" HorizontalAlignment="Center"/>
-                    <TextBlock Classes="body" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="320"
-                               Text="First time here — pick a display name to join the league."/>
-                </StackPanel>
-
-                <Border Classes="pill" HorizontalAlignment="Center">
-                    <TextBlock Text="{Binding SteamId, StringFormat='SteamID: {0}'}" FontSize="12"
-                               Foreground="{DynamicResource TextMutedBrush}"/>
-                </Border>
-
-                <StackPanel Spacing="8">
-                    <TextBlock Text="DISPLAY NAME" Classes="caption"/>
-                    <TextBox Text="{Binding Username, Mode=TwoWay}" PlaceholderText="e.g. Dendi"
-                             FontSize="15" CornerRadius="10"/>
-                </StackPanel>
-
-                <Button Classes="accent" HorizontalAlignment="Stretch" Content="CREATE ACCOUNT"
-                        Command="{Binding SubmitCommand}" IsEnabled="{Binding !IsBusy}"/>
-
-                <ProgressBar IsIndeterminate="True" Width="220" Height="4" IsVisible="{Binding IsBusy}"
-                             Foreground="{DynamicResource AccentBrush}"
-                             Background="{DynamicResource SurfaceHoverBrush}" HorizontalAlignment="Center"/>
-
-                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" TextAlignment="Center"
-                           Foreground="{DynamicResource LossBrush}" FontSize="13"
-                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-            </StackPanel>
+        <Border Classes="pill" HorizontalAlignment="Center">
+          <TextBlock
+            Text="{Binding SteamId, StringFormat='SteamID: {0}'}"
+            FontSize="12"
+            Foreground="{DynamicResource TextMutedBrush}"
+          />
         </Border>
-    </Panel>
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="DISPLAY NAME" Classes="caption" />
+          <TextBox
+            Text="{Binding Username, Mode=TwoWay}"
+            PlaceholderText="e.g. Dendi"
+            FontSize="15"
+            CornerRadius="10"
+          />
+        </StackPanel>
+
+        <Button
+          Classes="accent"
+          HorizontalAlignment="Stretch"
+          Content="CREATE ACCOUNT"
+          Command="{Binding SubmitCommand}"
+          IsEnabled="{Binding !IsBusy}"
+        />
+
+        <ProgressBar
+          IsIndeterminate="True"
+          Width="220"
+          Height="4"
+          IsVisible="{Binding IsBusy}"
+          Foreground="{DynamicResource AccentBrush}"
+          Background="{DynamicResource SurfaceHoverBrush}"
+          HorizontalAlignment="Center"
+        />
+
+        <TextBlock
+          Text="{Binding Error}"
+          TextWrapping="Wrap"
+          TextAlignment="Center"
+          Foreground="{DynamicResource LossBrush}"
+          FontSize="13"
+          IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+        />
+      </StackPanel>
+    </Border>
+  </Panel>
 </UserControl>

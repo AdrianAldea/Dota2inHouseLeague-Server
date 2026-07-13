@@ -8,7 +8,6 @@ namespace IHLDota2Bot.Discord.Commands;
 /// Admin-only commands. Each sets <see cref="IDiscordCommandHandler.RequiresAdmin"/>
 /// so the dispatch pipeline enforces the permission check before invoking it.
 /// </summary>
-
 /// <summary>`!ban @user [reason]` — ban the mentioned player.</summary>
 public sealed class BanCommandHandler(ISteamClient steamClient) : IDiscordCommandHandler
 {
@@ -27,7 +26,12 @@ public sealed class BanCommandHandler(ISteamClient steamClient) : IDiscordComman
         var reason = context.Parts.Length > 2 ? string.Join(' ', context.Parts.Skip(2)) : null;
 
         var result = await steamClient.BanPlayerAsync(targetId, reason);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.BanFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.BanFailed
+        );
     }
 }
 
@@ -46,7 +50,12 @@ public sealed class UnbanCommandHandler(ISteamClient steamClient) : IDiscordComm
         }
 
         var result = await steamClient.UnbanPlayerAsync(targetId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.UnbanFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.UnbanFailed
+        );
     }
 }
 
@@ -65,7 +74,12 @@ public sealed class KickCommandHandler(ISteamClient steamClient) : IDiscordComma
         }
 
         var result = await steamClient.KickPlayerAsync(targetId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.KickFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.KickFailed
+        );
     }
 }
 
@@ -78,7 +92,12 @@ public sealed class ForceStartCommandHandler(ISteamClient steamClient) : IDiscor
     public async Task HandleAsync(IDiscordCommandContext context)
     {
         var result = await steamClient.ForceStartLobbyAsync();
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.ForceStartFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.ForceStartFailed
+        );
     }
 }
 
@@ -91,13 +110,20 @@ public sealed class ResetQueueCommandHandler(ISteamClient steamClient) : IDiscor
     public async Task HandleAsync(IDiscordCommandContext context)
     {
         var result = await steamClient.ResetQueueAsync();
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.ResetQueueFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.ResetQueueFailed
+        );
     }
 }
 
 /// <summary>`!add_account <username> <password>` — add a Steam account to the pool.</summary>
-public sealed class AddAccountCommandHandler(ISteamClient steamClient, ILogger<AddAccountCommandHandler> logger)
-    : IDiscordCommandHandler
+public sealed class AddAccountCommandHandler(
+    ISteamClient steamClient,
+    ILogger<AddAccountCommandHandler> logger
+) : IDiscordCommandHandler
 {
     public DiscordAction Action => DiscordAction.ADD_ACCOUNT;
     public bool RequiresAdmin => true;
@@ -112,8 +138,14 @@ public sealed class AddAccountCommandHandler(ISteamClient steamClient, ILogger<A
 
         // Scrub the password from chat first — before the API round-trip — so the
         // plaintext credential sits in channel history for as short a time as possible.
-        try { await context.DeleteSourceMessageAsync(); }
-        catch (Exception ex) { logger.LogWarning(ex, "Could not delete add_account message"); }
+        try
+        {
+            await context.DeleteSourceMessageAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not delete add_account message");
+        }
 
         var result = await steamClient.AddSteamAccountAsync(context.Parts[1], context.Parts[2]);
         await context.ReplyAsync(result?.Message ?? CommandMessages.AddAccountFailed);

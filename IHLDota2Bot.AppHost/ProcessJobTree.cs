@@ -41,7 +41,9 @@ public static class ProcessJobTree
         catch (Exception ex)
         {
             // Never let process-management plumbing break app startup.
-            Console.Error.WriteLine($"[ProcessJobTree] Could not attach kill-on-close job: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[ProcessJobTree] Could not attach kill-on-close job: {ex.Message}"
+            );
         }
     }
 
@@ -65,7 +67,9 @@ public static class ProcessJobTree
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[ProcessJobTree] Could not set up parent-process watch: {ex.Message}");
+            Console.Error.WriteLine(
+                $"[ProcessJobTree] Could not set up parent-process watch: {ex.Message}"
+            );
         }
     }
 
@@ -91,22 +95,32 @@ public static class ProcessJobTree
         var watcher = new Thread(() =>
         {
             WaitForSingleObject(parentHandle, INFINITE);
-            Console.Error.WriteLine("[ProcessJobTree] Parent process exited; shutting down AppHost so its children are reaped.");
+            Console.Error.WriteLine(
+                "[ProcessJobTree] Parent process exited; shutting down AppHost so its children are reaped."
+            );
             Environment.Exit(0);
         })
         {
             IsBackground = true,
-            Name = "ParentProcessWatch"
+            Name = "ParentProcessWatch",
         };
         watcher.Start();
-        Console.WriteLine($"[ProcessJobTree] Watching parent process {parentPid}; AppHost will exit if it does.");
+        Console.WriteLine(
+            $"[ProcessJobTree] Watching parent process {parentPid}; AppHost will exit if it does."
+        );
     }
 
     [SupportedOSPlatform("windows")]
     private static int GetParentProcessId()
     {
         var pbi = new PROCESS_BASIC_INFORMATION();
-        var status = NtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, ref pbi, Marshal.SizeOf<PROCESS_BASIC_INFORMATION>(), out _);
+        var status = NtQueryInformationProcess(
+            GetCurrentProcess(),
+            ProcessBasicInformation,
+            ref pbi,
+            Marshal.SizeOf<PROCESS_BASIC_INFORMATION>(),
+            out _
+        );
         return status == 0 ? pbi.InheritedFromUniqueProcessId.ToInt32() : -1;
     }
 
@@ -116,15 +130,17 @@ public static class ProcessJobTree
         var job = CreateJobObject(IntPtr.Zero, null);
         if (job == IntPtr.Zero)
         {
-            throw new InvalidOperationException($"CreateJobObject failed (Win32 error {Marshal.GetLastWin32Error()}).");
+            throw new InvalidOperationException(
+                $"CreateJobObject failed (Win32 error {Marshal.GetLastWin32Error()})."
+            );
         }
 
         var info = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION
         {
             BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION
             {
-                LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-            }
+                LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            },
         };
 
         var length = Marshal.SizeOf<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>();
@@ -133,9 +149,18 @@ public static class ProcessJobTree
         {
             Marshal.StructureToPtr(info, infoPtr, fDeleteOld: false);
 
-            if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, infoPtr, (uint)length))
+            if (
+                !SetInformationJobObject(
+                    job,
+                    JobObjectExtendedLimitInformation,
+                    infoPtr,
+                    (uint)length
+                )
+            )
             {
-                throw new InvalidOperationException($"SetInformationJobObject failed (Win32 error {Marshal.GetLastWin32Error()}).");
+                throw new InvalidOperationException(
+                    $"SetInformationJobObject failed (Win32 error {Marshal.GetLastWin32Error()})."
+                );
             }
         }
         finally
@@ -145,12 +170,16 @@ public static class ProcessJobTree
 
         if (!AssignProcessToJobObject(job, GetCurrentProcess()))
         {
-            throw new InvalidOperationException($"AssignProcessToJobObject failed (Win32 error {Marshal.GetLastWin32Error()}).");
+            throw new InvalidOperationException(
+                $"AssignProcessToJobObject failed (Win32 error {Marshal.GetLastWin32Error()})."
+            );
         }
 
         // Keep the handle alive for the process lifetime. Deliberately never closed.
         _jobHandle = job;
-        Console.WriteLine("[ProcessJobTree] Child processes are tied to the AppHost lifetime (kill-on-close job).");
+        Console.WriteLine(
+            "[ProcessJobTree] Child processes are tied to the AppHost lifetime (kill-on-close job)."
+        );
     }
 
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
@@ -160,13 +189,23 @@ public static class ProcessJobTree
     private const uint INFINITE = 0xFFFFFFFF;
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
+    private static extern IntPtr OpenProcess(
+        uint dwDesiredAccess,
+        [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle,
+        uint dwProcessId
+    );
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
     [DllImport("ntdll.dll")]
-    private static extern int NtQueryInformationProcess(IntPtr processHandle, int processInformationClass, ref PROCESS_BASIC_INFORMATION processInformation, int processInformationLength, out int returnLength);
+    private static extern int NtQueryInformationProcess(
+        IntPtr processHandle,
+        int processInformationClass,
+        ref PROCESS_BASIC_INFORMATION processInformation,
+        int processInformationLength,
+        out int returnLength
+    );
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PROCESS_BASIC_INFORMATION
@@ -179,12 +218,22 @@ public static class ProcessJobTree
         public IntPtr InheritedFromUniqueProcessId;
     }
 
-    [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DllImport(
+        "kernel32.dll",
+        EntryPoint = "CreateJobObjectW",
+        CharSet = CharSet.Unicode,
+        SetLastError = true
+    )]
     private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetInformationJobObject(IntPtr hJob, int jobObjectInformationClass, IntPtr lpJobObjectInformation, uint cbJobObjectInformationLength);
+    private static extern bool SetInformationJobObject(
+        IntPtr hJob,
+        int jobObjectInformationClass,
+        IntPtr lpJobObjectInformation,
+        uint cbJobObjectInformationLength
+    );
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

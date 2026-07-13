@@ -32,11 +32,13 @@ public sealed class DiscordCommandTelemetry : IDisposable
         handled = meter.CreateCounter<long>(
             "discord.commands.handled",
             unit: "{command}",
-            description: "Number of Discord commands processed, tagged by command and outcome.");
+            description: "Number of Discord commands processed, tagged by command and outcome."
+        );
         duration = meter.CreateHistogram<double>(
             "discord.commands.duration",
             unit: "ms",
-            description: "Handler execution time per Discord command.");
+            description: "Handler execution time per Discord command."
+        );
     }
 
     /// <summary>Records the throughput counter and, for executed commands, the duration histogram.</summary>

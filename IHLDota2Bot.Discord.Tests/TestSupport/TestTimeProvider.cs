@@ -8,7 +8,8 @@ internal sealed class TestTimeProvider(DateTimeOffset start) : TimeProvider
 {
     private DateTimeOffset now = start;
 
-    public TestTimeProvider() : this(DateTimeOffset.UnixEpoch) { }
+    public TestTimeProvider()
+        : this(DateTimeOffset.UnixEpoch) { }
 
     public override DateTimeOffset GetUtcNow() => now;
 

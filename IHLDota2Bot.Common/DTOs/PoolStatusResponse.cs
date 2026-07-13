@@ -4,7 +4,7 @@ public enum PoolAccountState
 {
     Ready = 0,
     InUse = 1,
-    Cooldown = 2
+    Cooldown = 2,
 }
 
 public record PoolStatusResponse

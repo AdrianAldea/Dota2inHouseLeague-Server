@@ -66,7 +66,9 @@ public sealed class SteamGcClient : ISteamGcClient
     // Signals that the GC handshake (ClientHello -> ClientWelcome) has
     // completed for the current session. Callers awaiting GC operations
     // should await GcReady before sending. Reset on disconnect/logoff.
-    private TaskCompletionSource<bool> gcReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource<bool> gcReady = new(
+        TaskCreationOptions.RunContinuationsAsynchronously
+    );
 
     // The roster the current lobby is waiting on. When non-null, lobby SO
     // snapshots are checked against Expected; when every SteamID is seated
@@ -98,7 +100,14 @@ public sealed class SteamGcClient : ISteamGcClient
     public event EventHandler<LobbyLaunchedEventArgs>? LobbyLaunched;
     public event EventHandler<MatchCompletedEventArgs>? MatchCompleted;
 
-    public SteamGcClient(string username, string password, DiscordClient discordClient, ILogger logger, bool enableReconnect = true, SteamTokenStore? tokenStore = null)
+    public SteamGcClient(
+        string username,
+        string password,
+        DiscordClient discordClient,
+        ILogger logger,
+        bool enableReconnect = true,
+        SteamTokenStore? tokenStore = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
@@ -132,7 +141,8 @@ public sealed class SteamGcClient : ISteamGcClient
 
     public Task<bool> StartAsync()
     {
-        if (isRunning) return Task.FromResult(true);
+        if (isRunning)
+            return Task.FromResult(true);
 
         isRunning = true;
         _ = Task.Run(ConnectAndPumpCallbacks);
@@ -156,7 +166,11 @@ public sealed class SteamGcClient : ISteamGcClient
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "[{Username}] Failed to send PracticeLobbyLeave during shutdown", username);
+                logger.LogWarning(
+                    ex,
+                    "[{Username}] Failed to send PracticeLobbyLeave during shutdown",
+                    username
+                );
             }
         }
 
@@ -172,7 +186,8 @@ public sealed class SteamGcClient : ISteamGcClient
     /// </summary>
     public void DestroyActiveLobby()
     {
-        if (!isLoggedOn || !hasActiveLobby) return;
+        if (!isLoggedOn || !hasActiveLobby)
+            return;
 
         try
         {
@@ -199,7 +214,10 @@ public sealed class SteamGcClient : ISteamGcClient
     {
         if (!isLoggedOn || !hasActiveLobby)
         {
-            logger.LogInformation("[{Username}] LeaveActiveLobbyAsync: no active lobby to leave", username);
+            logger.LogInformation(
+                "[{Username}] LeaveActiveLobbyAsync: no active lobby to leave",
+                username
+            );
             return false;
         }
 
@@ -210,8 +228,13 @@ public sealed class SteamGcClient : ISteamGcClient
 
     private void SendLeaveLobby()
     {
-        logger.LogInformation("[{Username}] Sending PracticeLobbyLeave to abandon hosted lobby", username);
-        var leaveMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyLeave>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLeave);
+        logger.LogInformation(
+            "[{Username}] Sending PracticeLobbyLeave to abandon hosted lobby",
+            username
+        );
+        var leaveMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyLeave>(
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLeave
+        );
         steamGameCoordinator.Send(leaveMsg, DotaAppId);
         hasActiveLobby = false;
         activeRoster = null;
@@ -225,13 +248,20 @@ public sealed class SteamGcClient : ISteamGcClient
         try
         {
             steamClient.Connect();
-            logger.LogDebug("[{Username}] steamClient.Connect() returned, entering callback pump", username);
+            logger.LogDebug(
+                "[{Username}] steamClient.Connect() returned, entering callback pump",
+                username
+            );
         }
         catch (Exception ex)
         {
             // Don't bail — the loop below will keep RunWaitCallbacks alive, and OnDisconnected
             // (when SteamKit eventually realises) will trigger the reconnect path.
-            logger.LogError(ex, "[{Username}] Initial Connect() threw; loop will continue and retry via OnDisconnected", username);
+            logger.LogError(
+                ex,
+                "[{Username}] Initial Connect() threw; loop will continue and retry via OnDisconnected",
+                username
+            );
         }
 
         while (isRunning)
@@ -244,12 +274,19 @@ public sealed class SteamGcClient : ISteamGcClient
             {
                 // Without this catch, one bad packet would terminate the loop forever
                 // and leave isRunning=true (so StartAsync wouldn't even retry).
-                logger.LogError(ex, "[{Username}] Exception in RunWaitCallbacks; continuing", username);
+                logger.LogError(
+                    ex,
+                    "[{Username}] Exception in RunWaitCallbacks; continuing",
+                    username
+                );
                 Thread.Sleep(TimeSpan.FromSeconds(1));
             }
         }
 
-        logger.LogInformation("[{Username}] Steam connection task exiting (clean shutdown)", username);
+        logger.LogInformation(
+            "[{Username}] Steam connection task exiting (clean shutdown)",
+            username
+        );
     }
 
     public async Task CreateLobbyAsync(CreateLobbyRequest req)
@@ -258,21 +295,28 @@ public sealed class SteamGcClient : ISteamGcClient
 
         // Set the expected roster *before* sending — an SO snapshot for the
         // new lobby can arrive while we're still awaiting Discord I/O below.
-        activeRoster = req.ExpectedSteamIds.Count > 0
-            ? new ActiveRoster(req.AppLobbyId, [.. req.ExpectedSteamIds])
-            : null;
+        activeRoster =
+            req.ExpectedSteamIds.Count > 0
+                ? new ActiveRoster(req.AppLobbyId, [.. req.ExpectedSteamIds])
+                : null;
         hostedAppLobbyId = req.AppLobbyId;
         matchResultReported = false;
 
-        logger.LogInformation("[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}", username, req.LobbyName);
+        logger.LogInformation(
+            "[{Username}] Sending CMsgPracticeLobbyCreate for lobby {LobbyName}",
+            username,
+            req.LobbyName
+        );
 
-        var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate);
+        var createLobbyMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyCreate>(
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyCreate
+        );
         createLobbyMsg.Body.lobby_details = new CMsgPracticeLobbySetDetails
         {
             game_name = req.LobbyName,
             pass_key = req.LobbyPassword,
             game_mode = (uint)DOTA_GameMode.DOTA_GAMEMODE_AP,
-            server_region = 3
+            server_region = 3,
         };
 
         steamGameCoordinator.Send(createLobbyMsg, DotaAppId);
@@ -287,17 +331,24 @@ public sealed class SteamGcClient : ISteamGcClient
     {
         foreach (var steamId in steamIds)
         {
-            var inviteMsg = new ClientGCMsgProtobuf<CMsgInviteToLobby>((uint)EGCBaseMsg.k_EMsgGCInviteToLobby);
+            var inviteMsg = new ClientGCMsgProtobuf<CMsgInviteToLobby>(
+                (uint)EGCBaseMsg.k_EMsgGCInviteToLobby
+            );
             inviteMsg.Body.steam_id = steamId;
 
-            logger.LogInformation("[{Username}] Invite sent to SteamID {SteamId}", username, steamId);
+            logger.LogInformation(
+                "[{Username}] Invite sent to SteamID {SteamId}",
+                username,
+                steamId
+            );
             steamGameCoordinator.Send(inviteMsg, DotaAppId);
         }
     }
 
     private void OnGCMessage(SteamGameCoordinator.MessageCallback callback)
     {
-        if (callback.AppID != DotaAppId) return;
+        if (callback.AppID != DotaAppId)
+            return;
 
         // Strip the high-bit flag from the message ID to match standard Protobuf tracking
         uint cleanMsgType = MsgUtil.GetGCMsg(callback.Message.MsgType);
@@ -310,8 +361,8 @@ public sealed class SteamGcClient : ISteamGcClient
                 break;
 
             case (uint)EGCBaseClientMsg.k_EMsgGCClientConnectionStatus:
-                    ProcessConnectionStatus(callback);
-                    break;
+                ProcessConnectionStatus(callback);
+                break;
 
             case (uint)ESOMsg.k_ESOMsg_Update:
                 ProcessSingleObject(callback);
@@ -361,12 +412,19 @@ public sealed class SteamGcClient : ISteamGcClient
             case GCConnectionStatus.GCConnectionStatus_NO_SESSION_IN_LOGON_QUEUE:
                 logger.LogWarning(
                     "[{Username}] GC logon queue: position {QueuePosition}/{QueueSize}, est wait {EstimatedWaitSeconds}s (wait {WaitSeconds}s)",
-                    username, connStatus.queue_position, connStatus.queue_size,
-                    connStatus.estimated_wait_seconds_remaining, connStatus.wait_seconds);
+                    username,
+                    connStatus.queue_position,
+                    connStatus.queue_size,
+                    connStatus.estimated_wait_seconds_remaining,
+                    connStatus.wait_seconds
+                );
                 break;
 
             case GCConnectionStatus.GCConnectionStatus_NO_SESSION:
-                logger.LogWarning("[{Username}] No GC session; handshake will be retried", username);
+                logger.LogWarning(
+                    "[{Username}] No GC session; handshake will be retried",
+                    username
+                );
                 ResetGcReady();
                 break;
 
@@ -376,7 +434,11 @@ public sealed class SteamGcClient : ISteamGcClient
                 break;
 
             default:
-                logger.LogInformation("[{Username}] GC connection status: {Status}", username, connStatus.status);
+                logger.LogInformation(
+                    "[{Username}] GC connection status: {Status}",
+                    username,
+                    connStatus.status
+                );
                 break;
         }
     }
@@ -410,8 +472,8 @@ public sealed class SteamGcClient : ISteamGcClient
             var soMessage = new ClientGCMsgProtobuf<CMsgSOMultipleObjects>(callback.Message).Body;
 
             // A lobby object can show up as freshly added or modified; check both.
-            var lobbyData = soMessage.objects_added
-                .Concat(soMessage.objects_modified)
+            var lobbyData = soMessage
+                .objects_added.Concat(soMessage.objects_modified)
                 .Where(obj => obj.type_id == LobbyTypeId && obj.object_data != null)
                 .Select(obj => obj.object_data)
                 .LastOrDefault();
@@ -436,8 +498,8 @@ public sealed class SteamGcClient : ISteamGcClient
             // "all seated -> launch" check has to run on this path too.
             var subscribed = new ClientGCMsgProtobuf<CMsgSOCacheSubscribed>(callback.Message).Body;
 
-            var lobbyData = subscribed.objects
-                .Where(o => o.type_id == LobbyTypeId)
+            var lobbyData = subscribed
+                .objects.Where(o => o.type_id == LobbyTypeId)
                 .SelectMany(o => o.object_data)
                 .LastOrDefault();
 
@@ -461,14 +523,16 @@ public sealed class SteamGcClient : ISteamGcClient
             // lobby's *final* state, which may be a POSTGAME outcome we never got
             // a plain Update for.
             var soMessage = new ClientGCMsgProtobuf<CMsgSOSingleObject>(callback.Message).Body;
-            if (soMessage.type_id != LobbyTypeId) return;
+            if (soMessage.type_id != LobbyTypeId)
+                return;
 
             if (soMessage.object_data is { Length: > 0 })
             {
                 using var ms = new MemoryStream(soMessage.object_data);
                 var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
                 // Last chance to record a decisive result before the lobby is gone.
-                if (lobby != null) DetectMatchCompletion(lobby);
+                if (lobby != null)
+                    DetectMatchCompletion(lobby);
             }
 
             HandleLobbyGone("lobby SO destroyed");
@@ -484,9 +548,13 @@ public sealed class SteamGcClient : ISteamGcClient
         // CacheUnsubscribed means an SO cache we were subscribed to went away. It
         // carries only the owner soid, which we don't need: if we still think we
         // host a lobby, that cache was ours and the lobby is over.
-        if (!hasActiveLobby && hostedAppLobbyId is null) return;
+        if (!hasActiveLobby && hostedAppLobbyId is null)
+            return;
 
-        logger.LogInformation("[{Username}] SO cache unsubscribed; treating hosted lobby as gone", username);
+        logger.LogInformation(
+            "[{Username}] SO cache unsubscribed; treating hosted lobby as gone",
+            username
+        );
         HandleLobbyGone("SO cache unsubscribed");
     }
 
@@ -501,7 +569,8 @@ public sealed class SteamGcClient : ISteamGcClient
     /// </summary>
     private void HandleLobbyGone(string reason)
     {
-        if (!hasActiveLobby && hostedAppLobbyId is null) return;
+        if (!hasActiveLobby && hostedAppLobbyId is null)
+            return;
 
         var appLobbyId = hostedAppLobbyId;
         var alreadyReported = matchResultReported;
@@ -515,30 +584,41 @@ public sealed class SteamGcClient : ISteamGcClient
 
         if (alreadyReported)
         {
-            logger.LogInformation("[{Username}] Hosted lobby gone ({Reason}); result already recorded", username, reason);
+            logger.LogInformation(
+                "[{Username}] Hosted lobby gone ({Reason}); result already recorded",
+                username,
+                reason
+            );
             return;
         }
 
         logger.LogWarning(
             "[{Username}] Hosted lobby gone ({Reason}) with no scored result; signalling abandoned match for {AppLobbyId}",
-            username, reason, appLobbyId ?? "(none)");
+            username,
+            reason,
+            appLobbyId ?? "(none)"
+        );
 
-        MatchCompleted?.Invoke(this, new MatchCompletedEventArgs
-        {
-            Username = username,
-            AppLobbyId = appLobbyId,
-            DotaLobbyId = 0,
-            MatchId = 0,
-            WinningTeam = null,
-            Outcome = EMatchOutcome.k_EMatchOutcome_Unknown
-        });
+        MatchCompleted?.Invoke(
+            this,
+            new MatchCompletedEventArgs
+            {
+                Username = username,
+                AppLobbyId = appLobbyId,
+                DotaLobbyId = 0,
+                MatchId = 0,
+                WinningTeam = null,
+                Outcome = EMatchOutcome.k_EMatchOutcome_Unknown,
+            }
+        );
     }
 
     private void HandleLobbyUpdate(byte[] objectData)
     {
         using var ms = new MemoryStream(objectData);
         var lobby = Serializer.Deserialize<CSODOTALobby>(ms);
-        if (lobby == null) return;
+        if (lobby == null)
+            return;
 
         hasActiveLobby = true;
 
@@ -561,7 +641,10 @@ public sealed class SteamGcClient : ISteamGcClient
             // Log snapshot so we at least see lobby activity, but don't auto-launch.
             logger.LogDebug(
                 "[{Username}] Lobby snapshot (no roster tracked): LobbyId={LobbyId} Members={MemberCount}",
-                username, lobby.lobby_id, lobby.all_members.Count);
+                username,
+                lobby.lobby_id,
+                lobby.all_members.Count
+            );
             return;
         }
 
@@ -573,29 +656,37 @@ public sealed class SteamGcClient : ISteamGcClient
             logger.LogDebug(
                 "[{Username}] Lobby members: {Members}",
                 username,
-                string.Join(", ", lobby.all_members.Select(m => $"{m.id}=>{m.team}")));
+                string.Join(", ", lobby.all_members.Select(m => $"{m.id}=>{m.team}"))
+            );
         }
 
-        var seated = lobby.all_members
-            .Where(IsOnTeamSlot)
-            .Select(m => m.id)
-            .ToHashSet();
+        var seated = lobby.all_members.Where(IsOnTeamSlot).Select(m => m.id).ToHashSet();
 
-        var missingCount = roster.Value.Expected.Count - roster.Value.Expected.Intersect(seated).Count();
+        var missingCount =
+            roster.Value.Expected.Count - roster.Value.Expected.Intersect(seated).Count();
 
         logger.LogInformation(
             "[{Username}] Lobby update: LobbyId={LobbyId} Seated={Seated}/{Expected} Missing={Missing}",
-            username, lobby.lobby_id, seated.Count, roster.Value.Expected.Count, missingCount);
+            username,
+            lobby.lobby_id,
+            seated.Count,
+            roster.Value.Expected.Count,
+            missingCount
+        );
 
-        if (missingCount > 0) return;
+        if (missingCount > 0)
+            return;
 
-        logger.LogInformation("[{Username}] All expected players seated — launching Dota 2 match", username);
+        logger.LogInformation(
+            "[{Username}] All expected players seated — launching Dota 2 match",
+            username
+        );
 
         var args = new LobbyLaunchedEventArgs
         {
             Username = username,
             AppLobbyId = roster.Value.AppLobbyId,
-            DotaLobbyId = lobby.lobby_id
+            DotaLobbyId = lobby.lobby_id,
         };
 
         // Clear before raising so a re-entrant snapshot doesn't re-launch.
@@ -607,17 +698,20 @@ public sealed class SteamGcClient : ISteamGcClient
     // Maps the GC's scored outcome to the app's winning team. Returns null for
     // anything that isn't a clean Radiant/Dire win (still scoring, abandoned,
     // server crash, never started, etc.).
-    private static MatchTeam? OutcomeToWinner(EMatchOutcome outcome) => outcome switch
-    {
-        EMatchOutcome.k_EMatchOutcome_RadVictory => MatchTeam.Radiant,
-        EMatchOutcome.k_EMatchOutcome_DireVictory => MatchTeam.Dire,
-        _ => null
-    };
+    private static MatchTeam? OutcomeToWinner(EMatchOutcome outcome) =>
+        outcome switch
+        {
+            EMatchOutcome.k_EMatchOutcome_RadVictory => MatchTeam.Radiant,
+            EMatchOutcome.k_EMatchOutcome_DireVictory => MatchTeam.Dire,
+            _ => null,
+        };
 
     private void DetectMatchCompletion(CSODOTALobby lobby)
     {
-        if (matchResultReported) return;
-        if (lobby.state != CSODOTALobby.State.POSTGAME) return;
+        if (matchResultReported)
+            return;
+        if (lobby.state != CSODOTALobby.State.POSTGAME)
+            return;
 
         var outcome = lobby.match_outcome;
         var winner = OutcomeToWinner(outcome);
@@ -625,24 +719,32 @@ public sealed class SteamGcClient : ISteamGcClient
         // POSTGAME can briefly show Unknown before the GC writes the result.
         // Hold until it's either a decisive win or an explicit not-scored code
         // so we don't post a half-baked result.
-        if (winner is null && outcome == EMatchOutcome.k_EMatchOutcome_Unknown) return;
+        if (winner is null && outcome == EMatchOutcome.k_EMatchOutcome_Unknown)
+            return;
 
         matchResultReported = true;
 
         logger.LogInformation(
             "[{Username}] Match completed: LobbyId={LobbyId} MatchId={MatchId} Outcome={Outcome} Winner={Winner}",
-            username, lobby.lobby_id, lobby.match_id, outcome,
-            winner?.ToString() ?? "none");
+            username,
+            lobby.lobby_id,
+            lobby.match_id,
+            outcome,
+            winner?.ToString() ?? "none"
+        );
 
-        MatchCompleted?.Invoke(this, new MatchCompletedEventArgs
-        {
-            Username = username,
-            AppLobbyId = hostedAppLobbyId,
-            DotaLobbyId = lobby.lobby_id,
-            MatchId = lobby.match_id,
-            WinningTeam = winner,
-            Outcome = outcome
-        });
+        MatchCompleted?.Invoke(
+            this,
+            new MatchCompletedEventArgs
+            {
+                Username = username,
+                AppLobbyId = hostedAppLobbyId,
+                DotaLobbyId = lobby.lobby_id,
+                MatchId = lobby.match_id,
+                WinningTeam = winner,
+                Outcome = outcome,
+            }
+        );
     }
 
     private static bool IsOnTeamSlot(CSODOTALobbyMember member) =>
@@ -656,19 +758,25 @@ public sealed class SteamGcClient : ISteamGcClient
     private void EnsureBotIsNotSeated(CSODOTALobby lobby)
     {
         var mySteamId = steamClient.SteamID;
-        if (mySteamId is null || mySteamId.ConvertToUInt64() == 0) return;
+        if (mySteamId is null || mySteamId.ConvertToUInt64() == 0)
+            return;
 
         var me = lobby.all_members.FirstOrDefault(m => m.id == mySteamId.ConvertToUInt64());
-        if (me is null || !IsOnTeamSlot(me)) return;
+        if (me is null || !IsOnTeamSlot(me))
+            return;
 
         logger.LogInformation(
             "[{Username}] Bot is seated on {Team}; moving it off the player slot to {Target}",
-            username, me.team, BotParkTeam);
+            username,
+            me.team,
+            BotParkTeam
+        );
 
         // Strips the bot of its team slot and throws it into "Unassigned"; it
         // stays inside the lobby as the HOST/LEADER.
         var unassignMsg = new ClientGCMsgProtobuf<CMsgPracticeLobbyKickFromTeam>(
-            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyKickFromTeam);
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyKickFromTeam
+        );
         unassignMsg.Body.account_id = mySteamId.AccountID;
 
         steamGameCoordinator.Send(unassignMsg, DotaAppId);
@@ -676,15 +784,20 @@ public sealed class SteamGcClient : ISteamGcClient
 
     private void LaunchLobby()
     {
-        var msgLaunch = new ClientGCMsgProtobuf<CMsgPracticeLobbyLaunch>((uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLaunch);
+        var msgLaunch = new ClientGCMsgProtobuf<CMsgPracticeLobbyLaunch>(
+            (uint)EDOTAGCMsg.k_EMsgGCPracticeLobbyLaunch
+        );
         steamGameCoordinator.Send(msgLaunch, DotaAppId);
     }
 
     private void ResetGcReady()
     {
         var existing = gcReady;
-        if (!existing.Task.IsCompleted) return;
-        gcReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!existing.Task.IsCompleted)
+            return;
+        gcReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
     }
 
     private void OnConnected(SteamKit2.SteamClient.ConnectedCallback callback)
@@ -708,50 +821,65 @@ public sealed class SteamGcClient : ISteamGcClient
 
             if (!string.IsNullOrEmpty(refreshToken))
             {
-                logger.LogInformation("[{Username}] Logging on with stored refresh token", username);
+                logger.LogInformation(
+                    "[{Username}] Logging on with stored refresh token",
+                    username
+                );
                 loggingOnWithStoredToken = true;
-                steamUser.LogOn(new SteamUser.LogOnDetails
-                {
-                    Username = username,
-                    AccessToken = refreshToken
-                });
+                steamUser.LogOn(
+                    new SteamUser.LogOnDetails { Username = username, AccessToken = refreshToken }
+                );
                 return;
             }
 
-            logger.LogInformation("[{Username}] No stored token; beginning credential auth session", username);
+            logger.LogInformation(
+                "[{Username}] No stored token; beginning credential auth session",
+                username
+            );
 
             // UserConsoleAuthenticator prompts on the console if Steam issues a SteamGuard
             // challenge. With SteamGuard disabled it's never invoked; the session returns a
             // token immediately. In a non-interactive host a guard challenge would block on
             // Console input — see the one-time-login note in the code review/docs.
-            var authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(new AuthSessionDetails
-            {
-                Username = username,
-                Password = password,
-                IsPersistentSession = true,
-                Authenticator = new UserConsoleAuthenticator()
-            });
+            var authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(
+                new AuthSessionDetails
+                {
+                    Username = username,
+                    Password = password,
+                    IsPersistentSession = true,
+                    Authenticator = new UserConsoleAuthenticator(),
+                }
+            );
 
             var pollResult = await authSession.PollingWaitForResultAsync();
 
             // Steam returns the canonical account name; persist + log on with that so the
             // token and the logon identity always agree (case/alias differences included).
             tokenStore.Save(pollResult.AccountName, pollResult.RefreshToken);
-            logger.LogInformation("[{Username}] Credential auth succeeded; refresh token stored", username);
+            logger.LogInformation(
+                "[{Username}] Credential auth succeeded; refresh token stored",
+                username
+            );
 
             loggingOnWithStoredToken = false;
-            steamUser.LogOn(new SteamUser.LogOnDetails
-            {
-                Username = pollResult.AccountName,
-                AccessToken = pollResult.RefreshToken
-            });
+            steamUser.LogOn(
+                new SteamUser.LogOnDetails
+                {
+                    Username = pollResult.AccountName,
+                    AccessToken = pollResult.RefreshToken,
+                }
+            );
         }
         catch (AuthenticationException ex)
         {
             // Steam rejected the credentials themselves (bad password, guard failure, …).
             // Retrying the same secrets can't succeed, so stop the reconnect loop and drop
             // any stale token; fix the configured credentials and restart.
-            logger.LogError(ex, "[{Username}] Steam credential authentication was rejected; not retrying", username);
+            logger.LogError(
+                ex,
+                "[{Username}] Steam credential authentication was rejected; not retrying",
+                username
+            );
             authenticationFailed = true;
             tokenStore.Clear(username);
             steamClient.Disconnect();
@@ -760,7 +888,11 @@ public sealed class SteamGcClient : ISteamGcClient
         {
             // Transient failure (network, Steam hiccup). Disconnect so OnDisconnected owns
             // the backoff/reconnect decision rather than leaving the client half-connected.
-            logger.LogError(ex, "[{Username}] Steam authentication threw; disconnecting to let reconnect policy decide", username);
+            logger.LogError(
+                ex,
+                "[{Username}] Steam authentication threw; disconnecting to let reconnect policy decide",
+                username
+            );
             steamClient.Disconnect();
         }
     }
@@ -781,25 +913,30 @@ public sealed class SteamGcClient : ISteamGcClient
 
         if (!isRunning)
         {
-            logger.LogInformation("[{Username}] Disconnected from Steam (clean shutdown)", username);
+            logger.LogInformation(
+                "[{Username}] Disconnected from Steam (clean shutdown)",
+                username
+            );
             return;
         }
 
         if (authenticationFailed)
         {
             logger.LogError(
-                "[{Username}] Not reconnecting: Steam rejected this account's credentials. " +
-                "Fix the configured username/password (and SteamGuard, if enabled) and restart.",
-                username);
+                "[{Username}] Not reconnecting: Steam rejected this account's credentials. "
+                    + "Fix the configured username/password (and SteamGuard, if enabled) and restart.",
+                username
+            );
             return;
         }
 
         if (!enableReconnect)
         {
             logger.LogWarning(
-                "[{Username}] Not reconnecting: reconnect is disabled (Steam:EnableReconnect=false). " +
-                "Restart the process to reconnect.",
-                username);
+                "[{Username}] Not reconnecting: reconnect is disabled (Steam:EnableReconnect=false). "
+                    + "Restart the process to reconnect.",
+                username
+            );
             return;
         }
 
@@ -812,14 +949,19 @@ public sealed class SteamGcClient : ISteamGcClient
 
         logger.LogWarning(
             "[{Username}] Disconnected from Steam (UserInitiated={UserInitiated}); reconnecting in {Delay:F0}s (attempt {Attempt})",
-            username, callback.UserInitiated, delay.TotalSeconds, attempt + 1);
+            username,
+            callback.UserInitiated,
+            delay.TotalSeconds,
+            attempt + 1
+        );
 
         _ = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(delay);
-                if (!isRunning) return;
+                if (!isRunning)
+                    return;
                 logger.LogInformation("[{Username}] Reconnecting to Steam", username);
                 steamClient.Connect();
             }
@@ -845,14 +987,24 @@ public sealed class SteamGcClient : ISteamGcClient
     {
         if (callback.Result != EResult.OK)
         {
-            logger.LogError("[{Username}] Steam authentication failed: {Result}", username, callback.Result);
+            logger.LogError(
+                "[{Username}] Steam authentication failed: {Result}",
+                username,
+                callback.Result
+            );
 
             // A logon with a stored refresh token that's expired/revoked comes back as
             // Expired/AccessDenied/InvalidPassword. Drop the token so the next connect
             // falls back to a fresh credential auth rather than replaying a dead token.
-            if (loggingOnWithStoredToken && SteamReconnectPolicy.IsStaleTokenResult(callback.Result))
+            if (
+                loggingOnWithStoredToken && SteamReconnectPolicy.IsStaleTokenResult(callback.Result)
+            )
             {
-                logger.LogWarning("[{Username}] Stored refresh token rejected ({Result}); clearing it to re-auth on next connect", username, callback.Result);
+                logger.LogWarning(
+                    "[{Username}] Stored refresh token rejected ({Result}); clearing it to re-auth on next connect",
+                    username,
+                    callback.Result
+                );
                 tokenStore.Clear(username);
             }
             else if (SteamReconnectPolicy.IsNonRetryableLogonResult(callback.Result))
@@ -860,7 +1012,9 @@ public sealed class SteamGcClient : ISteamGcClient
                 authenticationFailed = true;
                 logger.LogError(
                     "[{Username}] Logon result {Result} is non-retryable; disabling reconnect for this account until restart",
-                    username, callback.Result);
+                    username,
+                    callback.Result
+                );
             }
             return;
         }
@@ -876,13 +1030,20 @@ public sealed class SteamGcClient : ISteamGcClient
         // so no sleep is needed between these — readiness is signalled by
         // the k_EMsgGCClientWelcome callback handled in OnGCMessage.
         var gamePlayed = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
-        gamePlayed.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = DotaAppId });
+        gamePlayed.Body.games_played.Add(
+            new CMsgClientGamesPlayed.GamePlayed { game_id = DotaAppId }
+        );
         steamClient.Send(gamePlayed);
 
-        var hello = new ClientGCMsgProtobuf<SteamKit2.GC.Dota.Internal.CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
+        var hello = new ClientGCMsgProtobuf<SteamKit2.GC.Dota.Internal.CMsgClientHello>(
+            (uint)EGCBaseClientMsg.k_EMsgGCClientHello
+        );
         steamGameCoordinator.Send(hello, DotaAppId);
 
-        logger.LogInformation("[{Username}] Sent ClientGamesPlayed + GC ClientHello; awaiting Welcome", username);
+        logger.LogInformation(
+            "[{Username}] Sent ClientGamesPlayed + GC ClientHello; awaiting Welcome",
+            username
+        );
     }
 }
 

@@ -8,7 +8,6 @@ namespace IHLDota2Bot.Discord.Commands;
 /// Read-only query commands that fetch from the Game Manager and format a reply.
 /// They mutate no state, so each is a thin handler over <see cref="ISteamClient"/>.
 /// </summary>
-
 /// <summary>`!status` — current queue/lobby state.</summary>
 public sealed class QueueStatusCommandHandler(ISteamClient steamClient) : IDiscordCommandHandler
 {
@@ -34,7 +33,8 @@ public sealed class ProfileCommandHandler(ISteamClient steamClient) : IDiscordCo
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var stats = await steamClient.GetPlayerStatsAsync(authorId);
         if (stats == null)
@@ -68,7 +68,11 @@ public sealed class StatsCommandHandler(ISteamClient steamClient) : IDiscordComm
 /// <summary>Shared stats lookup used by both !mystats and !stats.</summary>
 internal static class StatsReply
 {
-    public static async Task ShowStatsAsync(ISteamClient steamClient, IDiscordCommandContext context, ulong? userId)
+    public static async Task ShowStatsAsync(
+        ISteamClient steamClient,
+        IDiscordCommandContext context,
+        ulong? userId
+    )
     {
         if (userId is null)
         {
@@ -95,7 +99,11 @@ public sealed class LeaderboardCommandHandler(ISteamClient steamClient) : IDisco
     public async Task HandleAsync(IDiscordCommandContext context)
     {
         var top = 10;
-        if (context.Parts.Length >= 2 && int.TryParse(context.Parts[1], out var parsed) && parsed > 0)
+        if (
+            context.Parts.Length >= 2
+            && int.TryParse(context.Parts[1], out var parsed)
+            && parsed > 0
+        )
         {
             top = Math.Min(parsed, 50);
         }
@@ -143,7 +151,8 @@ public sealed class CurrentMatchCommandHandler(ISteamClient steamClient) : IDisc
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var match = await steamClient.GetCurrentMatchAsync(authorId);
         if (match == null)
@@ -164,7 +173,11 @@ public sealed class RecentMatchesCommandHandler(ISteamClient steamClient) : IDis
     public async Task HandleAsync(IDiscordCommandContext context)
     {
         var top = 5;
-        if (context.Parts.Length >= 2 && int.TryParse(context.Parts[1], out var parsed) && parsed > 0)
+        if (
+            context.Parts.Length >= 2
+            && int.TryParse(context.Parts[1], out var parsed)
+            && parsed > 0
+        )
         {
             top = Math.Min(parsed, 20);
         }

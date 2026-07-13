@@ -4,7 +4,7 @@ public enum PoolSessionState
 {
     Ready = 0,
     InProgress = 1,
-    Finished = 2
+    Finished = 2,
 }
 
 public record ActiveSessionSummary

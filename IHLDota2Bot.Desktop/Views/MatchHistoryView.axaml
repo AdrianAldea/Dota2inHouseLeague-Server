@@ -1,174 +1,280 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
-             xmlns:models="using:IHLDota2Bot.Desktop.Models"
-             xmlns:conv="using:IHLDota2Bot.Desktop.Converters"
-             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="760"
-             x:Class="IHLDota2Bot.Desktop.Views.MatchHistoryView"
-             x:DataType="vm:MatchHistoryViewModel">
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="using:IHLDota2Bot.Desktop.ViewModels"
+  xmlns:models="using:IHLDota2Bot.Desktop.Models"
+  xmlns:conv="using:IHLDota2Bot.Desktop.Converters"
+  mc:Ignorable="d"
+  d:DesignWidth="900"
+  d:DesignHeight="760"
+  x:Class="IHLDota2Bot.Desktop.Views.MatchHistoryView"
+  x:DataType="vm:MatchHistoryViewModel"
+>
+  <UserControl.Styles>
+    <Style Selector="Border.tag.win">
+      <Setter Property="Background" Value="#1E3A30" />
+    </Style>
+    <Style Selector="Border.tag.loss">
+      <Setter Property="Background" Value="#3A2020" />
+    </Style>
+    <Style Selector="TextBlock.tagText.win">
+      <Setter Property="Foreground" Value="{DynamicResource WinBrush}" />
+    </Style>
+    <Style Selector="TextBlock.tagText.loss">
+      <Setter Property="Foreground" Value="{DynamicResource LossBrush}" />
+    </Style>
 
-    <UserControl.Styles>
-        <Style Selector="Border.tag.win">
-            <Setter Property="Background" Value="#1E3A30"/>
-        </Style>
-        <Style Selector="Border.tag.loss">
-            <Setter Property="Background" Value="#3A2020"/>
-        </Style>
-        <Style Selector="TextBlock.tagText.win">
-            <Setter Property="Foreground" Value="{DynamicResource WinBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.tagText.loss">
-            <Setter Property="Foreground" Value="{DynamicResource LossBrush}"/>
-        </Style>
+    <!-- Clickable match row -->
+    <Style Selector="Button.matchrow">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.matchrow /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+    </Style>
+    <Style Selector="Button.matchrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+    </Style>
 
-        <!-- Clickable match row -->
-        <Style Selector="Button.matchrow">
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style Selector="Button.matchrow /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-        </Style>
-        <Style Selector="Button.matchrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}"/>
-        </Style>
+    <!-- Detail player line -->
+    <Style Selector="TextBlock.player">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.player.me">
+      <Setter Property="Foreground" Value="{DynamicResource AccentSolidBrush}" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+  </UserControl.Styles>
 
-        <!-- Detail player line -->
-        <Style Selector="TextBlock.player">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.player.me">
-            <Setter Property="Foreground" Value="{DynamicResource AccentSolidBrush}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-        </Style>
-    </UserControl.Styles>
+  <Panel>
+    <ScrollViewer>
+      <StackPanel Margin="36" Spacing="18" MaxWidth="1040">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <TextBlock Text="Match History" Classes="h1" />
+          <Border
+            Classes="pill"
+            VerticalAlignment="Center"
+            IsVisible="{Binding IsOffline}"
+            Background="#332512"
+            BorderBrush="#5A3F1A"
+          >
+            <TextBlock
+              Text="Offline — sample data"
+              FontSize="12"
+              FontWeight="SemiBold"
+              Foreground="{DynamicResource TextSecondaryBrush}"
+            />
+          </Border>
+        </StackPanel>
 
-    <Panel>
-        <ScrollViewer>
-            <StackPanel Margin="36" Spacing="18" MaxWidth="1040">
-                <StackPanel Orientation="Horizontal" Spacing="14">
-                    <TextBlock Text="Match History" Classes="h1"/>
-                    <Border Classes="pill" VerticalAlignment="Center" IsVisible="{Binding IsOffline}"
-                            Background="#332512" BorderBrush="#5A3F1A">
-                        <TextBlock Text="Offline — sample data" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    </Border>
-                </StackPanel>
-
-                <Border Classes="card" Padding="44" IsVisible="{Binding IsEmpty}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="8">
-                        <TextBlock Text="No matches yet" Classes="h3" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Play a match and it'll show up here." Classes="muted" HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <ItemsControl ItemsSource="{Binding Matches}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:MatchListItem">
-                            <Button Classes="matchrow"
-                                    Command="{Binding $parent[ItemsControl].((vm:MatchHistoryViewModel)DataContext).SelectMatchCommand}"
-                                    CommandParameter="{Binding}">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="18,14">
-                                    <Border Grid.Column="0" Classes="tag" CornerRadius="8" Padding="12,6"
-                                            Classes.win="{Binding IsWin}" Classes.loss="{Binding !IsWin}">
-                                        <TextBlock Text="{Binding Result}" FontWeight="Bold" FontSize="13"
-                                                   Classes="tagText" Classes.win="{Binding IsWin}" Classes.loss="{Binding !IsWin}"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
-                                               FontWeight="SemiBold" FontSize="14" Text="{Binding Mode}"/>
-                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="0,0,16,0"
-                                               Classes="muted" Text="{Binding When}"/>
-                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="18"
-                                               Foreground="{DynamicResource TextMutedBrush}" Text="›"/>
-                                </Grid>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
-
-        <!-- ── Match detail overlay ── -->
-        <Border IsVisible="{Binding IsDetailOpen}" Background="#E60B0C10">
-            <Border Classes="card" Width="640" Padding="0" CornerRadius="16"
-                    VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Grid RowDefinitions="Auto,Auto">
-                    <!-- Header (bound to the view-model) -->
-                    <Grid Row="0" ColumnDefinitions="*,Auto" Margin="24,20,12,8">
-                        <StackPanel Grid.Column="0" Spacing="3">
-                            <TextBlock Text="{Binding SelectedMatch.Result}" FontSize="22" FontWeight="Bold"
-                                       Foreground="{Binding SelectedMatch.IsWin, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"/>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding SelectedMatch.Mode}" Classes="muted"/>
-                                <TextBlock Text="{Binding SelectedMatch.When, StringFormat=' · {0}'}" Classes="muted"/>
-                            </StackPanel>
-                        </StackPanel>
-                        <Button Grid.Column="1" Classes="winbtn" Width="36" Height="36"
-                                VerticalAlignment="Top" Command="{Binding CloseDetailCommand}" ToolTip.Tip="Close">
-                            <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2"/>
-                        </Button>
-                    </Grid>
-
-                    <!-- Teams (bound to the selected match) -->
-                    <ContentControl Grid.Row="1" Content="{Binding SelectedMatch}">
-                        <ContentControl.ContentTemplate>
-                            <DataTemplate x:DataType="models:MatchListItem">
-                                <Grid ColumnDefinitions="*,*" Margin="24,8,24,24" ColumnSpacing="18">
-                                    <StackPanel Grid.Column="0" Spacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="RADIANT" Classes="caption"/>
-                                            <TextBlock Text="{Binding RadiantResult}" FontSize="11" FontWeight="Bold"
-                                                       Foreground="{Binding RadiantWon, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"/>
-                                        </StackPanel>
-                                        <ItemsControl ItemsSource="{Binding Radiant}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="models:MatchPlayerLine">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" Height="34" VerticalAlignment="Center">
-                                                        <TextBlock Classes="player" Classes.me="{Binding IsMe}"
-                                                                   Text="{Binding Name}" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="(You)" FontSize="11" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource AccentSolidBrush}" IsVisible="{Binding IsMe}"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1" Spacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="DIRE" Classes="caption"/>
-                                            <TextBlock Text="{Binding DireResult}" FontSize="11" FontWeight="Bold"
-                                                       Foreground="{Binding DireWon, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"/>
-                                        </StackPanel>
-                                        <ItemsControl ItemsSource="{Binding Dire}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="models:MatchPlayerLine">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" Height="34" VerticalAlignment="Center">
-                                                        <TextBlock Classes="player" Classes.me="{Binding IsMe}"
-                                                                   Text="{Binding Name}" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="(You)" FontSize="11" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource AccentSolidBrush}" IsVisible="{Binding IsMe}"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ContentControl.ContentTemplate>
-                    </ContentControl>
-                </Grid>
-            </Border>
+        <Border Classes="card" Padding="44" IsVisible="{Binding IsEmpty}">
+          <StackPanel HorizontalAlignment="Center" Spacing="8">
+            <TextBlock Text="No matches yet" Classes="h3" HorizontalAlignment="Center" />
+            <TextBlock
+              Text="Play a match and it'll show up here."
+              Classes="muted"
+              HorizontalAlignment="Center"
+            />
+          </StackPanel>
         </Border>
-    </Panel>
+
+        <ItemsControl ItemsSource="{Binding Matches}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:MatchListItem">
+              <Button
+                Classes="matchrow"
+                Command="{Binding $parent[ItemsControl].((vm:MatchHistoryViewModel)DataContext).SelectMatchCommand}"
+                CommandParameter="{Binding}"
+              >
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="18,14">
+                  <Border
+                    Grid.Column="0"
+                    Classes="tag"
+                    CornerRadius="8"
+                    Padding="12,6"
+                    Classes.win="{Binding IsWin}"
+                    Classes.loss="{Binding !IsWin}"
+                  >
+                    <TextBlock
+                      Text="{Binding Result}"
+                      FontWeight="Bold"
+                      FontSize="13"
+                      Classes="tagText"
+                      Classes.win="{Binding IsWin}"
+                      Classes.loss="{Binding !IsWin}"
+                    />
+                  </Border>
+                  <TextBlock
+                    Grid.Column="1"
+                    Margin="16,0,0,0"
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    FontSize="14"
+                    Text="{Binding Mode}"
+                  />
+                  <TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Margin="0,0,16,0"
+                    Classes="muted"
+                    Text="{Binding When}"
+                  />
+                  <TextBlock
+                    Grid.Column="3"
+                    VerticalAlignment="Center"
+                    FontSize="18"
+                    Foreground="{DynamicResource TextMutedBrush}"
+                    Text="›"
+                  />
+                </Grid>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── Match detail overlay ── -->
+    <Border IsVisible="{Binding IsDetailOpen}" Background="#E60B0C10">
+      <Border
+        Classes="card"
+        Width="640"
+        Padding="0"
+        CornerRadius="16"
+        VerticalAlignment="Center"
+        HorizontalAlignment="Center"
+      >
+        <Grid RowDefinitions="Auto,Auto">
+          <!-- Header (bound to the view-model) -->
+          <Grid Row="0" ColumnDefinitions="*,Auto" Margin="24,20,12,8">
+            <StackPanel Grid.Column="0" Spacing="3">
+              <TextBlock
+                Text="{Binding SelectedMatch.Result}"
+                FontSize="22"
+                FontWeight="Bold"
+                Foreground="{Binding SelectedMatch.IsWin, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"
+              />
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding SelectedMatch.Mode}" Classes="muted" />
+                <TextBlock
+                  Text="{Binding SelectedMatch.When, StringFormat=' · {0}'}"
+                  Classes="muted"
+                />
+              </StackPanel>
+            </StackPanel>
+            <Button
+              Grid.Column="1"
+              Classes="winbtn"
+              Width="36"
+              Height="36"
+              VerticalAlignment="Top"
+              Command="{Binding CloseDetailCommand}"
+              ToolTip.Tip="Close"
+            >
+              <Path
+                Data="M0,0 L10,10 M10,0 L0,10"
+                Stroke="{Binding $parent[Button].Foreground}"
+                StrokeThickness="1.2"
+              />
+            </Button>
+          </Grid>
+
+          <!-- Teams (bound to the selected match) -->
+          <ContentControl Grid.Row="1" Content="{Binding SelectedMatch}">
+            <ContentControl.ContentTemplate>
+              <DataTemplate x:DataType="models:MatchListItem">
+                <Grid ColumnDefinitions="*,*" Margin="24,8,24,24" ColumnSpacing="18">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="RADIANT" Classes="caption" />
+                      <TextBlock
+                        Text="{Binding RadiantResult}"
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Foreground="{Binding RadiantWon, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"
+                      />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Radiant}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:MatchPlayerLine">
+                          <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            Height="34"
+                            VerticalAlignment="Center"
+                          >
+                            <TextBlock
+                              Classes="player"
+                              Classes.me="{Binding IsMe}"
+                              Text="{Binding Name}"
+                              VerticalAlignment="Center"
+                            />
+                            <TextBlock
+                              Text="(You)"
+                              FontSize="11"
+                              VerticalAlignment="Center"
+                              Foreground="{DynamicResource AccentSolidBrush}"
+                              IsVisible="{Binding IsMe}"
+                            />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="DIRE" Classes="caption" />
+                      <TextBlock
+                        Text="{Binding DireResult}"
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Foreground="{Binding DireWon, Converter={x:Static conv:BoolToWinLossBrushConverter.Instance}}"
+                      />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Dire}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:MatchPlayerLine">
+                          <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            Height="34"
+                            VerticalAlignment="Center"
+                          >
+                            <TextBlock
+                              Classes="player"
+                              Classes.me="{Binding IsMe}"
+                              Text="{Binding Name}"
+                              VerticalAlignment="Center"
+                            />
+                            <TextBlock
+                              Text="(You)"
+                              FontSize="11"
+                              VerticalAlignment="Center"
+                              Foreground="{DynamicResource AccentSolidBrush}"
+                              IsVisible="{Binding IsMe}"
+                            />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ContentControl.ContentTemplate>
+          </ContentControl>
+        </Grid>
+      </Border>
+    </Border>
+  </Panel>
 </UserControl>

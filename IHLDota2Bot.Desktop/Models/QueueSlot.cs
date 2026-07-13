@@ -10,5 +10,8 @@ public sealed class QueueSlot
     public bool IsReady { get; init; }
     public bool IsEmpty => string.IsNullOrEmpty(Name);
     public string Initial => IsEmpty ? "" : Name![..1].ToUpperInvariant();
-    public string StatusText => IsEmpty ? "Open" : IsReady ? "Ready" : "Not ready";
+    public string StatusText =>
+        IsEmpty ? "Open"
+        : IsReady ? "Ready"
+        : "Not ready";
 }

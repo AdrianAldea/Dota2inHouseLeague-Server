@@ -18,9 +18,13 @@ public class DiscordClient
         this.logger = logger;
     }
 
-    public async Task SendMessageAsync(string message, CancellationToken cancellationToken = default)
+    public async Task SendMessageAsync(
+        string message,
+        CancellationToken cancellationToken = default
+    )
     {
-        if (string.IsNullOrEmpty(message)) throw new ArgumentException("message cannot be empty", nameof(message));
+        if (string.IsNullOrEmpty(message))
+            throw new ArgumentException("message cannot be empty", nameof(message));
 
         try
         {

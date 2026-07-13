@@ -18,5 +18,5 @@ public enum AccountState
 {
     Ready,
     InUse,
-    Cooldown
+    Cooldown,
 }

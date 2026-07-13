@@ -14,7 +14,10 @@ public sealed record PlayerSigningKey(SymmetricSecurityKey Key);
 /// <c>steamId</c>, <c>registered</c>, and optionally <c>name</c>. Signed HMAC-SHA256 with
 /// the shared <see cref="PlayerSigningKey"/>.
 /// </summary>
-public sealed class PlayerTokenService(IOptions<PlayerJwtOptions> options, PlayerSigningKey signingKey)
+public sealed class PlayerTokenService(
+    IOptions<PlayerJwtOptions> options,
+    PlayerSigningKey signingKey
+)
 {
     private readonly PlayerJwtOptions _options = options.Value;
 
@@ -37,7 +40,8 @@ public sealed class PlayerTokenService(IOptions<PlayerJwtOptions> options, Playe
             claims: claims,
             notBefore: now,
             expires: now.AddMinutes(_options.ExpiryMinutes),
-            signingCredentials: credentials);
+            signingCredentials: credentials
+        );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

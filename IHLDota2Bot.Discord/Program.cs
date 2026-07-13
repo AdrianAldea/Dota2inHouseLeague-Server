@@ -17,36 +17,50 @@ builder.AddServiceDefaults();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.Configure<DiscordOptions>(builder.Configuration.GetSection(DiscordOptions.SectionName));
-builder.Services.Configure<SteamClientOptions>(builder.Configuration.GetSection(SteamClientOptions.SectionName));
+builder.Services.Configure<DiscordOptions>(
+    builder.Configuration.GetSection(DiscordOptions.SectionName)
+);
+builder.Services.Configure<SteamClientOptions>(
+    builder.Configuration.GetSection(SteamClientOptions.SectionName)
+);
 
 builder.Services.AddTransient<ApiKeyHandler>();
-builder.Services.AddHttpClient(SteamClient.HttpClientName, (sp, client) =>
-{
-    var options = sp.GetRequiredService<IOptions<SteamClientOptions>>().Value;
-    client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
-}).AddHttpMessageHandler<ApiKeyHandler>();
+builder
+    .Services.AddHttpClient(
+        SteamClient.HttpClientName,
+        (sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<SteamClientOptions>>().Value;
+            client.BaseAddress = new Uri($"https+http://{options.ServiceName}/");
+        }
+    )
+    .AddHttpMessageHandler<ApiKeyHandler>();
 
 // Tune the (already-applied) Aspire standard resilience handler for this client.
 // These calls back a user's `!command`, so favour failing fast over long retries:
 // shorter per-attempt + total timeouts and fewer retries than the global default.
-builder.Services.Configure<HttpStandardResilienceOptions>(SteamClient.HttpClientName, resilience =>
-{
-    resilience.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
-    resilience.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
-    resilience.Retry.MaxRetryAttempts = 2;
-    // SamplingDuration must stay >= 2 × AttemptTimeout; keep the generous default window.
-    resilience.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
-});
+builder.Services.Configure<HttpStandardResilienceOptions>(
+    SteamClient.HttpClientName,
+    resilience =>
+    {
+        resilience.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+        resilience.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
+        resilience.Retry.MaxRetryAttempts = 2;
+        // SamplingDuration must stay >= 2 × AttemptTimeout; keep the generous default window.
+        resilience.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+    }
+);
 
 builder.Services.AddSingleton<ISteamClient, SteamClient>();
 
 // The Discord gateway client is owned by DI so DiscordService can be constructed
 // (and unit-tested) with an injected socket client rather than newing one up.
-builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConfig
-{
-    GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
-}));
+builder.Services.AddSingleton(_ => new DiscordSocketClient(
+    new DiscordSocketConfig
+    {
+        GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent,
+    }
+));
 
 // Command handlers — each handles exactly one DiscordAction.
 // Registered as IDiscordCommandHandler so DiscordCommandDispatcher can collect them all.
@@ -63,20 +77,24 @@ builder.Services.AddSingleton<IDiscordCommandHandler, RankCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, CurrentMatchCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, RecentMatchesCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, MatchScoreCommandHandler>();
+
 // Registration
 builder.Services.AddSingleton<IDiscordCommandHandler, RegisterCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, LinkCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, UnregisterCommandHandler>();
+
 // Queue / lobby
 builder.Services.AddSingleton<IDiscordCommandHandler, JoinQueueCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, LeaveQueueCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, ReadyCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, UnreadyCommandHandler>();
+
 // Match actions
 builder.Services.AddSingleton<IDiscordCommandHandler, ReportMatchCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, ChallengeCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, AcceptChallengeCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, DeclineChallengeCommandHandler>();
+
 // Admin
 builder.Services.AddSingleton<IDiscordCommandHandler, BanCommandHandler>();
 builder.Services.AddSingleton<IDiscordCommandHandler, UnbanCommandHandler>();
@@ -89,13 +107,15 @@ builder.Services.AddSingleton<DiscordCommandDispatcher>();
 
 // Command-pipeline cross-cutting concerns: throttling + telemetry.
 builder.Services.Configure<CommandRateLimitOptions>(
-    builder.Configuration.GetSection(CommandRateLimitOptions.SectionName));
+    builder.Configuration.GetSection(CommandRateLimitOptions.SectionName)
+);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<CommandRateLimiter>();
 builder.Services.AddSingleton<DiscordCommandTelemetry>();
 
 // Surface the command meter + activity source through the existing OpenTelemetry pipeline.
-builder.Services.AddOpenTelemetry()
+builder
+    .Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics.AddMeter(DiscordCommandTelemetry.MeterName))
     .WithTracing(tracing => tracing.AddSource(DiscordCommandTelemetry.ActivitySourceName));
 

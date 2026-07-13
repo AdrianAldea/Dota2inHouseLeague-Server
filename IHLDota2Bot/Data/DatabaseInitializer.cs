@@ -19,7 +19,8 @@ public class DatabaseInitializer : IHostedService
 
     public DatabaseInitializer(
         IDbContextFactory<AppDbContext> contextFactory,
-        ILogger<DatabaseInitializer> logger)
+        ILogger<DatabaseInitializer> logger
+    )
     {
         ArgumentNullException.ThrowIfNull(contextFactory);
         ArgumentNullException.ThrowIfNull(logger);
@@ -70,7 +71,8 @@ public class DatabaseInitializer : IHostedService
         {
             logger.LogWarning(
                 "Existing schema found with no migration history (legacy EnsureCreated database). "
-                + "Baselining the initial migration before applying any newer ones.");
+                    + "Baselining the initial migration before applying any newer ones."
+            );
             await BaselineInitialMigrationAsync(context, history, cancellationToken);
         }
 
@@ -84,14 +86,19 @@ public class DatabaseInitializer : IHostedService
     /// Only the initial migration is recorded; any later migrations still run normally.
     /// </summary>
     private static async Task BaselineInitialMigrationAsync(
-        AppDbContext context, IHistoryRepository history, CancellationToken cancellationToken)
+        AppDbContext context,
+        IHistoryRepository history,
+        CancellationToken cancellationToken
+    )
     {
         var migrationsAssembly = context.GetService<IMigrationsAssembly>();
         var initialMigrationId = migrationsAssembly.Migrations.Keys.First();
 
         var script = new StringBuilder();
         script.Append(history.GetCreateScript());
-        script.Append(history.GetInsertScript(new HistoryRow(initialMigrationId, ProductInfo.GetVersion())));
+        script.Append(
+            history.GetInsertScript(new HistoryRow(initialMigrationId, ProductInfo.GetVersion()))
+        );
 
         await context.Database.ExecuteSqlRawAsync(script.ToString(), cancellationToken);
     }

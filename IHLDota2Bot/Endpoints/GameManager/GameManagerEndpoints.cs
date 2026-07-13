@@ -22,9 +22,7 @@ public static class GameManagerEndpoints
         // Admin routes require authentication. When AdminApiKey is non-empty in
         // config, only callers presenting the correct X-Api-Key header are allowed;
         // when the key is unconfigured the handler succeeds unconditionally (dev mode).
-        group.MapGroup(string.Empty)
-            .RequireAuthorization()
-            .MapAdminEndpoints();
+        group.MapGroup(string.Empty).RequireAuthorization().MapAdminEndpoints();
 
         return group;
     }

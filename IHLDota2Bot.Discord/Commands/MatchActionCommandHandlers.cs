@@ -24,10 +24,16 @@ public sealed class ReportMatchCommandHandler(ISteamClient steamClient) : IDisco
             return;
         }
 
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.ReportMatchAsync(authorId, winner);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.ReportFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.ReportFailed
+        );
     }
 }
 
@@ -38,7 +44,8 @@ public sealed class ChallengeCommandHandler(ISteamClient steamClient) : IDiscord
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var opponent = context.MentionedUserIds.FirstOrDefault(id => id != authorId, 0UL);
         if (opponent == 0UL)
@@ -48,7 +55,12 @@ public sealed class ChallengeCommandHandler(ISteamClient steamClient) : IDiscord
         }
 
         var result = await steamClient.ChallengePlayerAsync(authorId, opponent);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.ChallengeFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.ChallengeFailed
+        );
     }
 }
 
@@ -59,23 +71,36 @@ public sealed class AcceptChallengeCommandHandler(ISteamClient steamClient) : ID
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.AcceptChallengeAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.AcceptChallengeFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.AcceptChallengeFailed
+        );
     }
 }
 
 /// <summary>`!decline_match` — decline the author's latest pending challenge.</summary>
-public sealed class DeclineChallengeCommandHandler(ISteamClient steamClient) : IDiscordCommandHandler
+public sealed class DeclineChallengeCommandHandler(ISteamClient steamClient)
+    : IDiscordCommandHandler
 {
     public DiscordAction Action => DiscordAction.DECLINE_MATCH;
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.DeclineChallengeAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.DeclineChallengeFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.DeclineChallengeFailed
+        );
     }
 }

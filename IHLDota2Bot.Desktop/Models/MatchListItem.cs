@@ -44,8 +44,13 @@ public sealed class MatchListItem
     }
 
     private static List<MatchPlayerLine> Lines(MatchSummary match, MatchTeam team, ulong myId) =>
-        match.Players
-            .Where(p => p.Team == team)
-            .Select(p => new MatchPlayerLine { Name = p.Username, Won = p.Won, IsMe = p.UserId == myId })
+        match
+            .Players.Where(p => p.Team == team)
+            .Select(p => new MatchPlayerLine
+            {
+                Name = p.Username,
+                Won = p.Won,
+                IsMe = p.UserId == myId,
+            })
             .ToList();
 }

@@ -18,5 +18,5 @@ public enum LobbySessionState
 {
     Ready,
     InProgress,
-    Finished
+    Finished,
 }

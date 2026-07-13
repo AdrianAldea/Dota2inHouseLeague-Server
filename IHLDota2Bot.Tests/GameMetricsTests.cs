@@ -11,7 +11,11 @@ namespace IHLDota2Bot.Tests;
 /// </summary>
 public class GameMetricsTests
 {
-    private sealed record Captured(string Instrument, double Value, IReadOnlyDictionary<string, object?> Tags);
+    private sealed record Captured(
+        string Instrument,
+        double Value,
+        IReadOnlyDictionary<string, object?> Tags
+    );
 
     // Internal ctor (visible via InternalsVisibleTo) lets each test use a unique
     // meter name, isolating it from other test classes that also create GameMetrics.
@@ -28,25 +32,36 @@ public class GameMetricsTests
         {
             InstrumentPublished = (instrument, l) =>
             {
-                if (instrument.Meter.Name == meterName) l.EnableMeasurementEvents(instrument);
-            }
+                if (instrument.Meter.Name == meterName)
+                    l.EnableMeasurementEvents(instrument);
+            },
         };
-        listener.SetMeasurementEventCallback<long>((inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags))));
-        listener.SetMeasurementEventCallback<double>((inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags))));
-        listener.SetMeasurementEventCallback<int>((inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags))));
+        listener.SetMeasurementEventCallback<long>(
+            (inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags)))
+        );
+        listener.SetMeasurementEventCallback<double>(
+            (inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags)))
+        );
+        listener.SetMeasurementEventCallback<int>(
+            (inst, val, tags, _) => captured.Add(new(inst.Name, val, ToDict(tags)))
+        );
         listener.Start();
 
         act();
-        if (observe) listener.RecordObservableInstruments();
+        if (observe)
+            listener.RecordObservableInstruments();
 
         listener.Dispose();
         return captured;
     }
 
-    private static Dictionary<string, object?> ToDict(ReadOnlySpan<KeyValuePair<string, object?>> tags)
+    private static Dictionary<string, object?> ToDict(
+        ReadOnlySpan<KeyValuePair<string, object?>> tags
+    )
     {
         var dict = new Dictionary<string, object?>();
-        foreach (var tag in tags) dict[tag.Key] = tag.Value;
+        foreach (var tag in tags)
+            dict[tag.Key] = tag.Value;
         return dict;
     }
 
@@ -79,8 +94,11 @@ public class GameMetricsTests
         var (metrics, name) = Create();
         using var _ = metrics;
 
-        var measurements = Collect(name,
-            () => metrics.RecordMatchFinished(GameMetrics.OutcomeCompleted, TimeSpan.FromSeconds(42)));
+        var measurements = Collect(
+            name,
+            () =>
+                metrics.RecordMatchFinished(GameMetrics.OutcomeCompleted, TimeSpan.FromSeconds(42))
+        );
 
         var counter = Assert.Single(measurements, m => m.Instrument == "ihl.matches.finished");
         Assert.Equal("completed", counter.Tags["outcome"]);
@@ -96,8 +114,11 @@ public class GameMetricsTests
         var (metrics, name) = Create();
         using var _ = metrics;
 
-        var measurements = Collect(name,
-            () => metrics.RecordMatchFinished(GameMetrics.OutcomeCancelled, TimeSpan.FromSeconds(-1)));
+        var measurements = Collect(
+            name,
+            () =>
+                metrics.RecordMatchFinished(GameMetrics.OutcomeCancelled, TimeSpan.FromSeconds(-1))
+        );
 
         Assert.Single(measurements, m => m.Instrument == "ihl.matches.finished");
         Assert.DoesNotContain(measurements, m => m.Instrument == "ihl.matches.duration");

@@ -10,19 +10,19 @@ public static class MessagesFormatter
         var stats = rank.Stats;
         var winRate = stats.MatchesPlayed == 0 ? "—" : $"{stats.WinRate * 100:F1}%";
         var percentile = rank.TotalPlayers <= 1 ? "—" : $"top {rank.Percentile:F1}%";
-        return $"**{stats.Username}** — `#{rank.Rank}` of `{rank.TotalPlayers}` ({percentile})\n" +
-               $"- Rating: `{stats.Rating}`\n" +
-               $"- W-L: `{stats.Wins}-{stats.Losses}` · Win rate: `{winRate}`";
+        return $"**{stats.Username}** — `#{rank.Rank}` of `{rank.TotalPlayers}` ({percentile})\n"
+            + $"- Rating: `{stats.Rating}`\n"
+            + $"- W-L: `{stats.Wins}-{stats.Losses}` · Win rate: `{winRate}`";
     }
 
     public static string FormatPlayerStats(PlayerStatsResponse stats)
     {
         var winRate = stats.MatchesPlayed == 0 ? "—" : $"{stats.WinRate * 100:F1}%";
-        return $"**{stats.Username}**\n" +
-               $"- SteamID: `{stats.SteamId}`\n" +
-               $"- Rating: `{stats.Rating}`\n" +
-               $"- Matches: `{stats.MatchesPlayed}` (W `{stats.Wins}` / L `{stats.Losses}`)\n" +
-               $"- Win rate: `{winRate}`";
+        return $"**{stats.Username}**\n"
+            + $"- SteamID: `{stats.SteamId}`\n"
+            + $"- Rating: `{stats.Rating}`\n"
+            + $"- Matches: `{stats.MatchesPlayed}` (W `{stats.Wins}` / L `{stats.Losses}`)\n"
+            + $"- Win rate: `{winRate}`";
     }
 
     public static string FormatLeaderboard(LeaderboardResponse leaderboard)
@@ -35,7 +35,9 @@ public static class MessagesFormatter
         foreach (var entry in leaderboard.Entries)
         {
             var winRate = entry.MatchesPlayed == 0 ? "—" : $"{entry.WinRate * 100:F0}%";
-            sb.AppendLine($"`#{entry.Rank,2}` **{entry.Username}** · `{entry.Rating}` MMR · `{entry.Wins}-{entry.Losses}` ({winRate})");
+            sb.AppendLine(
+                $"`#{entry.Rank, 2}` **{entry.Username}** · `{entry.Rating}` MMR · `{entry.Wins}-{entry.Losses}` ({winRate})"
+            );
         }
         return sb.ToString();
     }
@@ -44,7 +46,9 @@ public static class MessagesFormatter
     {
         var sb = new StringBuilder();
         sb.AppendLine("**Steam account pool**");
-        sb.AppendLine($"Total: `{status.Total}` · Ready: `{status.Ready}` · InUse: `{status.InUse}` · Cooldown: `{status.OnCooldown}`");
+        sb.AppendLine(
+            $"Total: `{status.Total}` · Ready: `{status.Ready}` · InUse: `{status.InUse}` · Cooldown: `{status.OnCooldown}`"
+        );
         if (status.Accounts.Count == 0)
         {
             sb.AppendLine("_No accounts registered._");
@@ -54,7 +58,9 @@ public static class MessagesFormatter
         {
             var lastUsed = a.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "never";
             var lobby = string.IsNullOrEmpty(a.CurrentLobbyId) ? "—" : a.CurrentLobbyId;
-            sb.AppendLine($"`{a.State,-8}` **{a.Username}** · lobby `{lobby}` · last used `{lastUsed}`");
+            sb.AppendLine(
+                $"`{a.State, -8}` **{a.Username}** · lobby `{lobby}` · last used `{lastUsed}`"
+            );
         }
         return sb.ToString();
     }
@@ -68,7 +74,9 @@ public static class MessagesFormatter
         sb.AppendLine($"**Match `{match.Id}`** — {match.Status}");
         sb.AppendLine($"Created: `{match.CreatedAt:yyyy-MM-dd HH:mm}` UTC");
         if (match.CompletedAt.HasValue)
-            sb.AppendLine($"Completed: `{match.CompletedAt.Value:yyyy-MM-dd HH:mm}` UTC · Winner: **{match.WinningTeam}**");
+            sb.AppendLine(
+                $"Completed: `{match.CompletedAt.Value:yyyy-MM-dd HH:mm}` UTC · Winner: **{match.WinningTeam}**"
+            );
         if (viewerTeam.HasValue)
             sb.AppendLine($"Your team: **{viewerTeam}**");
 
@@ -94,9 +102,14 @@ public static class MessagesFormatter
         foreach (var match in recent.Matches)
         {
             var me = match.Players.FirstOrDefault(p => p.UserId == viewerUserId);
-            var outcome = me == null ? "—" : me.Won ? "WIN" : "LOSS";
+            var outcome =
+                me == null ? "—"
+                : me.Won ? "WIN"
+                : "LOSS";
             var completed = match.CompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "in progress";
-            sb.AppendLine($"`{completed}` — **{outcome}** ({me?.Team}) · Winner: {match.WinningTeam}");
+            sb.AppendLine(
+                $"`{completed}` — **{outcome}** ({me?.Team}) · Winner: {match.WinningTeam}"
+            );
         }
         return sb.ToString();
     }
@@ -105,8 +118,12 @@ public static class MessagesFormatter
     {
         var sb = new StringBuilder();
         sb.AppendLine("**Queue status**");
-        sb.AppendLine($"Lobby: `{status.CurrentLobbyPlayerCount}/{status.PlayersPerLobby}` · Ready: `{status.PlayersReady}/{status.CurrentLobbyPlayerCount}`");
-        sb.AppendLine($"Registered: `{status.TotalRegistered}` · Waiting (not in lobby): `{status.WaitingPlayers}`");
+        sb.AppendLine(
+            $"Lobby: `{status.CurrentLobbyPlayerCount}/{status.PlayersPerLobby}` · Ready: `{status.PlayersReady}/{status.CurrentLobbyPlayerCount}`"
+        );
+        sb.AppendLine(
+            $"Registered: `{status.TotalRegistered}` · Waiting (not in lobby): `{status.WaitingPlayers}`"
+        );
 
         if (status.Players.Count == 0)
         {

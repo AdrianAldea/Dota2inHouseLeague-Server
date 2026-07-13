@@ -42,6 +42,8 @@ public class SteamClientErrorClassifierTests
     [InlineData(FailureKind.Canceled, LogLevel.Warning)]
     [InlineData(FailureKind.Transport, LogLevel.Error)]
     [InlineData(FailureKind.Unexpected, LogLevel.Error)]
-    public void LevelFor_MapsTransientToWarning_AndFaultsToError(FailureKind kind, LogLevel expected) =>
-        Assert.Equal(expected, LevelFor(kind));
+    public void LevelFor_MapsTransientToWarning_AndFaultsToError(
+        FailureKind kind,
+        LogLevel expected
+    ) => Assert.Equal(expected, LevelFor(kind));
 }

@@ -99,8 +99,8 @@ public class ServiceDefaultsTests
 
         // Routes are registered in the app's IEndpointRouteBuilder.DataSources, not DI.
         var routeBuilder = (Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app;
-        var routePaths = routeBuilder.DataSources
-            .SelectMany(s => s.Endpoints)
+        var routePaths = routeBuilder
+            .DataSources.SelectMany(s => s.Endpoints)
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
             .Select(e => e.RoutePattern.RawText)
             .ToList();
@@ -120,8 +120,8 @@ public class ServiceDefaultsTests
         app.MapDefaultEndpoints();
 
         var routeBuilder = (Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app;
-        var routePaths = routeBuilder.DataSources
-            .SelectMany(s => s.Endpoints)
+        var routePaths = routeBuilder
+            .DataSources.SelectMany(s => s.Endpoints)
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
             .Select(e => e.RoutePattern.RawText)
             .ToList();
@@ -175,4 +175,3 @@ public class ServiceDefaultsTests
         Assert.Null(ex);
     }
 }
-

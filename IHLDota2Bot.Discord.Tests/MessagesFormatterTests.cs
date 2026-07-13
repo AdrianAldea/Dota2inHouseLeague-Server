@@ -11,25 +11,38 @@ namespace IHLDota2Bot.Discord.Tests;
 /// </summary>
 public class MessagesFormatterTests
 {
-    private static PlayerStatsResponse Stats(int wins, int losses) => new()
-    {
-        UserId = 1,
-        Username = "alice",
-        SteamId = "steam-1",
-        Rating = 1100,
-        Wins = wins,
-        Losses = losses,
-    };
+    private static PlayerStatsResponse Stats(int wins, int losses) =>
+        new()
+        {
+            UserId = 1,
+            Username = "alice",
+            SteamId = "steam-1",
+            Rating = 1100,
+            Wins = wins,
+            Losses = losses,
+        };
 
     private static MatchPlayerSummary P(ulong id, string name, MatchTeam team, bool won) =>
-        new() { UserId = id, Username = name, Team = team, Won = won };
+        new()
+        {
+            UserId = id,
+            Username = name,
+            Team = team,
+            Won = won,
+        };
 
     // ── FormatRank ──
 
     [Fact]
     public void FormatRank_RendersRankPercentileAndWinRate()
     {
-        var rank = new RankResponse { Rank = 3, TotalPlayers = 4, Percentile = 75, Stats = Stats(3, 1) };
+        var rank = new RankResponse
+        {
+            Rank = 3,
+            TotalPlayers = 4,
+            Percentile = 75,
+            Stats = Stats(3, 1),
+        };
 
         var text = MessagesFormatter.FormatRank(rank);
 
@@ -43,12 +56,18 @@ public class MessagesFormatterTests
     [Fact]
     public void FormatRank_SinglePlayer_ShowsDashForPercentile()
     {
-        var rank = new RankResponse { Rank = 1, TotalPlayers = 1, Percentile = 0, Stats = Stats(0, 0) };
+        var rank = new RankResponse
+        {
+            Rank = 1,
+            TotalPlayers = 1,
+            Percentile = 0,
+            Stats = Stats(0, 0),
+        };
 
         var text = MessagesFormatter.FormatRank(rank);
 
-        Assert.Contains("(—)", text);    // percentile placeholder
-        Assert.Contains("`—`", text);    // win-rate placeholder (no matches)
+        Assert.Contains("(—)", text); // percentile placeholder
+        Assert.Contains("`—`", text); // win-rate placeholder (no matches)
     }
 
     // ── FormatPlayerStats ──
@@ -76,7 +95,9 @@ public class MessagesFormatterTests
     [Fact]
     public void FormatLeaderboard_Empty_ShowsPlaceholder()
     {
-        var text = MessagesFormatter.FormatLeaderboard(new LeaderboardResponse { TopN = 10, Entries = [] });
+        var text = MessagesFormatter.FormatLeaderboard(
+            new LeaderboardResponse { TopN = 10, Entries = [] }
+        );
 
         Assert.Equal("_No players on the leaderboard yet._", text);
     }
@@ -89,8 +110,24 @@ public class MessagesFormatterTests
             TopN = 2,
             Entries =
             [
-                new LeaderboardEntry { Rank = 1, UserId = 1, Username = "alice", Rating = 1300, Wins = 3, Losses = 1 },
-                new LeaderboardEntry { Rank = 2, UserId = 2, Username = "bob", Rating = 1200, Wins = 0, Losses = 0 },
+                new LeaderboardEntry
+                {
+                    Rank = 1,
+                    UserId = 1,
+                    Username = "alice",
+                    Rating = 1300,
+                    Wins = 3,
+                    Losses = 1,
+                },
+                new LeaderboardEntry
+                {
+                    Rank = 2,
+                    UserId = 2,
+                    Username = "bob",
+                    Rating = 1200,
+                    Wins = 0,
+                    Losses = 0,
+                },
             ],
         };
 
@@ -108,7 +145,14 @@ public class MessagesFormatterTests
     [Fact]
     public void FormatPoolStatus_NoAccounts_ShowsPlaceholderAndCounts()
     {
-        var status = new PoolStatusResponse { Total = 0, Ready = 0, InUse = 0, OnCooldown = 0, Accounts = [] };
+        var status = new PoolStatusResponse
+        {
+            Total = 0,
+            Ready = 0,
+            InUse = 0,
+            OnCooldown = 0,
+            Accounts = [],
+        };
 
         var text = MessagesFormatter.FormatPoolStatus(status);
 
@@ -127,7 +171,13 @@ public class MessagesFormatterTests
             OnCooldown = 0,
             Accounts =
             [
-                new PoolAccountSummary { Username = "bot1", State = PoolAccountState.Ready, CurrentLobbyId = null, LastUsedAt = null },
+                new PoolAccountSummary
+                {
+                    Username = "bot1",
+                    State = PoolAccountState.Ready,
+                    CurrentLobbyId = null,
+                    LastUsedAt = null,
+                },
             ],
         };
 
@@ -135,7 +185,7 @@ public class MessagesFormatterTests
 
         Assert.Contains("bot1", text);
         Assert.Contains("Ready", text);
-        Assert.Contains("lobby `—`", text);   // no lobby
+        Assert.Contains("lobby `—`", text); // no lobby
         Assert.Contains("last used `never`", text);
     }
 
@@ -161,7 +211,7 @@ public class MessagesFormatterTests
         Assert.Contains("**Dire**", text);
         Assert.Contains("alice", text);
         Assert.Contains("bob", text);
-        Assert.Contains("Your team: **Dire**", text);      // viewer 2 is on Dire
+        Assert.Contains("Your team: **Dire**", text); // viewer 2 is on Dire
         Assert.Contains("Winner: **Radiant**", text);
     }
 
@@ -189,9 +239,17 @@ public class MessagesFormatterTests
     [Fact]
     public void FormatRecentMatches_Empty_ShowsPlaceholder()
     {
-        var recent = new RecentMatchesResponse { UserId = 1, Count = 0, Matches = [] };
+        var recent = new RecentMatchesResponse
+        {
+            UserId = 1,
+            Count = 0,
+            Matches = [],
+        };
 
-        Assert.Equal("_No completed matches yet._", MessagesFormatter.FormatRecentMatches(recent, 1));
+        Assert.Equal(
+            "_No completed matches yet._",
+            MessagesFormatter.FormatRecentMatches(recent, 1)
+        );
     }
 
     [Fact]
@@ -207,7 +265,12 @@ public class MessagesFormatterTests
             WinningTeam = MatchTeam.Radiant,
             Players = [P(1, "alice", MatchTeam.Radiant, true), P(2, "bob", MatchTeam.Dire, false)],
         };
-        var recent = new RecentMatchesResponse { UserId = 1, Count = 1, Matches = [win] };
+        var recent = new RecentMatchesResponse
+        {
+            UserId = 1,
+            Count = 1,
+            Matches = [win],
+        };
 
         Assert.Contains("WIN", MessagesFormatter.FormatRecentMatches(recent, 1));
         Assert.Contains("LOSS", MessagesFormatter.FormatRecentMatches(recent, 2));

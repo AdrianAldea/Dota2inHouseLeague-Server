@@ -24,15 +24,30 @@ public class LobbyPoolManagerOrchestrationTests
     {
         var httpClientFactory = new Mock<IHttpClientFactory>();
         httpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        var discordClient = new DiscordClient(httpClientFactory.Object, Mock.Of<ILogger<DiscordClient>>());
+        var discordClient = new DiscordClient(
+            httpClientFactory.Object,
+            Mock.Of<ILogger<DiscordClient>>()
+        );
 
         var steamOptions = Options.Create(new SteamOptions());
         var steamGcPool = new SteamGcClientPool(
-            steamOptions, discordClient, NullLoggerFactory.Instance, Mock.Of<ILogger<SteamGcClientPool>>());
+            steamOptions,
+            discordClient,
+            NullLoggerFactory.Instance,
+            Mock.Of<ILogger<SteamGcClientPool>>()
+        );
 
-        var repo = matchRepository ?? Mock.Of<IMatchRepository>(r =>
-            r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>())
-            == Task.FromResult(new System.Collections.Generic.List<IHLDota2Bot.Data.Entities.MatchEntity>()));
+        var repo =
+            matchRepository
+            ?? Mock.Of<IMatchRepository>(r =>
+                r.GetStaleInProgressMatchesAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<CancellationToken>()
+                )
+                == Task.FromResult(
+                    new System.Collections.Generic.List<IHLDota2Bot.Data.Entities.MatchEntity>()
+                )
+            );
 
         return new LobbyPoolManager(
             new SteamAccountPool(Mock.Of<ILogger<SteamAccountPool>>()),
@@ -42,7 +57,8 @@ public class LobbyPoolManagerOrchestrationTests
             steamGcPool,
             new IHLDota2Bot.Telemetry.GameMetrics(),
             steamOptions,
-            Mock.Of<ILogger<LobbyPoolManager>>());
+            Mock.Of<ILogger<LobbyPoolManager>>()
+        );
     }
 
     // ── Queue join / leave / ready delegation ────────────────────────────────

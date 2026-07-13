@@ -19,7 +19,12 @@ public static class CommandReplies
     /// null response (transport failure) is treated as failure.
     /// </para>
     /// </summary>
-    public static Task ReplyIfFailedAsync(IDiscordCommandContext context, bool? success, string? message, string fallback) =>
+    public static Task ReplyIfFailedAsync(
+        IDiscordCommandContext context,
+        bool? success,
+        string? message,
+        string fallback
+    ) =>
         success == true
             ? Task.CompletedTask
             : context.ReplyAsync(string.IsNullOrWhiteSpace(message) ? fallback : message);

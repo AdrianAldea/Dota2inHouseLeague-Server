@@ -29,7 +29,8 @@ public sealed class SteamAuthService(AppSettings settings)
         {
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var returnUrl = $"http://127.0.0.1:{port}/callback";
-            var loginUrl = $"{settings.ApiBaseUrl.TrimEnd('/')}/api/auth/steam/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
+            var loginUrl =
+                $"{settings.ApiBaseUrl.TrimEnd('/')}/api/auth/steam/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
             OpenBrowser(loginUrl);
 
@@ -47,7 +48,11 @@ public sealed class SteamAuthService(AppSettings settings)
             query.TryGetValue("error", out var error);
             var registered = query.TryGetValue("registered", out var reg) && reg == "true";
 
-            await WriteResponseAsync(stream, token is not null ? SuccessHtml : FailHtml(error), timeout.Token);
+            await WriteResponseAsync(
+                stream,
+                token is not null ? SuccessHtml : FailHtml(error),
+                timeout.Token
+            );
 
             return string.IsNullOrEmpty(token) ? null : new SignInResult(token, registered);
         }
@@ -61,7 +66,10 @@ public sealed class SteamAuthService(AppSettings settings)
         }
     }
 
-    private static async Task<string> ReadRequestLineAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<string> ReadRequestLineAsync(
+        NetworkStream stream,
+        CancellationToken ct
+    )
     {
         // The browser sends the request immediately; the first line carries the URL.
         var buffer = new byte[8192];
@@ -87,19 +95,25 @@ public sealed class SteamAuthService(AppSettings settings)
         foreach (var pair in target[(q + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var kv = pair.Split('=', 2);
-            result[Uri.UnescapeDataString(kv[0])] = kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : string.Empty;
+            result[Uri.UnescapeDataString(kv[0])] =
+                kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : string.Empty;
         }
         return result;
     }
 
-    private static async Task WriteResponseAsync(NetworkStream stream, string html, CancellationToken ct)
+    private static async Task WriteResponseAsync(
+        NetworkStream stream,
+        string html,
+        CancellationToken ct
+    )
     {
         var body = Encoding.UTF8.GetBytes(html);
         var header = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 200 OK\r\n" +
-            "Content-Type: text/html; charset=utf-8\r\n" +
-            $"Content-Length: {body.Length}\r\n" +
-            "Connection: close\r\n\r\n");
+            "HTTP/1.1 200 OK\r\n"
+                + "Content-Type: text/html; charset=utf-8\r\n"
+                + $"Content-Length: {body.Length}\r\n"
+                + "Connection: close\r\n\r\n"
+        );
         await stream.WriteAsync(header, ct);
         await stream.WriteAsync(body, ct);
         await stream.FlushAsync(ct);
@@ -126,12 +140,15 @@ public sealed class SteamAuthService(AppSettings settings)
         <p>You can close this tab and return to <b>Dota IHL</b>.</p></div></body></html>
         """;
 
-    private static string FailHtml(string? error) => $$"""
-        <!doctype html><html><head><meta charset="utf-8"><title>Sign-in failed</title>
-        <style>body{background:#0B0C10;color:#F5F7FA;font-family:Segoe UI,Arial,sans-serif;
-        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-        .card{text-align:center}.e{color:#FF5C5C}</style></head>
-        <body><div class="card"><h1 class="e">Sign-in failed</h1>
-        <p>{{(string.IsNullOrEmpty(error) ? "Please try again from the app." : error)}}</p></div></body></html>
-        """;
+    private static string FailHtml(string? error) =>
+        $$"""
+            <!doctype html><html><head><meta charset="utf-8"><title>Sign-in failed</title>
+            <style>body{background:#0B0C10;color:#F5F7FA;font-family:Segoe UI,Arial,sans-serif;
+            display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+            .card{text-align:center}.e{color:#FF5C5C}</style></head>
+            <body><div class="card"><h1 class="e">Sign-in failed</h1>
+            <p>{{(
+                string.IsNullOrEmpty(error) ? "Please try again from the app." : error
+            )}}</p></div></body></html>
+            """;
 }

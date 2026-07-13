@@ -15,7 +15,8 @@ internal static class CrashLog
     private static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "IHLDota2Bot",
-        "crash.log");
+        "crash.log"
+    );
 
     public static void Write(Exception? ex)
     {

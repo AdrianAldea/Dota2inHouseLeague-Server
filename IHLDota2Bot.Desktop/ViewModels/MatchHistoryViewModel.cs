@@ -42,7 +42,8 @@ public partial class MatchHistoryViewModel : ViewModelBase
         _ = RefreshAsync();
     }
 
-    partial void OnSelectedMatchChanged(MatchListItem? value) => OnPropertyChanged(nameof(IsDetailOpen));
+    partial void OnSelectedMatchChanged(MatchListItem? value) =>
+        OnPropertyChanged(nameof(IsDetailOpen));
 
     [RelayCommand]
     private void SelectMatch(MatchListItem? item) => SelectedMatch = item;
@@ -91,24 +92,33 @@ public partial class MatchHistoryViewModel : ViewModelBase
         // The player ("YourName") is on Radiant, so Radiant won iff this was a win.
         var radiant = new List<MatchPlayerLine>
         {
-            new() { Name = "YourName", Won = win, IsMe = true },
+            new()
+            {
+                Name = "YourName",
+                Won = win,
+                IsMe = true,
+            },
             new() { Name = "Miracle-", Won = win },
-            new() { Name = "Topson",   Won = win },
-            new() { Name = "Ceb",      Won = win },
-            new() { Name = "SumaiL",   Won = win },
+            new() { Name = "Topson", Won = win },
+            new() { Name = "Ceb", Won = win },
+            new() { Name = "SumaiL", Won = win },
         };
         var dire = new List<MatchPlayerLine>
         {
-            new() { Name = "Puppey",   Won = !win },
-            new() { Name = "Nisha",    Won = !win },
-            new() { Name = "Ana",      Won = !win },
-            new() { Name = "33",       Won = !win },
-            new() { Name = "Arteezy",  Won = !win },
+            new() { Name = "Puppey", Won = !win },
+            new() { Name = "Nisha", Won = !win },
+            new() { Name = "Ana", Won = !win },
+            new() { Name = "33", Won = !win },
+            new() { Name = "Arteezy", Won = !win },
         };
         return new MatchListItem
         {
-            IsWin = win, Mode = "5v5 Captains Mode", When = when,
-            RadiantWon = win, Radiant = radiant, Dire = dire,
+            IsWin = win,
+            Mode = "5v5 Captains Mode",
+            When = when,
+            RadiantWon = win,
+            Radiant = radiant,
+            Dire = dire,
         };
     }
 }

@@ -13,10 +13,24 @@ namespace IHLDota2Bot.IntegrationTests;
 /// </summary>
 public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
 {
-    private async Task<RegisteredPlayer> RegisterAsync(ulong userId, string username, ulong steamId = 76561198000000001) =>
-        (await (await Client.PostAsJsonAsync("/api/gamemanager/register",
-            new RegisterPlayerRequest { SteamId = steamId, UserId = userId, Username = username }))
-        .Content.ReadFromJsonAsync<RegisteredPlayer>())!;
+    private async Task<RegisteredPlayer> RegisterAsync(
+        ulong userId,
+        string username,
+        ulong steamId = 76561198000000001
+    ) =>
+        (
+            await (
+                await Client.PostAsJsonAsync(
+                    "/api/gamemanager/register",
+                    new RegisterPlayerRequest
+                    {
+                        SteamId = steamId,
+                        UserId = userId,
+                        Username = username,
+                    }
+                )
+            ).Content.ReadFromJsonAsync<RegisteredPlayer>()
+        )!;
 
     [Fact]
     public async Task Profile_UnknownPlayer_Returns404()
@@ -37,7 +51,10 @@ public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
     [Fact]
     public async Task Link_UnknownPlayer_ReturnsFailure()
     {
-        var response = await Client.PostAsync("/api/gamemanager/link/999/76561198000000999", content: null);
+        var response = await Client.PostAsync(
+            "/api/gamemanager/link/999/76561198000000999",
+            content: null
+        );
         var op = await response.Content.ReadFromJsonAsync<QueueOperationResponse>();
 
         Assert.False(op!.Success);
@@ -49,7 +66,9 @@ public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
         for (ulong i = 1; i <= 5; i++)
             await RegisterAsync(i, $"player{i}", 76561198000000000 + i);
 
-        var top3 = await Client.GetFromJsonAsync<LeaderboardResponse>("/api/gamemanager/leaderboard?top=3");
+        var top3 = await Client.GetFromJsonAsync<LeaderboardResponse>(
+            "/api/gamemanager/leaderboard?top=3"
+        );
 
         Assert.NotNull(top3);
         Assert.Equal(3, top3!.Entries.Count);
@@ -79,7 +98,9 @@ public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
         for (ulong i = 1; i <= 4; i++)
             await RegisterAsync(i, $"player{i}", 76561198000000000 + i);
 
-        var all = await Client.GetFromJsonAsync<LeaderboardResponse>("/api/gamemanager/leaderboard?top=10");
+        var all = await Client.GetFromJsonAsync<LeaderboardResponse>(
+            "/api/gamemanager/leaderboard?top=10"
+        );
 
         Assert.Equal(4, all!.Entries.Count);
         // Ranks must be 1, 2, 3, 4 with no gaps or duplicates.
