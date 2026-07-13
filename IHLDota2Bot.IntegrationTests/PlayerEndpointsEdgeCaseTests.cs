@@ -131,9 +131,7 @@ public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
         Assert.False(response.IsSuccessStatusCode);
 
         // alice's account is untouched and bob was never created.
-        var alice = await Client.GetFromJsonAsync<PlayerStatsResponse>(
-            "/api/gamemanager/player/1"
-        );
+        var alice = await Client.GetFromJsonAsync<PlayerStatsResponse>("/api/gamemanager/player/1");
         Assert.Equal("alice", alice!.Username);
         var bob = await Client.GetAsync("/api/gamemanager/player/2");
         Assert.Equal(HttpStatusCode.NotFound, bob.StatusCode);
