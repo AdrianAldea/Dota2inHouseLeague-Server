@@ -25,4 +25,7 @@ public sealed class DiscordCommandDispatcher
         DiscordAction action,
         [NotNullWhen(true)] out IDiscordCommandHandler? handler
     ) => handlers.TryGetValue(action, out handler);
+
+    /// <summary>Actions with a registered handler — used to filter slash-command registration.</summary>
+    public IReadOnlyCollection<DiscordAction> RegisteredActions => handlers.Keys.ToArray();
 }

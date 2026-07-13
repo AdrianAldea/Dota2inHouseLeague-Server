@@ -43,10 +43,9 @@ Ordered by risk.
       anything after the next server start). The integration-test factory now
       force-clears `SteamOptions` (`PostConfigure`) so tests stay hermetic and
       never pick up real credentials from user-secrets.
-      **Still open (operator action):** change the Steam account passwords on
-      Steam's side — the old shared password is burned in git history — then
-      update the user-secrets values. Optionally scrub history with
-      `git filter-repo` if the repo may ever go public.
+      **Operator action — done:** the Steam account passwords were changed on
+      Steam's side and the new values are in place in user-secrets. Optionally
+      scrub history with `git filter-repo` if the repo may ever go public.
 - [x] **Validate `returnUrl` in the Steam auth flow** (`AuthEndpoints`,
       `/steam/login` + `/steam/callback`). It was unvalidated, and the callback
       appends the freshly issued JWT to it — a crafted login link could exfiltrate
@@ -91,15 +90,27 @@ Ordered by risk.
 
 ### Deferred (carried over from Phases 3 & 6)
 
-- [ ] **Discord slash commands** (Discord.Net 3.x) to replace `!`-prefix parsing
-      for discoverability and validation. The handler/dispatcher pipeline is
-      transport-agnostic, so a slash-command front-end is additive — revisit as a
-      dedicated change.
-- [ ] **Frontend routing**: replace the inlined single page once a second view
-      appears. Still a single view today.
+- [x] **Discord slash commands** (Discord.Net 3.x). Landed as an additive
+      front-end over the transport-agnostic handler/dispatcher pipeline: every
+      `!` command has a slash equivalent (`SlashCommandCatalog`) dispatching to
+      the same `IDiscordCommandHandler`, with option values mapped back onto the
+      text-command `Parts`/mentions shape (`SlashCommandArgs`) so handlers work
+      unchanged behind either front-end. Commands are bulk-registered on gateway
+      Ready — guild-scoped when `Discord:GuildId` is set (instant), global
+      otherwise — and the slash path shares the channel policy, admin gating,
+      rate limiting, and telemetry of the text path. Interactions are deferred
+      before invoking the handler (handlers can exceed Discord's 3-second
+      acknowledge window) and "reply only on failure" handlers are closed out
+      with a ✅ follow-up. Text `!` commands keep working. Covered by
+      `SlashCommandCatalogTests` and `SlashCommandArgsTests`.
+- [x] **Frontend routing**: the inlined admin page is gone — the app now
+      bootstraps a `<router-outlet>` with `provideRouter` and lazy-loads the
+      admin page at `/admin` (root and unknown paths redirect there). Adding a
+      second view is now just another route entry.
 
-## Suggested Next PR
+## Status
 
-The remaining top-priority item: move real credentials out of
-`IHLDota2Bot/appsettings.json` into user-secrets, commit empty placeholders,
-and rotate the burned values (Steam passwords + JWT signing key).
+All tracked refactoring work is complete. The `!`-prefix text commands were
+kept alongside the new slash commands; retiring them (and the
+`MessageContent` gateway intent they require) can be considered once the
+league has fully switched to slash commands.

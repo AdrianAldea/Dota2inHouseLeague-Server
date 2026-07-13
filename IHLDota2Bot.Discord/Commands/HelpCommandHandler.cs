@@ -33,7 +33,7 @@ public sealed class CommandsCommandHandler : IDiscordCommandHandler
     private static readonly string CommandList = string.Join(
         "\n",
         [
-            "**Available commands** — use `!help <command>` for details",
+            "**Available commands** — use `!help <command>` for details. Every command is also available as a slash command (`/queue`, `/help`, …).",
             "`!register <steamId>` — register your Steam account",
             "`!link <steamId>` — update your linked Steam ID",
             "`!unregister` — leave the league",

@@ -1,12 +1,12 @@
 /// Here in app.ts it would "hook" things up accordingly
 import { Component } from "@angular/core";
-import { AdminPage } from "../pages/admin/admin";
+import { RouterOutlet } from "@angular/router";
 
 @Component({
     selector: 'app-root',
     standalone: true,
-    imports: [AdminPage],
-    template: `<admin-page></admin-page>`, // @todo Inlined until we have a router
+    imports: [RouterOutlet],
+    template: `<router-outlet></router-outlet>`,
 })
 
 export class App {
