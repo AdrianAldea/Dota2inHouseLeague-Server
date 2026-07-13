@@ -36,14 +36,21 @@ connection that didn't originate from the PC itself. Forwarded traffic arrives o
 `192.168.1.10` interface and gets refused.
 
 The fix: a `netsh portproxy` rule that listens on **all** interfaces at `5193` and relays to
-`127.0.0.1:5193` where Kestrel is listening — plus a Windows Firewall rule to let the inbound
-traffic in.
+the loopback address where Kestrel is listening — plus a Windows Firewall rule to let the
+inbound traffic in.
+
+**Important IPv4/IPv6 detail:** the portproxy rule loads at boot and grabs the IPv4 wildcard
+`0.0.0.0:5193` *before* you start the app. Kestrel (bound to `localhost`) then can't get IPv4
+`127.0.0.1:5193` and falls back to **IPv6 loopback `[::1]:5193` only**. So the bridge must
+connect to `::1`, not `127.0.0.1` — hence a `v4tov6` rule below. (If you use `v4tov4` →
+`127.0.0.1`, everything looks fine locally via `localhost` but external traffic dies at the
+bridge because nothing listens on IPv4 loopback.)
 
 ```
 Player ──internet──▶ 82.76.59.60:<EXTERNAL_PORT>
         (router port-forward)
-                 └──▶ 192.168.1.10:5193  ──▶ portproxy 0.0.0.0:5193
-                                                      └──▶ 127.0.0.1:5193 (Kestrel)
+                 └──▶ 192.168.1.10:5193  ──▶ portproxy  0.0.0.0:5193  (IPv4)
+                                                      └──▶ [::1]:5193 (Kestrel, IPv6 loopback)
 ```
 
 ---
@@ -74,20 +81,24 @@ Run this whole block in an **Administrator** PowerShell. It's **idempotent** —
 Get-NetFirewallRule -DisplayName "IHL API 5193" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName "IHL API 5193" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5193 | Out-Null
 
-# 2) Port bridge: expose 5193 on all interfaces -> Kestrel's loopback
-#    (delete-then-add makes it idempotent)
+# 2) Port bridge: expose IPv4 0.0.0.0:5193 -> Kestrel's IPv6 loopback ::1:5193
+#    (delete any prior v4tov4/v4tov6 rule first so this is idempotent)
 netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=5193 2>$null
-netsh interface portproxy add    v4tov4 listenaddress=0.0.0.0 listenport=5193 connectaddress=127.0.0.1 connectport=5193
+netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=5193 2>$null
+netsh interface portproxy add    v4tov6 listenaddress=0.0.0.0 listenport=5193 connectaddress=::1 connectport=5193
 
 # 3) Show the results
 Write-Host "`n--- portproxy table ---"
-netsh interface portproxy show v4tov4
+netsh interface portproxy show all
 Write-Host "`n--- firewall rule ---"
 Get-NetFirewallRule -DisplayName "IHL API 5193" | Select-Object DisplayName, Enabled, Direction, Action | Format-Table -AutoSize
 ```
 
-**Expected output:** a portproxy row `Address 0.0.0.0  Port 5193  →  127.0.0.1  5193`, and a
-firewall rule showing `Enabled=True, Direction=Inbound, Action=Allow`. Both the firewall rule
+> The `delete` lines may print **"The system cannot find the file specified"** when there's no
+> existing rule to remove — that's harmless, ignore it. What matters is the `show all` output.
+
+**Expected output:** a portproxy row `Listen ipv4 0.0.0.0 5193  →  Connect ipv6 ::1 5193`, and
+a firewall rule showing `Enabled=True, Direction=Inbound, Action=Allow`. Both the firewall rule
 and the bridge **persist across reboots**, so this is genuinely one-time.
 
 ### Step 3. Set the admin API key
@@ -131,18 +142,21 @@ until `Dota2inHouseLeague-Backend` shows **Running/Healthy**.
 > The Discord bot and Angular frontend also start by default; they aren't needed for API
 > testing. Ignore them, or Stop those two resources from the Aspire dashboard.
 
-### Step 3. Confirm Kestrel is on loopback and the bridge is up
+### Step 3. Confirm Kestrel and the bridge are both up
 ```powershell
-netstat -ano | Select-String ":5193.*LISTENING"
+netstat -ano | Select-String ":5193" | Select-String "LISTENING"
 ```
-**Expected:** two lines —
-- `127.0.0.1:5193` → Kestrel (owned by the `dotnet` process), and
-- `0.0.0.0:5193` → the portproxy bridge.
+**Expected:** among the lines —
+- `[::1]:5193` → Kestrel (owned by the `IHLDota2Bot` process) on the IPv6 loopback, and
+- `0.0.0.0:5193` → the portproxy bridge (owned by `svchost`).
 
-> **If you instead see only `0.0.0.0:5193` owned by the `dotnet` process**, Aspire is binding
-> Kestrel to all interfaces itself and the bridge is redundant — you can delete the portproxy
-> rule (see Teardown) and rely on the firewall rule alone. With the current code the expected
-> case is loopback + bridge.
+Then confirm the **bridge path itself** works by hitting the LAN interface the router forwards
+to (this goes through the portproxy, not straight to Kestrel):
+```powershell
+Invoke-WebRequest "http://192.168.1.10:5193/swagger/index.html" -TimeoutSec 8 -UseBasicParsing |
+  Select-Object -ExpandProperty StatusCode   # expect 200
+```
+A `200` here means the full external path (router → bridge → Kestrel) is good.
 
 ### Step 4. Verify reachability
 - **From this PC:** open `http://localhost:5193/swagger` — Swagger loads (the app runs in the
@@ -175,7 +189,7 @@ need to remove them between sessions.
 
 ```powershell
 # Remove the port bridge
-netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=5193
+netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=5193
 # Remove the firewall rule
 Get-NetFirewallRule -DisplayName "IHL API 5193" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 ```
@@ -215,8 +229,9 @@ across runs.
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `localhost:5193/swagger` works, public URL doesn't | Firewall rule or portproxy bridge missing — re-run Part 1 Step 2 and re-check `netstat` (Part 2 Step 3). |
-| `netstat` shows only `127.0.0.1:5193`, no `0.0.0.0:5193` | The portproxy bridge isn't registered — re-run Part 1 Step 2 in an **elevated** shell. |
+| `localhost:5193/swagger` works, public URL doesn't | Firewall rule or portproxy bridge missing/misdirected — re-run Part 1 Step 2 and re-check via the LAN IP (Part 2 Step 3). |
+| `localhost:5193` works but `192.168.1.10:5193` (LAN IP) times out | The classic IPv4/IPv6 trap: bridge points at `127.0.0.1` but Kestrel is on `[::1]` only. Use the `v4tov6 … connectaddress=::1` rule from Part 1 Step 2. |
+| `netstat` shows only `0.0.0.0:5193` (svchost) and no Kestrel line | The backend isn't running/serving — start the AppHost (Part 2 Step 2) and wait for Healthy. |
 | `netsh portproxy add` seems to do nothing / errors | Run it elevated; ensure the `iphlpsvc` (IP Helper) service is Running. |
 | Public URL works from home Wi-Fi but not cellular | You were testing via NAT loopback. Always verify external reachability from a network outside your home. |
 | Nothing reachable externally at all | Router forward wrong (external port not mapped to `192.168.1.10:5193`), or ISP uses CGNAT — confirm `82.76.59.60` matches what an external "what is my IP" site reports. |
