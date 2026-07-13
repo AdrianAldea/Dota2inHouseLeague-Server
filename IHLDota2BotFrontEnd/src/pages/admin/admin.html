@@ -1,6 +1,21 @@
 <header>
     <h1>⚔️ IHL Dota 2 Bot</h1>
     <p class="subtitle">Admin Dashboard — Control Panel</p>
+    <div class="form-group admin-key">
+        <label for="adminApiKey">Admin API key</label>
+        <input
+            id="adminApiKey"
+            type="password"
+            autocomplete="off"
+            placeholder="X-Api-Key for admin endpoints"
+            [ngModel]="adminApiKey()"
+            (ngModelChange)="setAdminApiKey($event)"
+        />
+        <p class="hint">
+            Sent as <code>X-Api-Key</code> with every request; stored in this browser only.
+            Leave empty if the server has no admin key configured.
+        </p>
+    </div>
 </header>
 
 <main>
