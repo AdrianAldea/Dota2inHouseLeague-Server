@@ -18,6 +18,7 @@ public class LobbyPoolManager : IHostedService
     private readonly LobbyQueue lobbyQueue;
     private readonly DiscordClient discordClient;
     private readonly IMatchRepository matchRepository;
+    private readonly IPlayerRepository playerRepository;
     private readonly ISteamGcClientPool steamGcPool;
     private readonly GameMetrics gameMetrics;
     private readonly ILogger<LobbyPoolManager> logger;
@@ -34,6 +35,7 @@ public class LobbyPoolManager : IHostedService
         LobbyQueue lobbyQueue,
         DiscordClient discordClient,
         IMatchRepository matchRepository,
+        IPlayerRepository playerRepository,
         ISteamGcClientPool steamGcPool,
         GameMetrics gameMetrics,
         IOptions<SteamOptions> steamOptions,
@@ -44,6 +46,7 @@ public class LobbyPoolManager : IHostedService
         ArgumentNullException.ThrowIfNull(lobbyQueue);
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(matchRepository);
+        ArgumentNullException.ThrowIfNull(playerRepository);
         ArgumentNullException.ThrowIfNull(steamGcPool);
         ArgumentNullException.ThrowIfNull(gameMetrics);
         ArgumentNullException.ThrowIfNull(steamOptions);
@@ -53,6 +56,7 @@ public class LobbyPoolManager : IHostedService
         this.lobbyQueue = lobbyQueue;
         this.discordClient = discordClient;
         this.matchRepository = matchRepository;
+        this.playerRepository = playerRepository;
         this.steamGcPool = steamGcPool;
         this.gameMetrics = gameMetrics;
         this.steamOptions = steamOptions.Value;
@@ -280,14 +284,28 @@ public class LobbyPoolManager : IHostedService
             bool matchPersisted = false;
             try
             {
-                var shuffled = lobby.Players.OrderBy(_ => Guid.NewGuid()).ToList();
-                var half = shuffled.Count / 2;
-                var teamAssignments = shuffled
-                    .Select(
-                        (p, idx) =>
-                            (p.UserId, Team: idx < half ? MatchTeam.Radiant : MatchTeam.Dire)
+                // Balance teams by rating rather than randomly. Ratings live in the
+                // DB (the in-memory queue Player doesn't carry one); players without
+                // a row fall back to the default rating. Shuffle before balancing so
+                // rating ties (everyone starts at the default) don't produce the same
+                // teams every match — TeamBalancer is stable within equal ratings.
+                var ratings = (
+                    await playerRepository.GetByUserIdsAsync(
+                        lobby.Players.Select(p => p.UserId).ToList()
                     )
-                    .ToList();
+                ).ToDictionary(p => p.UserId, p => p.Rating);
+
+                var teamAssignments = TeamBalancer.Balance(
+                    lobby
+                        .Players.OrderBy(_ => Guid.NewGuid())
+                        .Select(p =>
+                            (
+                                p.UserId,
+                                ratings.GetValueOrDefault(p.UserId, LeagueConstants.DefaultRating)
+                            )
+                        )
+                        .ToList()
+                );
 
                 var match = await matchRepository.CreateMatchAsync(lobby.Id, teamAssignments);
                 logger.LogInformation(
