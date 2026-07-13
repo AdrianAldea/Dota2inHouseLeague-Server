@@ -57,6 +57,17 @@ dotnet user-secrets --project IHLDota2Bot set "GameManager:AdminApiKey" "<choose
 That's the only one-time step. Unlike port-forwarding, the tunnel needs no firewall or
 router changes.
 
+### Optional: hide Swagger during public sessions
+Swagger UI is enabled in Development and therefore reachable through the tunnel. It only
+*documents* the API (auth still applies), but if you'd rather not advertise the surface,
+disable it for the session before starting the AppHost:
+```powershell
+$env:Swagger__Enabled = "false"
+dotnet run --project IHLDota2Bot.AppHost
+```
+With Swagger off, verify the tunnel with `"$u/health"` instead of the swagger URL in
+Step 4 (expect 200).
+
 ---
 
 ## Every test session

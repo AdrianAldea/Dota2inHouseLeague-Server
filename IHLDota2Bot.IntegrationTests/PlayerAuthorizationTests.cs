@@ -1,6 +1,13 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Claims;
+using IHLDota2Bot.Auth;
+using IHLDota2Bot.Configuration;
 using IHLDota2Bot.IntegrationTests.TestSupport;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace IHLDota2Bot.IntegrationTests;
 
@@ -50,6 +57,32 @@ public class PlayerAuthorizationTests : IAsyncLifetime
     public async Task MeAction_ReadyWithoutToken_Returns401()
     {
         var response = await client.PostAsync("/api/gamemanager/ready", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MeAction_ValidlySignedTokenWithNonNumericSub_Returns401()
+    {
+        // A correctly signed token whose `sub` isn't a user id must be rejected by
+        // the me-group's endpoint filter (401), not fall back to acting as user 0.
+        var key = factory.Services.GetRequiredService<PlayerSigningKey>();
+        var jwtOptions = factory.Services.GetRequiredService<IOptions<PlayerJwtOptions>>().Value;
+        var token = new JwtSecurityTokenHandler().WriteToken(
+            new JwtSecurityToken(
+                issuer: jwtOptions.Issuer,
+                audience: jwtOptions.Audience,
+                claims: [new Claim(PlayerClaims.Subject, "not-a-number")],
+                notBefore: DateTime.UtcNow,
+                expires: DateTime.UtcNow.AddMinutes(5),
+                signingCredentials: new SigningCredentials(key.Key, SecurityAlgorithms.HmacSha256)
+            )
+        );
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/gamemanager/me/stats");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

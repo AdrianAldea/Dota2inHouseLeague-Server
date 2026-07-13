@@ -89,6 +89,17 @@ public class DiscordService : IHostedService, IAsyncDisposable
         if (!content.StartsWith('!'))
             return;
 
+        // Serve only the configured league channel (unset = anywhere, for dev).
+        if (!ChannelPolicy.ShouldHandle(options.ChannelId, userMessage.Channel.Id))
+        {
+            logger.LogDebug(
+                "Ignoring command in channel {ChannelId} (configured channel is {ConfiguredChannelId})",
+                userMessage.Channel.Id,
+                options.ChannelId
+            );
+            return;
+        }
+
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
             return;

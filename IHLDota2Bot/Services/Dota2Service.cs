@@ -91,6 +91,28 @@ public class Dota2Service : IDota2Service
         // user with an immediate queue entry they didn't ask for.
         var steamIdString = request.SteamId.ToString();
 
+        // Registration is trust-based (!register accepts any SteamId without ownership
+        // proof), so claiming an id that's already linked to a different league account
+        // is either a typo or a squatting attempt. The DB's unique index would reject it
+        // anyway with an opaque constraint error; check first so the failure is explicit
+        // and the attempt lands in the log as an audit trail.
+        var owner = await playerRepository.GetBySteamIdAsync(steamIdString, cancellationToken);
+        if (owner != null && owner.UserId != request.UserId)
+        {
+            logger.LogWarning(
+                "Registration rejected: user {UserId} ('{Username}') tried to claim SteamId {SteamId}, "
+                    + "which is already linked to user {OwnerUserId} ('{OwnerUsername}')",
+                request.UserId,
+                request.Username,
+                steamIdString,
+                owner.UserId,
+                owner.Username
+            );
+            throw new InvalidOperationException(
+                $"SteamId {steamIdString} is already registered to another player."
+            );
+        }
+
         var persisted = await playerRepository.UpsertAsync(
             new PlayerEntity
             {
@@ -99,6 +121,13 @@ public class Dota2Service : IDota2Service
                 SteamId = steamIdString,
             },
             cancellationToken
+        );
+
+        logger.LogInformation(
+            "Registration: user {UserId} linked to SteamId {SteamId} as '{Username}'",
+            persisted.UserId,
+            persisted.SteamId,
+            persisted.Username
         );
 
         return new RegisteredPlayer
@@ -273,6 +302,26 @@ public class Dota2Service : IDota2Service
     )
     {
         var steamIdString = steamId.ToString();
+
+        // Same squat guard as RegisterPlayerAsync: !link accepts any SteamId, so
+        // refuse (and audit-log) linking an id already owned by another account.
+        var owner = await playerRepository.GetBySteamIdAsync(steamIdString, cancellationToken);
+        if (owner != null && owner.UserId != userId)
+        {
+            logger.LogWarning(
+                "Link rejected: user {UserId} tried to link SteamId {SteamId}, "
+                    + "which is already linked to user {OwnerUserId} ('{OwnerUsername}')",
+                userId,
+                steamIdString,
+                owner.UserId,
+                owner.Username
+            );
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = "That Steam ID is already registered to another player.",
+            };
+        }
 
         var updated = await playerRepository.UpdateSteamIdAsync(
             userId,

@@ -190,7 +190,9 @@ public class PlayerRepository : IPlayerRepository
         if (player == null)
             return null;
 
-        // Rank by rating desc, ties broken by wins desc, losses asc, username asc — same as leaderboard.
+        // Rank by rating desc, ties broken by wins desc, losses asc, username asc —
+        // the full leaderboard ordering, so a player's rank always matches their
+        // row position on the leaderboard even on exact stat ties.
         var higherCount = await context
             .Players.AsNoTracking()
             .Where(p =>
@@ -202,6 +204,12 @@ public class PlayerRepository : IPlayerRepository
                         p.Rating == player.Rating
                         && p.Wins == player.Wins
                         && p.Losses < player.Losses
+                    )
+                    || (
+                        p.Rating == player.Rating
+                        && p.Wins == player.Wins
+                        && p.Losses == player.Losses
+                        && string.Compare(p.Username, player.Username) < 0
                     )
                 )
             )

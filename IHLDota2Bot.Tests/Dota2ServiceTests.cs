@@ -175,6 +175,86 @@ public class Dota2ServiceTests
         Assert.True(result.Success);
     }
 
+    // ── RegisterPlayerAsync / LinkSteamIdAsync SteamId squat guards ─────────
+
+    [Fact]
+    public async Task Register_SteamIdOwnedByAnotherUser_Throws_WithoutUpserting()
+    {
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo
+            .Setup(r => r.GetBySteamIdAsync("76561198000000001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(2, username: "owner"));
+        var svc = CreateService(playerRepo: playerRepo.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            svc.RegisterPlayerAsync(
+                new RegisterPlayerRequest
+                {
+                    UserId = 1,
+                    Username = "squatter",
+                    SteamId = 76561198000000001,
+                }
+            )
+        );
+
+        playerRepo.Verify(
+            r => r.UpsertAsync(It.IsAny<PlayerEntity>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task Register_SameUserReRegisters_Succeeds()
+    {
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo
+            .Setup(r => r.GetBySteamIdAsync("76561198000000001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(1));
+        playerRepo
+            .Setup(r => r.UpsertAsync(It.IsAny<PlayerEntity>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity p, CancellationToken _) => p);
+        var svc = CreateService(playerRepo: playerRepo.Object);
+
+        var result = await svc.RegisterPlayerAsync(
+            new RegisterPlayerRequest
+            {
+                UserId = 1,
+                Username = "alice",
+                SteamId = 76561198000000001,
+            }
+        );
+
+        Assert.Equal("alice", result.Username);
+        playerRepo.Verify(
+            r => r.UpsertAsync(It.IsAny<PlayerEntity>(), It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task Link_SteamIdOwnedByAnotherUser_Fails_WithoutUpdating()
+    {
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo
+            .Setup(r => r.GetBySteamIdAsync("76561198000000001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(2, username: "owner"));
+        var svc = CreateService(playerRepo: playerRepo.Object);
+
+        var result = await svc.LinkSteamIdAsync(1, 76561198000000001);
+
+        Assert.False(result.Success);
+        Assert.Contains("already registered", result.Message, StringComparison.OrdinalIgnoreCase);
+        playerRepo.Verify(
+            r =>
+                r.UpdateSteamIdAsync(
+                    It.IsAny<ulong>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
     // ── ChallengePlayerAsync ─────────────────────────────────────────────────
 
     [Fact]

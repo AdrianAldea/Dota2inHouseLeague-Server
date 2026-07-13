@@ -61,6 +61,24 @@ public class PlayerRepositoryTests
     }
 
     [Fact]
+    public async Task GetRank_ExactStatTies_AgreesWithLeaderboardOrder()
+    {
+        var factory = InMemoryDb.CreateFactory();
+        var repo = new PlayerRepository(factory.Object);
+        // Identical rating/wins/losses — only the username tie-break separates them.
+        await repo.UpsertAsync(Player(1, "zoe"));
+        await repo.UpsertAsync(Player(2, "alice"));
+
+        var leaderboard = await repo.GetLeaderboardAsync(10);
+        var alice = await repo.GetRankAsync(2);
+        var zoe = await repo.GetRankAsync(1);
+
+        Assert.Equal(["alice", "zoe"], leaderboard.Entries.Select(e => e.Username).ToList());
+        Assert.Equal(1, alice!.Rank);
+        Assert.Equal(2, zoe!.Rank); // previously reported 1, disagreeing with the leaderboard row
+    }
+
+    [Fact]
     public async Task GetBySteamId_ReturnsMatchingPlayer()
     {
         var factory = InMemoryDb.CreateFactory();
