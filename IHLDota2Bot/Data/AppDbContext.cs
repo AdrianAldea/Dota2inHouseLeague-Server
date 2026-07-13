@@ -19,17 +19,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("Players");
             entity.HasKey(p => p.UserId);
 
-            entity.Property(p => p.UserId)
-                .HasColumnType("decimal(20,0)")
-                .ValueGeneratedNever();
+            entity.Property(p => p.UserId).HasColumnType("decimal(20,0)").ValueGeneratedNever();
 
-            entity.Property(p => p.Username)
-                .IsRequired()
-                .HasMaxLength(128);
+            entity.Property(p => p.Username).IsRequired().HasMaxLength(128);
 
-            entity.Property(p => p.SteamId)
-                .IsRequired()
-                .HasMaxLength(32);
+            entity.Property(p => p.SteamId).IsRequired().HasMaxLength(32);
 
             entity.HasIndex(p => p.SteamId).IsUnique();
 
@@ -56,18 +50,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("MatchPlayers");
             entity.HasKey(mp => new { mp.MatchId, mp.UserId });
 
-            entity.Property(mp => mp.UserId)
-                .HasColumnType("decimal(20,0)")
-                .ValueGeneratedNever();
+            entity.Property(mp => mp.UserId).HasColumnType("decimal(20,0)").ValueGeneratedNever();
 
             entity.Property(mp => mp.Team).HasConversion<int>();
 
-            entity.HasOne(mp => mp.Match)
+            entity
+                .HasOne(mp => mp.Match)
                 .WithMany(m => m.Players)
                 .HasForeignKey(mp => mp.MatchId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(mp => mp.Player)
+            entity
+                .HasOne(mp => mp.Player)
                 .WithMany()
                 .HasForeignKey(mp => mp.UserId)
                 .OnDelete(DeleteBehavior.Restrict);

@@ -13,7 +13,9 @@ public sealed class ApiKeyHandler(IOptions<SteamClientOptions> options) : Delega
     private readonly string apiKey = options.Value.ApiKey;
 
     protected override Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request, CancellationToken cancellationToken)
+        HttpRequestMessage request,
+        CancellationToken cancellationToken
+    )
     {
         if (!string.IsNullOrEmpty(apiKey))
             request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);

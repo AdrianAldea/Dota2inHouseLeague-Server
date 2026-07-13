@@ -37,7 +37,10 @@ public class AdminAuthorizationTests : IAsyncLifetime
     [Fact]
     public async Task AdminEndpoint_WithCorrectKey_Returns200()
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/gamemanager/admin/pool_status");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/gamemanager/admin/pool_status"
+        );
         request.Headers.Add(AdminApiKeyAuthenticationHandler.HeaderName, CorrectKey);
 
         var response = await client.SendAsync(request);
@@ -48,7 +51,10 @@ public class AdminAuthorizationTests : IAsyncLifetime
     [Fact]
     public async Task AdminEndpoint_WithWrongKey_Returns401()
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/gamemanager/admin/pool_status");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/gamemanager/admin/pool_status"
+        );
         request.Headers.Add(AdminApiKeyAuthenticationHandler.HeaderName, "wrong-key");
 
         var response = await client.SendAsync(request);
@@ -88,27 +94,37 @@ public class AdminAuthorizationTests : IAsyncLifetime
             builder.ConfigureServices(services =>
             {
                 var efDescriptors = services
-                    .Where(d => d.ServiceType == typeof(DbContextOptions)
-                        || (d.ServiceType.IsGenericType
-                            && d.ServiceType.GetGenericArguments().Contains(typeof(AppDbContext))))
+                    .Where(d =>
+                        d.ServiceType == typeof(DbContextOptions)
+                        || (
+                            d.ServiceType.IsGenericType
+                            && d.ServiceType.GetGenericArguments().Contains(typeof(AppDbContext))
+                        )
+                    )
                     .ToList();
                 foreach (var d in efDescriptors)
                     services.Remove(d);
 
-                services.AddDbContextFactory<AppDbContext>(o => o.UseInMemoryDatabase("ihl-itests-auth", dbRoot));
+                services.AddDbContextFactory<AppDbContext>(o =>
+                    o.UseInMemoryDatabase("ihl-itests-auth", dbRoot)
+                );
 
                 services
-                    .AddHttpClient(DiscordClient.HttpClientName, c => c.BaseAddress = new Uri("http://localhost/"))
+                    .AddHttpClient(
+                        DiscordClient.HttpClientName,
+                        c => c.BaseAddress = new Uri("http://localhost/")
+                    )
                     .ConfigurePrimaryHttpMessageHandler(() => new TestSupport.StubOkHandler());
             });
 
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
+            builder.ConfigureAppConfiguration(
+                (_, config) =>
                 {
-                    ["GameManager:AdminApiKey"] = apiKey
-                });
-            });
+                    config.AddInMemoryCollection(
+                        new Dictionary<string, string?> { ["GameManager:AdminApiKey"] = apiKey }
+                    );
+                }
+            );
         }
     }
 }

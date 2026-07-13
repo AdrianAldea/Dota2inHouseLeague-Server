@@ -16,7 +16,8 @@ public class Dota2Service : IDota2Service
     private readonly IChallengeRepository challengeRepository;
     private readonly ILogger<Dota2Service> logger;
 
-    private const string NotRegisteredMessage = "You are not registered. Use `!register <steamId>` first.";
+    private const string NotRegisteredMessage =
+        "You are not registered. Use `!register <steamId>` first.";
 
     public Dota2Service(
         DiscordClient discordClient,
@@ -25,7 +26,8 @@ public class Dota2Service : IDota2Service
         IPlayerRepository playerRepository,
         IMatchRepository matchRepository,
         IChallengeRepository challengeRepository,
-        ILogger<Dota2Service> logger)
+        ILogger<Dota2Service> logger
+    )
     {
         ArgumentNullException.ThrowIfNull(discordClient);
         ArgumentNullException.ThrowIfNull(poolManager);
@@ -79,68 +81,84 @@ public class Dota2Service : IDota2Service
         return client.CreateLobbyAsync(createLobbyRequest);
     }
 
-    public async Task<RegisteredPlayer> RegisterPlayerAsync(RegisterPlayerRequest request, CancellationToken cancellationToken = default)
+    public async Task<RegisteredPlayer> RegisterPlayerAsync(
+        RegisterPlayerRequest request,
+        CancellationToken cancellationToken = default
+    )
     {
         // Register only persists the player. Opt-in to matchmaking happens via JoinQueueAsync
         // (the `!queue` command). Coupling these two would mean every !register surprises the
         // user with an immediate queue entry they didn't ask for.
         var steamIdString = request.SteamId.ToString();
 
-        var persisted = await playerRepository.UpsertAsync(new PlayerEntity
-        {
-            UserId = request.UserId,
-            Username = request.Username,
-            SteamId = steamIdString
-        }, cancellationToken);
+        var persisted = await playerRepository.UpsertAsync(
+            new PlayerEntity
+            {
+                UserId = request.UserId,
+                Username = request.Username,
+                SteamId = steamIdString,
+            },
+            cancellationToken
+        );
 
         return new RegisteredPlayer
         {
             SteamId = persisted.SteamId,
             Username = persisted.Username,
-            UserId = persisted.UserId.ToString()
+            UserId = persisted.UserId.ToString(),
         };
     }
 
-    public Task<PlayerStatsResponse?> GetPlayerProfileAsync(ulong playerId, CancellationToken cancellationToken = default) =>
+    public Task<PlayerStatsResponse?> GetPlayerProfileAsync(
+        ulong playerId,
+        CancellationToken cancellationToken = default
+    ) =>
         // /player/{id} used to return a sparse {Id, Name} DTO that the Discord !profile
         // formatter then expanded with missing fields (Rating, Wins, …) the server never
         // sent. Just delegate to the stats query so both endpoints return identical data.
         playerRepository.GetStatsAsync(playerId, cancellationToken);
 
-    public Task<QueueOperationResponse> MarkPlayerAsReadyAsync(ulong id) => poolManager.MarkPlayerReadyAsync(id);
+    public Task<QueueOperationResponse> MarkPlayerAsReadyAsync(ulong id) =>
+        poolManager.MarkPlayerReadyAsync(id);
 
-    public Task<QueueOperationResponse> MarkPlayerAsUnreadyAsync(ulong id) => poolManager.MarkPlayerUnreadyAsync(id);
+    public Task<QueueOperationResponse> MarkPlayerAsUnreadyAsync(ulong id) =>
+        poolManager.MarkPlayerUnreadyAsync(id);
 
-    public async Task<QueueOperationResponse> JoinQueueAsync(ulong userId, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> JoinQueueAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    )
     {
         var player = await playerRepository.GetByUserIdAsync(userId, cancellationToken);
         if (player == null)
         {
-            return new QueueOperationResponse
-            {
-                Success = false,
-                Message = NotRegisteredMessage
-            };
+            return new QueueOperationResponse { Success = false, Message = NotRegisteredMessage };
         }
 
         if (player.IsBanned)
         {
-            var reason = string.IsNullOrEmpty(player.BanReason) ? "" : $" Reason: {player.BanReason}";
+            var reason = string.IsNullOrEmpty(player.BanReason)
+                ? ""
+                : $" Reason: {player.BanReason}";
             return new QueueOperationResponse
             {
                 Success = false,
-                Message = $"You are banned from queuing.{reason}"
+                Message = $"You are banned from queuing.{reason}",
             };
         }
 
         return await poolManager.JoinQueueAsync(player.UserId, player.Username, player.SteamId);
     }
 
-    public Task<QueueOperationResponse> LeaveQueueAsync(ulong userId) => poolManager.LeaveQueueAsync(userId);
+    public Task<QueueOperationResponse> LeaveQueueAsync(ulong userId) =>
+        poolManager.LeaveQueueAsync(userId);
 
     public QueueStatusResponse GetQueueStatus() => poolManager.GetQueueStatus();
 
-    public async Task<QueueOperationResponse> UnregisterPlayerAsync(ulong userId, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> UnregisterPlayerAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    )
     {
         var deleted = await playerRepository.DeleteAsync(userId, cancellationToken);
         if (!deleted)
@@ -148,7 +166,7 @@ public class Dota2Service : IDota2Service
             return new QueueOperationResponse
             {
                 Success = false,
-                Message = "You are not registered."
+                Message = "You are not registered.",
             };
         }
 
@@ -161,30 +179,53 @@ public class Dota2Service : IDota2Service
         return new QueueOperationResponse { Success = true, Message = message };
     }
 
-    public Task<PlayerStatsResponse?> GetPlayerStatsAsync(ulong userId, CancellationToken cancellationToken = default) =>
-        playerRepository.GetStatsAsync(userId, cancellationToken);
+    public Task<PlayerStatsResponse?> GetPlayerStatsAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    ) => playerRepository.GetStatsAsync(userId, cancellationToken);
 
-    public Task<LeaderboardResponse> GetLeaderboardAsync(int topN, CancellationToken cancellationToken = default) =>
-        playerRepository.GetLeaderboardAsync(topN, cancellationToken);
+    public Task<LeaderboardResponse> GetLeaderboardAsync(
+        int topN,
+        CancellationToken cancellationToken = default
+    ) => playerRepository.GetLeaderboardAsync(topN, cancellationToken);
 
-    public Task<MatchSummary?> GetCurrentMatchAsync(ulong userId, CancellationToken cancellationToken = default) =>
-        matchRepository.GetCurrentMatchForPlayerAsync(userId, cancellationToken);
+    public Task<MatchSummary?> GetCurrentMatchAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    ) => matchRepository.GetCurrentMatchForPlayerAsync(userId, cancellationToken);
 
-    public Task<MatchSummary?> GetMatchByIdAsync(Guid matchId, CancellationToken cancellationToken = default) =>
-        matchRepository.GetByIdAsync(matchId, cancellationToken);
+    public Task<MatchSummary?> GetMatchByIdAsync(
+        Guid matchId,
+        CancellationToken cancellationToken = default
+    ) => matchRepository.GetByIdAsync(matchId, cancellationToken);
 
-    public Task<MatchSummary?> GetMatchByLobbyAsync(string lobbyId, CancellationToken cancellationToken = default) =>
-        matchRepository.GetByLobbyIdAsync(lobbyId, cancellationToken);
+    public Task<MatchSummary?> GetMatchByLobbyAsync(
+        string lobbyId,
+        CancellationToken cancellationToken = default
+    ) => matchRepository.GetByLobbyIdAsync(lobbyId, cancellationToken);
 
-    public Task<RankResponse?> GetPlayerRankAsync(ulong userId, CancellationToken cancellationToken = default) =>
-        playerRepository.GetRankAsync(userId, cancellationToken);
+    public Task<RankResponse?> GetPlayerRankAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    ) => playerRepository.GetRankAsync(userId, cancellationToken);
 
-    public Task<RecentMatchesResponse> GetRecentMatchesAsync(ulong userId, int top, CancellationToken cancellationToken = default) =>
-        matchRepository.GetRecentMatchesForPlayerAsync(userId, top, cancellationToken);
+    public Task<RecentMatchesResponse> GetRecentMatchesAsync(
+        ulong userId,
+        int top,
+        CancellationToken cancellationToken = default
+    ) => matchRepository.GetRecentMatchesForPlayerAsync(userId, top, cancellationToken);
 
-    public async Task<QueueOperationResponse> ReportMatchAsync(ulong reporterUserId, MatchTeam winningTeam, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> ReportMatchAsync(
+        ulong reporterUserId,
+        MatchTeam winningTeam,
+        CancellationToken cancellationToken = default
+    )
     {
-        var result = await matchRepository.ReportMatchAsync(reporterUserId, winningTeam, cancellationToken);
+        var result = await matchRepository.ReportMatchAsync(
+            reporterUserId,
+            winningTeam,
+            cancellationToken
+        );
         if (result.Success && result.Match != null)
         {
             await discordClient.SendMessageAsync(result.Message);
@@ -201,7 +242,11 @@ public class Dota2Service : IDota2Service
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Failed to notify game finished for lobby {LobbyId}", result.Match.LobbyId);
+                    logger.LogError(
+                        ex,
+                        "Failed to notify game finished for lobby {LobbyId}",
+                        result.Match.LobbyId
+                    );
                 }
             }
         }
@@ -210,26 +255,33 @@ public class Dota2Service : IDota2Service
 
     // ── Direct exposure of pool-manager session controls (admin endpoints) ──
 
-    public List<ActiveSessionSummary> GetActiveSessions() => poolManager.GetActiveSessionSummaries();
+    public List<ActiveSessionSummary> GetActiveSessions() =>
+        poolManager.GetActiveSessionSummaries();
 
-    public Task NotifyGameStartedAsync(string lobbyId) => poolManager.NotifyGameStartedAsync(lobbyId);
+    public Task NotifyGameStartedAsync(string lobbyId) =>
+        poolManager.NotifyGameStartedAsync(lobbyId);
 
-    public Task NotifyGameFinishedAsync(string lobbyId) => poolManager.NotifyGameFinishedAsync(lobbyId);
+    public Task NotifyGameFinishedAsync(string lobbyId) =>
+        poolManager.NotifyGameFinishedAsync(lobbyId);
 
     public Task DestroyLobbyAsync(string lobbyId) => poolManager.DestroyLobbyAsync(lobbyId);
 
-    public async Task<QueueOperationResponse> LinkSteamIdAsync(ulong userId, ulong steamId, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> LinkSteamIdAsync(
+        ulong userId,
+        ulong steamId,
+        CancellationToken cancellationToken = default
+    )
     {
         var steamIdString = steamId.ToString();
 
-        var updated = await playerRepository.UpdateSteamIdAsync(userId, steamIdString, cancellationToken);
+        var updated = await playerRepository.UpdateSteamIdAsync(
+            userId,
+            steamIdString,
+            cancellationToken
+        );
         if (updated == null)
         {
-            return new QueueOperationResponse
-            {
-                Success = false,
-                Message = NotRegisteredMessage
-            };
+            return new QueueOperationResponse { Success = false, Message = NotRegisteredMessage };
         }
 
         poolManager.UpdatePlayerSteamId(userId, steamIdString);
@@ -240,45 +292,81 @@ public class Dota2Service : IDota2Service
         return new QueueOperationResponse { Success = true, Message = message };
     }
 
-    public async Task<ChallengeOperationResponse> ChallengePlayerAsync(ulong challengerUserId, ulong challengedUserId, CancellationToken cancellationToken = default)
+    public async Task<ChallengeOperationResponse> ChallengePlayerAsync(
+        ulong challengerUserId,
+        ulong challengedUserId,
+        CancellationToken cancellationToken = default
+    )
     {
         if (challengerUserId == challengedUserId)
         {
-            return new ChallengeOperationResponse { Success = false, Message = "You can't challenge yourself." };
+            return new ChallengeOperationResponse
+            {
+                Success = false,
+                Message = "You can't challenge yourself.",
+            };
         }
 
-        var challenger = await playerRepository.GetByUserIdAsync(challengerUserId, cancellationToken);
+        var challenger = await playerRepository.GetByUserIdAsync(
+            challengerUserId,
+            cancellationToken
+        );
         if (challenger == null)
         {
-            return new ChallengeOperationResponse { Success = false, Message = NotRegisteredMessage };
+            return new ChallengeOperationResponse
+            {
+                Success = false,
+                Message = NotRegisteredMessage,
+            };
         }
 
-        var challenged = await playerRepository.GetByUserIdAsync(challengedUserId, cancellationToken);
+        var challenged = await playerRepository.GetByUserIdAsync(
+            challengedUserId,
+            cancellationToken
+        );
         if (challenged == null)
         {
-            return new ChallengeOperationResponse { Success = false, Message = "Opponent is not registered." };
+            return new ChallengeOperationResponse
+            {
+                Success = false,
+                Message = "Opponent is not registered.",
+            };
         }
 
-        var challenge = await challengeRepository.CreateAsync(challengerUserId, challengedUserId, LeagueConstants.ChallengeTtl, cancellationToken);
+        var challenge = await challengeRepository.CreateAsync(
+            challengerUserId,
+            challengedUserId,
+            LeagueConstants.ChallengeTtl,
+            cancellationToken
+        );
         var response = await ToResponseAsync(challenge, challenger.Username, challenged.Username);
 
-        var message = $"<@{challengerUserId}> challenges <@{challengedUserId}> to a 1v1! Reply with `!accept_match` or `!decline_match` within {(int)LeagueConstants.ChallengeTtl.TotalMinutes} min.";
+        var message =
+            $"<@{challengerUserId}> challenges <@{challengedUserId}> to a 1v1! Reply with `!accept_match` or `!decline_match` within {(int)LeagueConstants.ChallengeTtl.TotalMinutes} min.";
         await discordClient.SendMessageAsync(message);
 
         return new ChallengeOperationResponse
         {
             Success = true,
-            Message = $"Challenge sent to {challenged.Username}. Expires at {challenge.ExpiresAt:HH:mm} UTC.",
-            Challenge = response
+            Message =
+                $"Challenge sent to {challenged.Username}. Expires at {challenge.ExpiresAt:HH:mm} UTC.",
+            Challenge = response,
         };
     }
 
-    public async Task<ChallengeOperationResponse> AcceptChallengeAsync(ulong userId, CancellationToken cancellationToken = default)
+    public async Task<ChallengeOperationResponse> AcceptChallengeAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    )
     {
         var challenge = await challengeRepository.AcceptLatestAsync(userId, cancellationToken);
         if (challenge == null)
         {
-            return new ChallengeOperationResponse { Success = false, Message = "No pending challenge for you." };
+            return new ChallengeOperationResponse
+            {
+                Success = false,
+                Message = "No pending challenge for you.",
+            };
         }
 
         // Create a 1v1 match: challenger = Radiant, challenged = Dire
@@ -287,68 +375,107 @@ public class Dota2Service : IDota2Service
             players: new[]
             {
                 (challenge.ChallengerUserId, MatchTeam.Radiant),
-                (challenge.ChallengedUserId, MatchTeam.Dire)
+                (challenge.ChallengedUserId, MatchTeam.Dire),
             },
-            cancellationToken);
+            cancellationToken
+        );
 
         await challengeRepository.SetResultingMatchAsync(challenge.Id, match.Id, cancellationToken);
 
-        var summary = await matchRepository.GetCurrentMatchForPlayerAsync(userId, cancellationToken);
+        var summary = await matchRepository.GetCurrentMatchForPlayerAsync(
+            userId,
+            cancellationToken
+        );
 
-        var message = $"<@{challenge.ChallengedUserId}> accepted <@{challenge.ChallengerUserId}>'s challenge. Match {match.Id} is in progress.";
+        var message =
+            $"<@{challenge.ChallengedUserId}> accepted <@{challenge.ChallengerUserId}>'s challenge. Match {match.Id} is in progress.";
         await discordClient.SendMessageAsync(message);
 
         return new ChallengeOperationResponse
         {
             Success = true,
             Message = $"Challenge accepted. Match {match.Id} created.",
-            Match = summary
+            Match = summary,
         };
     }
 
-    public async Task<ChallengeOperationResponse> DeclineChallengeAsync(ulong userId, CancellationToken cancellationToken = default)
+    public async Task<ChallengeOperationResponse> DeclineChallengeAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    )
     {
         var challenge = await challengeRepository.DeclineLatestAsync(userId, cancellationToken);
         if (challenge == null)
         {
-            return new ChallengeOperationResponse { Success = false, Message = "No pending challenge for you." };
+            return new ChallengeOperationResponse
+            {
+                Success = false,
+                Message = "No pending challenge for you.",
+            };
         }
 
-        var message = $"<@{challenge.ChallengedUserId}> declined <@{challenge.ChallengerUserId}>'s challenge.";
+        var message =
+            $"<@{challenge.ChallengedUserId}> declined <@{challenge.ChallengerUserId}>'s challenge.";
         await discordClient.SendMessageAsync(message);
 
-        return new ChallengeOperationResponse
-        {
-            Success = true,
-            Message = "Challenge declined."
-        };
+        return new ChallengeOperationResponse { Success = true, Message = "Challenge declined." };
     }
 
     // ==================== Admin operations ====================
 
-    public async Task<QueueOperationResponse> BanPlayerAsync(ulong userId, string? reason, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> BanPlayerAsync(
+        ulong userId,
+        string? reason,
+        CancellationToken cancellationToken = default
+    )
     {
-        var updated = await playerRepository.SetBanAsync(userId, banned: true, reason, cancellationToken);
+        var updated = await playerRepository.SetBanAsync(
+            userId,
+            banned: true,
+            reason,
+            cancellationToken
+        );
         if (updated == null)
         {
-            return new QueueOperationResponse { Success = false, Message = "Player is not registered." };
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = "Player is not registered.",
+            };
         }
 
         // also remove from queue if they're in it
         poolManager.RemovePlayerCompletely(userId);
 
-        var msg = $"{updated.Username} has been banned." + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}");
+        var msg =
+            $"{updated.Username} has been banned."
+            + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}");
         logger.LogInformation("Player {UserId} banned. Reason={Reason}", userId, reason);
-        await discordClient.SendMessageAsync($"<@{userId}> has been banned." + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}"));
+        await discordClient.SendMessageAsync(
+            $"<@{userId}> has been banned."
+                + (string.IsNullOrEmpty(reason) ? "" : $" Reason: {reason}")
+        );
         return new QueueOperationResponse { Success = true, Message = msg };
     }
 
-    public async Task<QueueOperationResponse> UnbanPlayerAsync(ulong userId, CancellationToken cancellationToken = default)
+    public async Task<QueueOperationResponse> UnbanPlayerAsync(
+        ulong userId,
+        CancellationToken cancellationToken = default
+    )
     {
-        var updated = await playerRepository.SetBanAsync(userId, banned: false, reason: null, cancellationToken);
+        var updated = await playerRepository.SetBanAsync(
+            userId,
+            banned: false,
+            reason: null,
+            cancellationToken
+        );
         if (updated == null)
         {
-            return new QueueOperationResponse { Success = false, Message = "Player is not registered." };
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = "Player is not registered.",
+            };
         }
 
         var msg = $"{updated.Username} has been unbanned.";
@@ -357,9 +484,11 @@ public class Dota2Service : IDota2Service
         return new QueueOperationResponse { Success = true, Message = msg };
     }
 
-    public Task<QueueOperationResponse> KickPlayerAsync(ulong userId) => poolManager.KickFromLobbyAsync(userId);
+    public Task<QueueOperationResponse> KickPlayerAsync(ulong userId) =>
+        poolManager.KickFromLobbyAsync(userId);
 
-    public Task<QueueOperationResponse> ForceStartLobbyAsync() => poolManager.ForceLobbyReadyAsync();
+    public Task<QueueOperationResponse> ForceStartLobbyAsync() =>
+        poolManager.ForceLobbyReadyAsync();
 
     public Task<QueueOperationResponse> ResetQueueAsync() => poolManager.ResetCurrentLobbyAsync();
 
@@ -368,7 +497,11 @@ public class Dota2Service : IDota2Service
 
     public PoolStatusResponse GetPoolStatus() => poolManager.GetPoolStatusResponse();
 
-    private async Task<ChallengeResponse> ToResponseAsync(ChallengeEntity challenge, string? challengerUsername = null, string? challengedUsername = null)
+    private async Task<ChallengeResponse> ToResponseAsync(
+        ChallengeEntity challenge,
+        string? challengerUsername = null,
+        string? challengedUsername = null
+    )
     {
         if (challengerUsername == null)
         {
@@ -391,7 +524,7 @@ public class Dota2Service : IDota2Service
             CreatedAt = challenge.CreatedAt,
             ExpiresAt = challenge.ExpiresAt,
             Status = challenge.Status,
-            ResultingMatchId = challenge.ResultingMatchId
+            ResultingMatchId = challenge.ResultingMatchId,
         };
     }
 }

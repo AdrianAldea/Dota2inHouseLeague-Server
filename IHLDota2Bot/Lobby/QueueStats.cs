@@ -12,6 +12,6 @@ public class QueueStats
     public int FinishedLobbies { get; set; }
 
     public override string ToString() =>
-        $"Queue: Registered={TotalRegisteredPlayers}, Waiting={WaitingPlayers}, " +
-        $"Current Lobby={CurrentLobbyPlayerCount}/{PlayersPerLobby} (Ready: {PlayersReady})";
+        $"Queue: Registered={TotalRegisteredPlayers}, Waiting={WaitingPlayers}, "
+        + $"Current Lobby={CurrentLobbyPlayerCount}/{PlayersPerLobby} (Ready: {PlayersReady})";
 }

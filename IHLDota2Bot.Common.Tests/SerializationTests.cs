@@ -26,8 +26,20 @@ public class SerializationTests
             WinningTeam = MatchTeam.Dire,
             Players =
             [
-                new MatchPlayerSummary { UserId = 1, Username = "alice", Team = MatchTeam.Radiant, Won = false },
-                new MatchPlayerSummary { UserId = 2, Username = "bob", Team = MatchTeam.Dire, Won = true },
+                new MatchPlayerSummary
+                {
+                    UserId = 1,
+                    Username = "alice",
+                    Team = MatchTeam.Radiant,
+                    Won = false,
+                },
+                new MatchPlayerSummary
+                {
+                    UserId = 2,
+                    Username = "bob",
+                    Team = MatchTeam.Dire,
+                    Won = true,
+                },
             ],
         };
 
@@ -76,7 +88,7 @@ public class SerializationTests
         var b = new QueueOperationResponse { Success = true, Message = "joined" };
         var c = new QueueOperationResponse { Success = false, Message = "joined" };
 
-        Assert.Equal(a, b);          // records compare by value
+        Assert.Equal(a, b); // records compare by value
         Assert.NotEqual(a, c);
     }
 }

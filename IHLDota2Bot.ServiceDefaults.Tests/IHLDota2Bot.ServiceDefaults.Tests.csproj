@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -22,5 +21,4 @@
   <ItemGroup>
     <ProjectReference Include="..\IHLDota2Bot.ServiceDefaults\IHLDota2Bot.ServiceDefaults.csproj" />
   </ItemGroup>
-
 </Project>

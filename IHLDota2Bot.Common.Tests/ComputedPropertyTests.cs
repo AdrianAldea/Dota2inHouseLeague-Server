@@ -12,11 +12,16 @@ public class ComputedPropertyTests
 {
     [Theory]
     [InlineData(3, 1, 4, 0.75)]
-    [InlineData(0, 0, 0, 0.0)]   // never played → no division by zero
+    [InlineData(0, 0, 0, 0.0)] // never played → no division by zero
     [InlineData(5, 5, 10, 0.5)]
     [InlineData(10, 0, 10, 1.0)]
     [InlineData(0, 7, 7, 0.0)]
-    public void PlayerStatsResponse_ComputesMatchesPlayedAndWinRate(int wins, int losses, int expectedPlayed, double expectedWinRate)
+    public void PlayerStatsResponse_ComputesMatchesPlayedAndWinRate(
+        int wins,
+        int losses,
+        int expectedPlayed,
+        double expectedWinRate
+    )
     {
         var stats = new PlayerStatsResponse
         {
@@ -36,7 +41,12 @@ public class ComputedPropertyTests
     [InlineData(2, 2, 4, 0.5)]
     [InlineData(0, 0, 0, 0.0)]
     [InlineData(9, 1, 10, 0.9)]
-    public void LeaderboardEntry_ComputesMatchesPlayedAndWinRate(int wins, int losses, int expectedPlayed, double expectedWinRate)
+    public void LeaderboardEntry_ComputesMatchesPlayedAndWinRate(
+        int wins,
+        int losses,
+        int expectedPlayed,
+        double expectedWinRate
+    )
     {
         var entry = new LeaderboardEntry
         {

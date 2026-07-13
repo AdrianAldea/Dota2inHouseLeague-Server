@@ -45,7 +45,8 @@ public static class CommandMessages
     public const string AddAccountFailed = "Failed to add account.";
 
     // Read-only lookups
-    public const string ProfileNotFound = "Profile not found. Register with `!register <steamId>` first.";
+    public const string ProfileNotFound =
+        "Profile not found. Register with `!register <steamId>` first.";
     public const string QueueStatusFailed = "Failed to fetch queue status.";
     public const string LeaderboardFailed = "Failed to fetch leaderboard.";
     public const string NoActiveMatch = "You don't have an active match.";

@@ -1,6 +1,6 @@
-﻿using Avalonia;
-using System;
+﻿using System;
 using System.Threading.Tasks;
+using Avalonia;
 
 namespace IHLDota2Bot.Desktop;
 
@@ -14,7 +14,8 @@ sealed class Program
     {
         // Capture crashes to %LOCALAPPDATA%\IHLDota2Bot\crash.log so a failed launch on a
         // tester's machine leaves a readable trace instead of silently disappearing.
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashLog.Write(e.ExceptionObject as Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            CrashLog.Write(e.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, e) => CrashLog.Write(e.Exception);
 
         try
@@ -29,8 +30,9 @@ sealed class Program
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
-    public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder
+            .Configure<App>()
             .UsePlatformDetect()
 #if DEBUG
             .WithDeveloperTools()

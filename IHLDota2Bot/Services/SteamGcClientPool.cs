@@ -25,7 +25,8 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
         IOptions<SteamOptions> steamOptions,
         DiscordClient discordClient,
         ILoggerFactory loggerFactory,
-        ILogger<SteamGcClientPool> logger)
+        ILogger<SteamGcClientPool> logger
+    )
     {
         ArgumentNullException.ThrowIfNull(steamOptions);
         ArgumentNullException.ThrowIfNull(discordClient);
@@ -35,7 +36,9 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
         this.discordClient = discordClient;
         this.loggerFactory = loggerFactory;
         this.logger = logger;
-        clientsByUsername = new Dictionary<string, ISteamGcClient>(StringComparer.OrdinalIgnoreCase);
+        clientsByUsername = new Dictionary<string, ISteamGcClient>(
+            StringComparer.OrdinalIgnoreCase
+        );
 
         var options = steamOptions.Value;
         enableReconnect = options.EnableReconnect;
@@ -51,7 +54,9 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
         }
         else
         {
-            logger.LogWarning("Steam:BotAccount is not configured. The /create endpoint and any ad-hoc Steam operation will be disabled.");
+            logger.LogWarning(
+                "Steam:BotAccount is not configured. The /create endpoint and any ad-hoc Steam operation will be disabled."
+            );
         }
 
         foreach (var account in options.PoolAccounts)
@@ -71,15 +76,23 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
             defaultClient ??= client;
         }
 
-        logger.LogInformation("SteamGcClientPool initialised with {Count} client(s): {Usernames}",
+        logger.LogInformation(
+            "SteamGcClientPool initialised with {Count} client(s): {Usernames}",
             clientsByUsername.Count,
-            string.Join(", ", clientsByUsername.Keys));
+            string.Join(", ", clientsByUsername.Keys)
+        );
     }
 
     /// <summary>The fallback client — first configured BotAccount, or first PoolAccount if no BotAccount.</summary>
     public ISteamGcClient? Default
     {
-        get { lock (lockObject) { return defaultClient; } }
+        get
+        {
+            lock (lockObject)
+            {
+                return defaultClient;
+            }
+        }
     }
 
     public IReadOnlyDictionary<string, ISteamGcClient> All
@@ -90,7 +103,11 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
             {
                 // Snapshot copy so callers iterating the dictionary aren't surprised by
                 // a concurrent TryAddAccountAsync mutation.
-                return clientsByUsername.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+                return clientsByUsername.ToDictionary(
+                    kv => kv.Key,
+                    kv => kv.Value,
+                    StringComparer.OrdinalIgnoreCase
+                );
             }
         }
     }
@@ -130,7 +147,10 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
             defaultClient ??= client;
         }
 
-        logger.LogInformation("SteamGcClientPool: registered new account {Username}; starting connection", username);
+        logger.LogInformation(
+            "SteamGcClientPool: registered new account {Username}; starting connection",
+            username
+        );
         // Fire-and-forget start; the connection task pumps callbacks until StopAsync.
         _ = client.StartAsync();
         return Task.FromResult((true, $"Steam client `{username}` registered and starting."));
@@ -151,8 +171,9 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
         if (!ok)
         {
             logger.LogWarning(
-                "SteamGcClientPool: at least one bot didn't start cleanly on app boot. " +
-                "Check Steam credentials in user-secrets, then POST /api/server/start to retry.");
+                "SteamGcClientPool: at least one bot didn't start cleanly on app boot. "
+                    + "Check Steam credentials in user-secrets, then POST /api/server/start to retry."
+            );
         }
     }
 
@@ -214,13 +235,22 @@ public sealed class SteamGcClientPool : IHostedService, ISteamGcClientPool
     }
 
     private static bool HasCredentials(SteamAccountCredentials credentials) =>
-        !string.IsNullOrWhiteSpace(credentials?.Username) && !string.IsNullOrWhiteSpace(credentials.Password);
+        !string.IsNullOrWhiteSpace(credentials?.Username)
+        && !string.IsNullOrWhiteSpace(credentials.Password);
 
     private ISteamGcClient BuildClient(string username, string password)
     {
         // Use a per-account logger category so multi-bot log lines stay distinguishable
         // in the Aspire dashboard without having to read every message body.
-        var perAccountLogger = loggerFactory.CreateLogger($"IHLDota2Bot.Services.SteamGcClient[{username}]");
-        return new SteamGcClient(username, password, discordClient, perAccountLogger, enableReconnect);
+        var perAccountLogger = loggerFactory.CreateLogger(
+            $"IHLDota2Bot.Services.SteamGcClient[{username}]"
+        );
+        return new SteamGcClient(
+            username,
+            password,
+            discordClient,
+            perAccountLogger,
+            enableReconnect
+        );
     }
 }

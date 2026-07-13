@@ -33,7 +33,8 @@ public sealed class CommandRateLimiter
         retryAfter = TimeSpan.Zero;
 
         // Non-positive budget disables throttling entirely.
-        if (options.MaxCommands <= 0) return true;
+        if (options.MaxCommands <= 0)
+            return true;
 
         var now = timeProvider.GetUtcNow().UtcTicks;
         var windowTicks = options.Window.Ticks;

@@ -23,7 +23,8 @@ public sealed class GameMetrics : IDisposable
     private readonly Histogram<double> matchDuration;
     private volatile Func<int>? queueDepthProvider;
 
-    public GameMetrics() : this(MeterName) { }
+    public GameMetrics()
+        : this(MeterName) { }
 
     // Test-only: a unique meter name isolates measurements when several instances
     // exist concurrently (xUnit runs test classes in parallel).
@@ -31,15 +32,31 @@ public sealed class GameMetrics : IDisposable
     {
         meter = new Meter(meterName);
         lobbiesCreated = meter.CreateCounter<long>(
-            "ihl.lobbies.created", unit: "{lobby}", description: "Lobbies opened in the queue.");
+            "ihl.lobbies.created",
+            unit: "{lobby}",
+            description: "Lobbies opened in the queue."
+        );
         matchesCreated = meter.CreateCounter<long>(
-            "ihl.matches.created", unit: "{match}", description: "Matches persisted when a lobby becomes ready.");
+            "ihl.matches.created",
+            unit: "{match}",
+            description: "Matches persisted when a lobby becomes ready."
+        );
         matchesFinished = meter.CreateCounter<long>(
-            "ihl.matches.finished", unit: "{match}", description: "Matches finished, tagged by outcome.");
+            "ihl.matches.finished",
+            unit: "{match}",
+            description: "Matches finished, tagged by outcome."
+        );
         matchDuration = meter.CreateHistogram<double>(
-            "ihl.matches.duration", unit: "s", description: "Wall-clock time from lobby-ready to finish.");
+            "ihl.matches.duration",
+            unit: "s",
+            description: "Wall-clock time from lobby-ready to finish."
+        );
         meter.CreateObservableGauge(
-            "ihl.queue.depth", ObserveQueueDepth, unit: "{player}", description: "Players in the current forming lobby.");
+            "ihl.queue.depth",
+            ObserveQueueDepth,
+            unit: "{player}",
+            description: "Players in the current forming lobby."
+        );
     }
 
     public void RecordLobbyCreated() => lobbiesCreated.Add(1);
@@ -65,7 +82,8 @@ public sealed class GameMetrics : IDisposable
     private IEnumerable<Measurement<int>> ObserveQueueDepth()
     {
         var provider = queueDepthProvider;
-        if (provider is null) yield break;
+        if (provider is null)
+            yield break;
         yield return new Measurement<int>(provider());
     }
 

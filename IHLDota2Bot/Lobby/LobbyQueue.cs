@@ -44,7 +44,11 @@ public class LobbyQueue
         currentLobby = CreateLobbyUnlocked();
     }
 
-    public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId)
+    public Task<QueueOperationResponse> JoinQueueAsync(
+        ulong userId,
+        string username,
+        string steamId
+    )
     {
         bool added = false;
         bool lobbyFull = false;
@@ -61,7 +65,7 @@ public class LobbyQueue
                     UserId = userId,
                     Username = username,
                     SteamId = steamId,
-                    RegisteredAt = DateTime.UtcNow
+                    RegisteredAt = DateTime.UtcNow,
                 };
                 registeredPlayers.Add(player);
             }
@@ -73,7 +77,8 @@ public class LobbyQueue
 
             if (player.CurrentLobbyId != null)
             {
-                message = $"{username} is already in lobby {player.CurrentLobbyId} ({currentLobby.Players.Count}/{PlayersPerLobby})";
+                message =
+                    $"{username} is already in lobby {player.CurrentLobbyId} ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
             else if (currentLobby.Players.Count >= PlayersPerLobby)
             {
@@ -92,12 +97,16 @@ public class LobbyQueue
                     lobbyFull = true;
                 }
 
-                message = $"{username} joined the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
+                message =
+                    $"{username} joined the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
         }
 
         if (added)
-            PlayerJoined?.Invoke(this, new PlayerJoinedEventArgs { Player = player, Lobby = currentLobby });
+            PlayerJoined?.Invoke(
+                this,
+                new PlayerJoinedEventArgs { Player = player, Lobby = currentLobby }
+            );
 
         if (lobbyFull)
             LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = currentLobby });
@@ -127,7 +136,8 @@ public class LobbyQueue
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
                 removed = true;
-                message = $"{player.Username} left the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
+                message =
+                    $"{player.Username} left the queue ({currentLobby.Players.Count}/{PlayersPerLobby})";
             }
         }
 
@@ -191,12 +201,16 @@ public class LobbyQueue
                 player.CurrentLobbyId = null;
                 player.IsReady = false;
                 kicked = true;
-                message = $"{player.Username} was kicked from the lobby ({currentLobby.Players.Count}/{PlayersPerLobby}).";
+                message =
+                    $"{player.Username} was kicked from the lobby ({currentLobby.Players.Count}/{PlayersPerLobby}).";
             }
         }
 
         if (kicked && player != null && lobby != null)
-            PlayerKicked?.Invoke(this, new PlayerKickedEventArgs { Player = player, Lobby = lobby });
+            PlayerKicked?.Invoke(
+                this,
+                new PlayerKickedEventArgs { Player = player, Lobby = lobby }
+            );
 
         logger.LogInformation("{Message}", message);
         return Task.FromResult(new QueueOperationResponse { Success = kicked, Message = message });
@@ -210,9 +224,16 @@ public class LobbyQueue
         lock (lockObject)
         {
             if (currentLobby.Players.Count == 0)
-                return Task.FromResult(new QueueOperationResponse { Success = false, Message = "Current lobby is empty." });
+                return Task.FromResult(
+                    new QueueOperationResponse
+                    {
+                        Success = false,
+                        Message = "Current lobby is empty.",
+                    }
+                );
 
-            foreach (var p in currentLobby.Players) p.IsReady = true;
+            foreach (var p in currentLobby.Players)
+                p.IsReady = true;
             currentLobby.State = LobbyState.Ready;
             lobby = currentLobby;
             count = lobby.Players.Count;
@@ -243,7 +264,10 @@ public class LobbyQueue
             resetLobby = currentLobby;
         }
 
-        LobbyReset?.Invoke(this, new LobbyResetEventArgs { Lobby = resetLobby, RemovedPlayerCount = count });
+        LobbyReset?.Invoke(
+            this,
+            new LobbyResetEventArgs { Lobby = resetLobby, RemovedPlayerCount = count }
+        );
 
         var message = $"Queue reset. {count} player(s) removed from the current lobby.";
         logger.LogInformation("{Message}", message);
@@ -255,7 +279,8 @@ public class LobbyQueue
         lock (lockObject)
         {
             var player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
-            if (player == null) return false;
+            if (player == null)
+                return false;
 
             if (player.CurrentLobbyId != null)
             {
@@ -273,7 +298,8 @@ public class LobbyQueue
         lock (lockObject)
         {
             var player = registeredPlayers.FirstOrDefault(p => p.UserId == userId);
-            if (player == null) return false;
+            if (player == null)
+                return false;
             player.SteamId = steamId;
             return true;
         }
@@ -291,9 +317,13 @@ public class LobbyQueue
                 PlayersReady = currentLobby.Players.Count(p => p.IsReady),
                 TotalRegistered = registeredPlayers.Count,
                 WaitingPlayers = registeredPlayers.Count(p => p.CurrentLobbyId == null),
-                Players = currentLobby.Players
-                    .Select(p => new QueuePlayerSummary { Username = p.Username, IsReady = p.IsReady })
-                    .ToList()
+                Players = currentLobby
+                    .Players.Select(p => new QueuePlayerSummary
+                    {
+                        Username = p.Username,
+                        IsReady = p.IsReady,
+                    })
+                    .ToList(),
             };
         }
     }
@@ -347,7 +377,8 @@ public class LobbyQueue
     private bool CheckLobbyAllReadyUnlocked(string lobbyId)
     {
         var lobby = lobbies.FirstOrDefault(l => l.Id == lobbyId);
-        if (lobby == null) return false;
+        if (lobby == null)
+            return false;
         return lobby.Players.Count == PlayersPerLobby && lobby.Players.All(p => p.IsReady);
     }
 
@@ -375,7 +406,8 @@ public class LobbyQueue
             }
         }
 
-        if (lobby == null) return Task.CompletedTask;
+        if (lobby == null)
+            return Task.CompletedTask;
 
         LobbyFinished?.Invoke(this, new LobbyFinishedEventArgs { Lobby = lobby });
         logger.LogInformation("Lobby {LobbyId} has finished.", lobby.Id);
@@ -383,7 +415,11 @@ public class LobbyQueue
         if (newLobby != null)
         {
             LobbyCreated?.Invoke(this, new LobbyCreatedEventArgs { Lobby = newLobby });
-            logger.LogInformation("New lobby created: {LobbyId} with {Count} players", newLobby.Id, newLobby.Players.Count);
+            logger.LogInformation(
+                "New lobby created: {LobbyId} with {Count} players",
+                newLobby.Id,
+                newLobby.Players.Count
+            );
 
             if (newLobby.Players.Count == PlayersPerLobby)
                 LobbyFull?.Invoke(this, new LobbyFullEventArgs { Lobby = newLobby });
@@ -399,7 +435,7 @@ public class LobbyQueue
             Id = Guid.NewGuid().ToString(),
             Players = [],
             State = LobbyState.Waiting,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
         };
         lobbies.Add(lobby);
 
@@ -447,7 +483,7 @@ public class LobbyQueue
                 PlayersReady = currentLobby.Players.Count(p => p.IsReady),
                 WaitingPlayers = registeredPlayers.Count(p => p.CurrentLobbyId == null),
                 TotalLobbiesCreated = lobbies.Count,
-                FinishedLobbies = lobbies.Count(l => l.State == LobbyState.Finished)
+                FinishedLobbies = lobbies.Count(l => l.State == LobbyState.Finished),
             };
         }
     }

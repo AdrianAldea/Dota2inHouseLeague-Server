@@ -18,18 +18,41 @@ public partial class ProfileViewModel : ViewModelBase
     private readonly ApiClient? _api;
     private readonly ulong _myId;
 
-    [ObservableProperty] private string _username = "Player";
-    [ObservableProperty] private string _initial = "P";
-    [ObservableProperty] private int _rating;
-    [ObservableProperty] private int _wins;
-    [ObservableProperty] private int _losses;
-    [ObservableProperty] private int _matchesPlayed;
-    [ObservableProperty] private double _winRate;
-    [ObservableProperty] private int _rank;
-    [ObservableProperty] private int _totalPlayers;
-    [ObservableProperty] private double _percentile;
-    [ObservableProperty] private bool _hasRank;
-    [ObservableProperty] private bool _isOffline;
+    [ObservableProperty]
+    private string _username = "Player";
+
+    [ObservableProperty]
+    private string _initial = "P";
+
+    [ObservableProperty]
+    private int _rating;
+
+    [ObservableProperty]
+    private int _wins;
+
+    [ObservableProperty]
+    private int _losses;
+
+    [ObservableProperty]
+    private int _matchesPlayed;
+
+    [ObservableProperty]
+    private double _winRate;
+
+    [ObservableProperty]
+    private int _rank;
+
+    [ObservableProperty]
+    private int _totalPlayers;
+
+    [ObservableProperty]
+    private double _percentile;
+
+    [ObservableProperty]
+    private bool _hasRank;
+
+    [ObservableProperty]
+    private bool _isOffline;
 
     public ObservableCollection<MatchRow> RecentMatches { get; } = new();
 
@@ -86,7 +109,9 @@ public partial class ProfileViewModel : ViewModelBase
     private void ApplyStats(PlayerStatsResponse stats)
     {
         Username = stats.Username;
-        Initial = string.IsNullOrEmpty(stats.Username) ? "?" : stats.Username[..1].ToUpperInvariant();
+        Initial = string.IsNullOrEmpty(stats.Username)
+            ? "?"
+            : stats.Username[..1].ToUpperInvariant();
         Rating = stats.Rating;
         Wins = stats.Wins;
         Losses = stats.Losses;
@@ -110,10 +135,14 @@ public partial class ProfileViewModel : ViewModelBase
     internal static string RelativeTime(DateTime utc)
     {
         var delta = DateTime.UtcNow - utc.ToUniversalTime();
-        if (delta.TotalMinutes < 1) return "just now";
-        if (delta.TotalMinutes < 60) return $"{(int)delta.TotalMinutes}m ago";
-        if (delta.TotalHours < 24) return $"{(int)delta.TotalHours}h ago";
-        if (delta.TotalDays < 7) return $"{(int)delta.TotalDays}d ago";
+        if (delta.TotalMinutes < 1)
+            return "just now";
+        if (delta.TotalMinutes < 60)
+            return $"{(int)delta.TotalMinutes}m ago";
+        if (delta.TotalHours < 24)
+            return $"{(int)delta.TotalHours}h ago";
+        if (delta.TotalDays < 7)
+            return $"{(int)delta.TotalDays}d ago";
         return utc.ToLocalTime().ToString("MMM d");
     }
 
@@ -131,10 +160,50 @@ public partial class ProfileViewModel : ViewModelBase
         Percentile = 5.4;
         HasRank = true;
         RecentMatches.Clear();
-        RecentMatches.Add(new MatchRow { IsWin = true,  Mode = "5v5 Captains Mode", When = "2h ago",     RatingChange = "+24" });
-        RecentMatches.Add(new MatchRow { IsWin = true,  Mode = "5v5 Captains Mode", When = "5h ago",     RatingChange = "+21" });
-        RecentMatches.Add(new MatchRow { IsWin = false, Mode = "5v5 All Pick",      When = "Yesterday",  RatingChange = "-19" });
-        RecentMatches.Add(new MatchRow { IsWin = true,  Mode = "5v5 Captains Mode", When = "Yesterday",  RatingChange = "+23" });
-        RecentMatches.Add(new MatchRow { IsWin = false, Mode = "5v5 All Pick",      When = "2 days ago", RatingChange = "-18" });
+        RecentMatches.Add(
+            new MatchRow
+            {
+                IsWin = true,
+                Mode = "5v5 Captains Mode",
+                When = "2h ago",
+                RatingChange = "+24",
+            }
+        );
+        RecentMatches.Add(
+            new MatchRow
+            {
+                IsWin = true,
+                Mode = "5v5 Captains Mode",
+                When = "5h ago",
+                RatingChange = "+21",
+            }
+        );
+        RecentMatches.Add(
+            new MatchRow
+            {
+                IsWin = false,
+                Mode = "5v5 All Pick",
+                When = "Yesterday",
+                RatingChange = "-19",
+            }
+        );
+        RecentMatches.Add(
+            new MatchRow
+            {
+                IsWin = true,
+                Mode = "5v5 Captains Mode",
+                When = "Yesterday",
+                RatingChange = "+23",
+            }
+        );
+        RecentMatches.Add(
+            new MatchRow
+            {
+                IsWin = false,
+                Mode = "5v5 All Pick",
+                When = "2 days ago",
+                RatingChange = "-18",
+            }
+        );
     }
 }

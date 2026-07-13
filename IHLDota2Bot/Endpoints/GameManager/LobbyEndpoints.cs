@@ -11,8 +11,13 @@ public static class LobbyEndpoints
 {
     public static RouteGroupBuilder MapLobbyEndpoints(this RouteGroupBuilder group)
     {
-        group.MapPost("/create",
-            async (IDota2Service svc, ILogger<Dota2Service> log, [FromBody] CreateLobbyRequest req) =>
+        group.MapPost(
+            "/create",
+            async (
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                [FromBody] CreateLobbyRequest req
+            ) =>
             {
                 try
                 {
@@ -24,11 +29,18 @@ public static class LobbyEndpoints
                     log.LogError(ex, "Error creating lobby");
                     return Results.StatusCode(500);
                 }
-            });
+            }
+        );
 
-        group.MapPost("/invite",
+        group.MapPost(
+            "/invite",
             (IDota2Service svc, ILogger<Dota2Service> log, [FromBody] InviteRequest req) =>
-                EndpointHelpers.Try(log, "invite players", () => svc.InvitePlayersToLobby(req.PlayersIds)));
+                EndpointHelpers.Try(
+                    log,
+                    "invite players",
+                    () => svc.InvitePlayersToLobby(req.PlayersIds)
+                )
+        );
 
         return group;
     }

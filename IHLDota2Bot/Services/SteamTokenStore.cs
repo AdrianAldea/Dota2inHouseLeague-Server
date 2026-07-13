@@ -17,9 +17,13 @@ public sealed class SteamTokenStore
 
     public SteamTokenStore(string? directory = null)
     {
-        this.directory = directory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "IHLDota2Bot", "steam-tokens");
+        this.directory =
+            directory
+            ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "IHLDota2Bot",
+                "steam-tokens"
+            );
     }
 
     /// <summary>Returns the stored refresh token for the account, or null if none is saved.</summary>
@@ -28,7 +32,8 @@ public sealed class SteamTokenStore
         var path = PathFor(username);
         lock (gate)
         {
-            if (!File.Exists(path)) return null;
+            if (!File.Exists(path))
+                return null;
             var token = File.ReadAllText(path).Trim();
             return string.IsNullOrEmpty(token) ? null : token;
         }
@@ -50,7 +55,8 @@ public sealed class SteamTokenStore
         lock (gate)
         {
             var path = PathFor(username);
-            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(path))
+                File.Delete(path);
         }
     }
 
@@ -58,7 +64,9 @@ public sealed class SteamTokenStore
     {
         // Steam account names are alphanumeric/underscore, but sanitise defensively so a
         // stray character can't escape the tokens directory or produce an invalid path.
-        var safe = string.Concat(username.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
+        var safe = string.Concat(
+            username.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_')
+        );
         return Path.Combine(directory, safe + ".token");
     }
 }

@@ -29,16 +29,24 @@ public class Dota2ServiceTests
     private static DiscordClient CreateDiscordClient()
     {
         var httpFactory = new Mock<IHttpClientFactory>();
-        httpFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
-                   .Returns(new HttpClient { BaseAddress = new Uri("http://localhost/") });
+        httpFactory
+            .Setup(f => f.CreateClient(It.IsAny<string>()))
+            .Returns(new HttpClient { BaseAddress = new Uri("http://localhost/") });
         return new DiscordClient(httpFactory.Object, Mock.Of<ILogger<DiscordClient>>());
     }
 
-    private static LobbyPoolManager CreatePoolManager(DiscordClient discord, IMatchRepository matchRepo)
+    private static LobbyPoolManager CreatePoolManager(
+        DiscordClient discord,
+        IMatchRepository matchRepo
+    )
     {
         var steamOptions = Options.Create(new SteamOptions());
         var steamGcPool = new SteamGcClientPool(
-            steamOptions, discord, NullLoggerFactory.Instance, Mock.Of<ILogger<SteamGcClientPool>>());
+            steamOptions,
+            discord,
+            NullLoggerFactory.Instance,
+            Mock.Of<ILogger<SteamGcClientPool>>()
+        );
 
         return new LobbyPoolManager(
             new SteamAccountPool(Mock.Of<ILogger<SteamAccountPool>>()),
@@ -48,18 +56,21 @@ public class Dota2ServiceTests
             steamGcPool,
             new IHLDota2Bot.Telemetry.GameMetrics(),
             steamOptions,
-            Mock.Of<ILogger<LobbyPoolManager>>());
+            Mock.Of<ILogger<LobbyPoolManager>>()
+        );
     }
 
     private static Dota2Service CreateService(
         IPlayerRepository? playerRepo = null,
         IMatchRepository? matchRepo = null,
-        IChallengeRepository? challengeRepo = null)
+        IChallengeRepository? challengeRepo = null
+    )
     {
         playerRepo ??= Mock.Of<IPlayerRepository>();
         matchRepo ??= Mock.Of<IMatchRepository>(r =>
             r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>())
-            == Task.FromResult(new System.Collections.Generic.List<MatchEntity>()));
+            == Task.FromResult(new System.Collections.Generic.List<MatchEntity>())
+        );
         challengeRepo ??= Mock.Of<IChallengeRepository>();
 
         var discord = CreateDiscordClient();
@@ -67,7 +78,11 @@ public class Dota2ServiceTests
 
         var steamOptions = Options.Create(new SteamOptions());
         var steamGcPool = new SteamGcClientPool(
-            steamOptions, discord, NullLoggerFactory.Instance, Mock.Of<ILogger<SteamGcClientPool>>());
+            steamOptions,
+            discord,
+            NullLoggerFactory.Instance,
+            Mock.Of<ILogger<SteamGcClientPool>>()
+        );
 
         return new Dota2Service(
             discord,
@@ -76,11 +91,24 @@ public class Dota2ServiceTests
             playerRepo,
             matchRepo,
             challengeRepo,
-            Mock.Of<ILogger<Dota2Service>>());
+            Mock.Of<ILogger<Dota2Service>>()
+        );
     }
 
-    private static PlayerEntity RegisteredPlayer(ulong userId, string username = "alice", bool isBanned = false, string? banReason = null) =>
-        new() { UserId = userId, Username = username, SteamId = "76561198000000001", IsBanned = isBanned, BanReason = banReason };
+    private static PlayerEntity RegisteredPlayer(
+        ulong userId,
+        string username = "alice",
+        bool isBanned = false,
+        string? banReason = null
+    ) =>
+        new()
+        {
+            UserId = userId,
+            Username = username,
+            SteamId = "76561198000000001",
+            IsBanned = isBanned,
+            BanReason = banReason,
+        };
 
     // ── JoinQueueAsync ───────────────────────────────────────────────────────
 
@@ -88,8 +116,9 @@ public class Dota2ServiceTests
     public async Task JoinQueue_UnregisteredPlayer_ReturnsNotRegisteredFailure()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.JoinQueueAsync(1);
@@ -102,8 +131,9 @@ public class Dota2ServiceTests
     public async Task JoinQueue_BannedPlayerWithReason_ReturnsFailureIncludingReason()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(RegisteredPlayer(1, isBanned: true, banReason: "smurfing"));
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(1, isBanned: true, banReason: "smurfing"));
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.JoinQueueAsync(1);
@@ -117,8 +147,9 @@ public class Dota2ServiceTests
     public async Task JoinQueue_BannedPlayerNoReason_ReturnsFailureWithoutReasonClause()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(RegisteredPlayer(1, isBanned: true, banReason: null));
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(1, isBanned: true, banReason: null));
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.JoinQueueAsync(1);
@@ -132,8 +163,9 @@ public class Dota2ServiceTests
     public async Task JoinQueue_RegisteredNotBanned_DelegatesToPool_Succeeds()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(RegisteredPlayer(1));
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(1));
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.JoinQueueAsync(1);
@@ -152,16 +184,24 @@ public class Dota2ServiceTests
         var result = await svc.ChallengePlayerAsync(challengerUserId: 1, challengedUserId: 1);
 
         Assert.False(result.Success);
-        Assert.Contains("can't challenge yourself", result.Message, StringComparison.OrdinalIgnoreCase);
-        playerRepo.Verify(r => r.GetByUserIdAsync(It.IsAny<ulong>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains(
+            "can't challenge yourself",
+            result.Message,
+            StringComparison.OrdinalIgnoreCase
+        );
+        playerRepo.Verify(
+            r => r.GetByUserIdAsync(It.IsAny<ulong>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
     }
 
     [Fact]
     public async Task Challenge_UnregisteredChallenger_Fails()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.ChallengePlayerAsync(challengerUserId: 1, challengedUserId: 2);
@@ -174,10 +214,12 @@ public class Dota2ServiceTests
     public async Task Challenge_UnregisteredChallenged_Fails()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(RegisteredPlayer(1, "alice"));
-        playerRepo.Setup(r => r.GetByUserIdAsync(2, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RegisteredPlayer(1, "alice"));
+        playerRepo
+            .Setup(r => r.GetByUserIdAsync(2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.ChallengePlayerAsync(challengerUserId: 1, challengedUserId: 2);
@@ -192,8 +234,7 @@ public class Dota2ServiceTests
     public async Task Unregister_UnknownPlayer_ReturnsFailure()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.DeleteAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(false);
+        playerRepo.Setup(r => r.DeleteAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.UnregisterPlayerAsync(1);
@@ -205,8 +246,7 @@ public class Dota2ServiceTests
     public async Task Unregister_KnownPlayer_ReturnsSuccess()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.DeleteAsync(1, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(true);
+        playerRepo.Setup(r => r.DeleteAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.UnregisterPlayerAsync(1);
@@ -220,8 +260,9 @@ public class Dota2ServiceTests
     public async Task LinkSteamId_UnknownPlayer_ReturnsNotRegisteredFailure()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.UpdateSteamIdAsync(1, It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.UpdateSteamIdAsync(1, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.LinkSteamIdAsync(userId: 1, steamId: 76561198000000099);
@@ -235,8 +276,18 @@ public class Dota2ServiceTests
     {
         var newSteamId = 76561198000000099ul;
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.UpdateSteamIdAsync(1, newSteamId.ToString(), It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(new PlayerEntity { UserId = 1, Username = "alice", SteamId = newSteamId.ToString() });
+        playerRepo
+            .Setup(r =>
+                r.UpdateSteamIdAsync(1, newSteamId.ToString(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(
+                new PlayerEntity
+                {
+                    UserId = 1,
+                    Username = "alice",
+                    SteamId = newSteamId.ToString(),
+                }
+            );
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.LinkSteamIdAsync(userId: 1, steamId: newSteamId);
@@ -251,8 +302,9 @@ public class Dota2ServiceTests
     public async Task Ban_UnknownPlayer_ReturnsFailure()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.SetBanAsync(1, true, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.SetBanAsync(1, true, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.BanPlayerAsync(userId: 1, reason: "test");
@@ -264,8 +316,9 @@ public class Dota2ServiceTests
     public async Task Unban_UnknownPlayer_ReturnsFailure()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.SetBanAsync(1, false, null, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync((PlayerEntity?)null);
+        playerRepo
+            .Setup(r => r.SetBanAsync(1, false, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerEntity?)null);
         var svc = CreateService(playerRepo: playerRepo.Object);
 
         var result = await svc.UnbanPlayerAsync(userId: 1);
@@ -279,10 +332,24 @@ public class Dota2ServiceTests
     public async Task ReportMatch_FailureFromRepo_ReturnsFailureWithoutNotifyingPool()
     {
         var matchRepo = new Mock<IMatchRepository>();
-        matchRepo.Setup(r => r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-                 .ReturnsAsync([]);
-        matchRepo.Setup(r => r.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
-                 .ReturnsAsync(new ReportMatchResult { Success = false, Message = "No active match.", Match = null });
+        matchRepo
+            .Setup(r =>
+                r.GetStaleInProgressMatchesAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([]);
+        matchRepo
+            .Setup(r => r.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new ReportMatchResult
+                {
+                    Success = false,
+                    Message = "No active match.",
+                    Match = null,
+                }
+            );
         var svc = CreateService(matchRepo: matchRepo.Object);
 
         var result = await svc.ReportMatchAsync(reporterUserId: 1, winningTeam: MatchTeam.Radiant);
@@ -297,19 +364,33 @@ public class Dota2ServiceTests
         var matchSummary = new MatchSummary
         {
             Id = Guid.NewGuid(),
-            LobbyId = null,           // challenge match — no Steam lobby reserved
+            LobbyId = null, // challenge match — no Steam lobby reserved
             CreatedAt = DateTime.UtcNow,
             CompletedAt = DateTime.UtcNow,
             Status = MatchStatus.Completed,
             WinningTeam = MatchTeam.Radiant,
-            Players = []
+            Players = [],
         };
 
         var matchRepo = new Mock<IMatchRepository>();
-        matchRepo.Setup(r => r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-                 .ReturnsAsync([]);
-        matchRepo.Setup(r => r.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
-                 .ReturnsAsync(new ReportMatchResult { Success = true, Message = "Winner: Radiant", Match = matchSummary });
+        matchRepo
+            .Setup(r =>
+                r.GetStaleInProgressMatchesAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([]);
+        matchRepo
+            .Setup(r => r.ReportMatchAsync(1, MatchTeam.Radiant, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new ReportMatchResult
+                {
+                    Success = true,
+                    Message = "Winner: Radiant",
+                    Match = matchSummary,
+                }
+            );
 
         var svc = CreateService(matchRepo: matchRepo.Object);
 

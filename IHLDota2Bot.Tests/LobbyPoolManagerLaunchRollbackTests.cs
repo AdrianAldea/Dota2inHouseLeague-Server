@@ -33,22 +33,43 @@ public class LobbyPoolManagerLaunchRollbackTests
         // A pool client that is logged on but fails to stand up the Dota lobby.
         var gcClient = new Mock<ISteamGcClient>();
         gcClient.SetupGet(c => c.IsLoggedOn).Returns(true);
-        gcClient.Setup(c => c.CreateLobbyAsync(It.IsAny<CreateLobbyRequest>()))
+        gcClient
+            .Setup(c => c.CreateLobbyAsync(It.IsAny<CreateLobbyRequest>()))
             .ThrowsAsync(new InvalidOperationException("GC unavailable"));
 
         var gcPool = new Mock<ISteamGcClientPool>();
         gcPool.Setup(p => p.GetByUsername(It.IsAny<string>())).Returns(gcClient.Object);
 
-        var match = new MatchEntity { Id = Guid.NewGuid(), LobbyId = "lobby", Status = MatchStatus.InProgress };
+        var match = new MatchEntity
+        {
+            Id = Guid.NewGuid(),
+            LobbyId = "lobby",
+            Status = MatchStatus.InProgress,
+        };
         var rollbackSettled = new TaskCompletionSource();
         var repo = new Mock<IMatchRepository>();
-        repo.Setup(r => r.GetStaleInProgressMatchesAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r =>
+                r.GetStaleInProgressMatchesAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(new List<MatchEntity>());
-        repo.Setup(r => r.CreateMatchAsync(
-                It.IsAny<string?>(), It.IsAny<IEnumerable<(ulong, MatchTeam)>>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r =>
+                r.CreateMatchAsync(
+                    It.IsAny<string?>(),
+                    It.IsAny<IEnumerable<(ulong, MatchTeam)>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(match);
-        repo.Setup(r => r.CompleteMatchByLobbyAsync(
-                It.IsAny<string>(), It.Is<MatchTeam?>(t => t == null), It.IsAny<CancellationToken>()))
+        repo.Setup(r =>
+                r.CompleteMatchByLobbyAsync(
+                    It.IsAny<string>(),
+                    It.Is<MatchTeam?>(t => t == null),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Callback(() => rollbackSettled.TrySetResult())
             .ReturnsAsync(new ReportMatchResult { Success = true, Message = "Cancelled" });
 
@@ -68,19 +89,32 @@ public class LobbyPoolManagerLaunchRollbackTests
 
         // The match is cancelled exactly once with no winner, players are never invited,
         // the account is released back to the pool, and no session is left behind.
-        repo.Verify(r => r.CompleteMatchByLobbyAsync(
-            It.IsAny<string>(), It.Is<MatchTeam?>(t => t == null), It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(
+            r =>
+                r.CompleteMatchByLobbyAsync(
+                    It.IsAny<string>(),
+                    It.Is<MatchTeam?>(t => t == null),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
         gcClient.Verify(c => c.InvitePlayersToLobby(It.IsAny<IList<ulong>>()), Times.Never);
         Assert.Equal(1, accountPool.GetAvailableAccountCount());
         Assert.Empty(manager.GetActiveSessions());
     }
 
     private static LobbyPoolManager CreateManager(
-        SteamAccountPool accountPool, ISteamGcClientPool gcPool, IMatchRepository repo)
+        SteamAccountPool accountPool,
+        ISteamGcClientPool gcPool,
+        IMatchRepository repo
+    )
     {
         var httpClientFactory = new Mock<IHttpClientFactory>();
         httpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        var discordClient = new DiscordClient(httpClientFactory.Object, Mock.Of<ILogger<DiscordClient>>());
+        var discordClient = new DiscordClient(
+            httpClientFactory.Object,
+            Mock.Of<ILogger<DiscordClient>>()
+        );
 
         return new LobbyPoolManager(
             accountPool,
@@ -90,6 +124,7 @@ public class LobbyPoolManagerLaunchRollbackTests
             gcPool,
             new GameMetrics(),
             Options.Create(new SteamOptions()),
-            Mock.Of<ILogger<LobbyPoolManager>>());
+            Mock.Of<ILogger<LobbyPoolManager>>()
+        );
     }
 }

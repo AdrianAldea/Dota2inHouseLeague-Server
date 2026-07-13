@@ -14,5 +14,4 @@ public static class EndpointsConfiguration
 
         return app;
     }
-
 }

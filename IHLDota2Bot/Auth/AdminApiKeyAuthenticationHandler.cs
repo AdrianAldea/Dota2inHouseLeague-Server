@@ -17,8 +17,13 @@ public sealed class AdminApiKeyAuthenticationHandler(
     IOptionsMonitor<AdminApiKeyAuthenticationHandler.SchemeOptions> options,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder,
-    IOptions<AdminApiKeyOptions> apiKeyOptions)
-    : AuthenticationHandler<AdminApiKeyAuthenticationHandler.SchemeOptions>(options, loggerFactory, encoder)
+    IOptions<AdminApiKeyOptions> apiKeyOptions
+)
+    : AuthenticationHandler<AdminApiKeyAuthenticationHandler.SchemeOptions>(
+        options,
+        loggerFactory,
+        encoder
+    )
 {
     public const string SchemeName = "AdminApiKey";
     public const string HeaderName = "X-Api-Key";
@@ -33,7 +38,9 @@ public sealed class AdminApiKeyAuthenticationHandler(
         if (string.IsNullOrEmpty(configuredKey))
         {
             var anon = new ClaimsPrincipal(new ClaimsIdentity(SchemeName));
-            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(anon, SchemeName)));
+            return Task.FromResult(
+                AuthenticateResult.Success(new AuthenticationTicket(anon, SchemeName))
+            );
         }
 
         if (!Request.Headers.TryGetValue(HeaderName, out var value) || value.Count == 0)
@@ -42,8 +49,11 @@ public sealed class AdminApiKeyAuthenticationHandler(
         if (!string.Equals(value[0], configuredKey, StringComparison.Ordinal))
             return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));
 
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.Name, "service")], SchemeName));
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim(ClaimTypes.Name, "service")], SchemeName)
+        );
+        return Task.FromResult(
+            AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName))
+        );
     }
 }

@@ -32,7 +32,10 @@ public sealed partial class SteamOpenIdService(HttpClient http)
     /// Verifies the OpenID assertion in the callback query. Returns the SteamID64 on
     /// success, or <c>null</c> if Steam rejects the signature or the id can't be parsed.
     /// </summary>
-    public async Task<string?> VerifyAsync(IEnumerable<KeyValuePair<string, string>> query, CancellationToken cancellationToken = default)
+    public async Task<string?> VerifyAsync(
+        IEnumerable<KeyValuePair<string, string>> query,
+        CancellationToken cancellationToken = default
+    )
     {
         string? claimedId = null;
         var form = new List<KeyValuePair<string, string>>();
@@ -52,7 +55,10 @@ public sealed partial class SteamOpenIdService(HttpClient http)
         using var response = await http.PostAsync(SteamLoginUrl, content, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        if (!response.IsSuccessStatusCode || !body.Contains("is_valid:true", StringComparison.Ordinal))
+        if (
+            !response.IsSuccessStatusCode
+            || !body.Contains("is_valid:true", StringComparison.Ordinal)
+        )
             return null;
 
         if (claimedId is null)

@@ -12,7 +12,10 @@ public class SchemaUpgradePlannerTests
     public void NoDatabase_Migrates()
     {
         var action = SchemaUpgradePlanner.Decide(
-            databaseExists: false, migrationsHistoryExists: false, hasApplicationTables: false);
+            databaseExists: false,
+            migrationsHistoryExists: false,
+            hasApplicationTables: false
+        );
 
         Assert.Equal(SchemaUpgradeAction.Migrate, action);
     }
@@ -21,7 +24,10 @@ public class SchemaUpgradePlannerTests
     public void EmptyDatabase_Migrates()
     {
         var action = SchemaUpgradePlanner.Decide(
-            databaseExists: true, migrationsHistoryExists: false, hasApplicationTables: false);
+            databaseExists: true,
+            migrationsHistoryExists: false,
+            hasApplicationTables: false
+        );
 
         Assert.Equal(SchemaUpgradeAction.Migrate, action);
     }
@@ -31,7 +37,10 @@ public class SchemaUpgradePlannerTests
     {
         // Tables present, but no __EFMigrationsHistory — the EnsureCreated fingerprint.
         var action = SchemaUpgradePlanner.Decide(
-            databaseExists: true, migrationsHistoryExists: false, hasApplicationTables: true);
+            databaseExists: true,
+            migrationsHistoryExists: false,
+            hasApplicationTables: true
+        );
 
         Assert.Equal(SchemaUpgradeAction.BaselineThenMigrate, action);
     }
@@ -40,7 +49,10 @@ public class SchemaUpgradePlannerTests
     public void MigrationManagedDatabase_Migrates()
     {
         var action = SchemaUpgradePlanner.Decide(
-            databaseExists: true, migrationsHistoryExists: true, hasApplicationTables: true);
+            databaseExists: true,
+            migrationsHistoryExists: true,
+            hasApplicationTables: true
+        );
 
         Assert.Equal(SchemaUpgradeAction.Migrate, action);
     }

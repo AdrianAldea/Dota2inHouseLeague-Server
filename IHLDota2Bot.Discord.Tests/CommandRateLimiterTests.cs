@@ -11,14 +11,19 @@ namespace IHLDota2Bot.Discord.Tests;
 /// </summary>
 public class CommandRateLimiterTests
 {
-    private static CommandRateLimiter Create(CommandRateLimitOptions options, TestTimeProvider clock) =>
-        new(Options.Create(options), clock);
+    private static CommandRateLimiter Create(
+        CommandRateLimitOptions options,
+        TestTimeProvider clock
+    ) => new(Options.Create(options), clock);
 
     [Fact]
     public void AllowsUpToBudgetWithinWindow()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 3, Window = TimeSpan.FromSeconds(5) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 3, Window = TimeSpan.FromSeconds(5) },
+            clock
+        );
 
         Assert.True(limiter.TryAcquire(1, out _));
         Assert.True(limiter.TryAcquire(1, out _));
@@ -29,7 +34,10 @@ public class CommandRateLimiterTests
     public void DeniesOnceBudgetExceeded_AndReportsRetryAfter()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 2, Window = TimeSpan.FromSeconds(5) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 2, Window = TimeSpan.FromSeconds(5) },
+            clock
+        );
 
         Assert.True(limiter.TryAcquire(1, out _));
         Assert.True(limiter.TryAcquire(1, out _));
@@ -43,7 +51,10 @@ public class CommandRateLimiterTests
     public void AllowsAgainAfterWindowElapses()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(5) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(5) },
+            clock
+        );
 
         Assert.True(limiter.TryAcquire(1, out _));
         Assert.False(limiter.TryAcquire(1, out _));
@@ -57,7 +68,10 @@ public class CommandRateLimiterTests
     public void PartialWindowElapse_StillDeniesUntilOldestAgesOut()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(10) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(10) },
+            clock
+        );
 
         Assert.True(limiter.TryAcquire(1, out _));
 
@@ -71,7 +85,10 @@ public class CommandRateLimiterTests
     public void UsersAreThrottledIndependently()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(5) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 1, Window = TimeSpan.FromSeconds(5) },
+            clock
+        );
 
         Assert.True(limiter.TryAcquire(1, out _));
         Assert.False(limiter.TryAcquire(1, out _));
@@ -84,7 +101,10 @@ public class CommandRateLimiterTests
     public void NonPositiveBudget_DisablesThrottling()
     {
         var clock = new TestTimeProvider();
-        var limiter = Create(new CommandRateLimitOptions { MaxCommands = 0, Window = TimeSpan.FromSeconds(5) }, clock);
+        var limiter = Create(
+            new CommandRateLimitOptions { MaxCommands = 0, Window = TimeSpan.FromSeconds(5) },
+            clock
+        );
 
         for (var i = 0; i < 50; i++)
         {

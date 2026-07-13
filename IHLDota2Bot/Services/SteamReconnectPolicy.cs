@@ -24,8 +24,12 @@ public static class SteamReconnectPolicy
     /// </summary>
     public static TimeSpan NextDelay(int attempt)
     {
-        if (attempt < 0) attempt = 0;
-        var seconds = Math.Min(BaseDelay.TotalSeconds * Math.Pow(2, attempt), MaxDelay.TotalSeconds);
+        if (attempt < 0)
+            attempt = 0;
+        var seconds = Math.Min(
+            BaseDelay.TotalSeconds * Math.Pow(2, attempt),
+            MaxDelay.TotalSeconds
+        );
         return TimeSpan.FromSeconds(seconds);
     }
 
@@ -35,15 +39,16 @@ public static class SteamReconnectPolicy
     /// disabled/banned). The reconnect loop should stop in those cases rather
     /// than re-submitting credentials that can't succeed and risking a lockout.
     /// </summary>
-    public static bool IsNonRetryableLogonResult(EResult result) => result switch
-    {
-        EResult.InvalidPassword => true,
-        EResult.AccountLogonDenied => true,             // SteamGuard email code required
-        EResult.AccountLoginDeniedNeedTwoFactor => true,
-        EResult.AccountDisabled => true,
-        EResult.Banned => true,
-        _ => false
-    };
+    public static bool IsNonRetryableLogonResult(EResult result) =>
+        result switch
+        {
+            EResult.InvalidPassword => true,
+            EResult.AccountLogonDenied => true, // SteamGuard email code required
+            EResult.AccountLoginDeniedNeedTwoFactor => true,
+            EResult.AccountDisabled => true,
+            EResult.Banned => true,
+            _ => false,
+        };
 
     /// <summary>
     /// True when a logon performed with a persisted refresh token failed because the
@@ -51,11 +56,12 @@ public static class SteamReconnectPolicy
     /// the stored token and fall back to a fresh credential auth on the next connect,
     /// rather than treating it as a permanent credential failure.
     /// </summary>
-    public static bool IsStaleTokenResult(EResult result) => result switch
-    {
-        EResult.Expired => true,
-        EResult.AccessDenied => true,
-        EResult.InvalidPassword => true,    // Steam reports a dead access token this way too
-        _ => false
-    };
+    public static bool IsStaleTokenResult(EResult result) =>
+        result switch
+        {
+            EResult.Expired => true,
+            EResult.AccessDenied => true,
+            EResult.InvalidPassword => true, // Steam reports a dead access token this way too
+            _ => false,
+        };
 }

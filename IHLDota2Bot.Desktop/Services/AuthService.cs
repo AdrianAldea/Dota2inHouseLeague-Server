@@ -9,7 +9,12 @@ namespace IHLDota2Bot.Desktop.Services;
 /// the saved token, and logout. Updates <see cref="AppSession"/> (which the UI observes)
 /// and persists the token via <see cref="TokenStore"/>.
 /// </summary>
-public sealed class AuthService(ApiClient api, AppSession session, SteamAuthService steam, TokenStore store)
+public sealed class AuthService(
+    ApiClient api,
+    AppSession session,
+    SteamAuthService steam,
+    TokenStore store
+)
 {
     public AppSession Session => session;
 
@@ -41,7 +46,7 @@ public sealed class AuthService(ApiClient api, AppSession session, SteamAuthServ
         if (result is null)
             return false;
 
-        session.SetToken(result.Token);   // set before /me so the header carries it
+        session.SetToken(result.Token); // set before /me so the header carries it
         session.SetMe(await SafeMeAsync());
         store.Save(result.Token);
         return true;

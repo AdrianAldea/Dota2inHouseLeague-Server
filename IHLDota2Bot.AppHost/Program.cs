@@ -31,7 +31,8 @@ var sqlPassword = builder.AddParameter("sql-password", secret: true);
 // the database (registrations, matches, ratings) survives container recreation —
 // Docker Desktop restarts, prunes, or Aspire reprovisioning. Without it, data lived
 // only inside the container and was wiped whenever the container was recreated.
-var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", password: sqlPassword, port: 52001)
+var sql = builder
+    .AddSqlServer("Dota2inHouseLeagueSQL", password: sqlPassword, port: 52001)
     .WithDataVolume("dota2ihl-sql-data")
     .WithLifetime(ContainerLifetime.Persistent);
 
@@ -42,18 +43,24 @@ var db = sql.AddDatabase("Dota2inHouseLeagueDB");
 // random proxy port. Kestrel binds localhost:5193; a Windows netsh portproxy rule
 // (0.0.0.0:5193 -> 127.0.0.1:5193) plus a firewall rule expose it to port-forwarded players
 // — see HOSTING_FOR_TESTING.md. Marked external so the dashboard surfaces the endpoint.
-var dota2 = builder.AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague-Backend")
+var dota2 = builder
+    .AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague-Backend")
     .WithReference(db)
     .WaitFor(db)
-    .WithEndpoint("http", e =>
-    {
-        e.Port = 5193;
-        e.TargetPort = 5193;
-        e.IsProxied = false;
-    })
+    .WithEndpoint(
+        "http",
+        e =>
+        {
+            e.Port = 5193;
+            e.TargetPort = 5193;
+            e.IsProxied = false;
+        }
+    )
     .WithExternalHttpEndpoints();
 
-var discord = builder.AddProject<Projects.IHLDota2Bot_Discord>("Dota2inHouseLeague-Backend-Discord");
+var discord = builder.AddProject<Projects.IHLDota2Bot_Discord>(
+    "Dota2inHouseLeague-Backend-Discord"
+);
 
 dota2.WithReference(discord);
 discord.WithReference(dota2);
@@ -64,7 +71,8 @@ discord.WithReference(dota2);
 // 4200 and reaches the backend through its own proxy.conf.json, so the endpoint
 // is registered un-proxied on that fixed port. Waits for the Game Manager so the
 // proxy target is up before the UI loads.
-builder.AddNpmApp("Dota2inHouseLeague-FrontEnd", "../IHLDota2BotFrontEnd")
+builder
+    .AddNpmApp("Dota2inHouseLeague-FrontEnd", "../IHLDota2BotFrontEnd")
     .WithHttpEndpoint(port: 4200, targetPort: 4200, isProxied: false)
     .WithExternalHttpEndpoints()
     .WaitFor(dota2);
@@ -76,7 +84,8 @@ builder.AddNpmApp("Dota2inHouseLeague-FrontEnd", "../IHLDota2BotFrontEnd")
 // (dynamically assigned) endpoint instead of the appsettings.json default. Excluded
 // from the manifest since a GUI client isn't a deployable service. Waits for the
 // backend so auth calls land.
-builder.AddProject<Projects.IHLDota2Bot_Desktop>("Dota2inHouseLeague-Desktop")
+builder
+    .AddProject<Projects.IHLDota2Bot_Desktop>("Dota2inHouseLeague-Desktop")
     .WithEnvironment("IHL_API_BASE", dota2.GetEndpoint("http"))
     .WaitFor(dota2)
     .WithExplicitStart()

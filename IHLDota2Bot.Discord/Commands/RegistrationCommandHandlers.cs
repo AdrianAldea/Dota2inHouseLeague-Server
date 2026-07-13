@@ -24,13 +24,14 @@ public sealed class RegisterCommandHandler(ISteamClient steamClient) : IDiscordC
             return;
         }
 
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var request = new RegisterPlayerRequest
         {
             SteamId = steamId,
             UserId = authorId,
-            Username = context.AuthorUsername ?? string.Empty
+            Username = context.AuthorUsername ?? string.Empty,
         };
         var registeredPlayer = await steamClient.RegisterPlayerAsync(request);
 
@@ -41,7 +42,8 @@ public sealed class RegisterCommandHandler(ISteamClient steamClient) : IDiscordC
         }
 
         await context.ReplyAsync(
-            CommandMessages.RegisterSuccess(registeredPlayer.Username, registeredPlayer.SteamId));
+            CommandMessages.RegisterSuccess(registeredPlayer.Username, registeredPlayer.SteamId)
+        );
     }
 }
 
@@ -64,7 +66,8 @@ public sealed class LinkCommandHandler(ISteamClient steamClient) : IDiscordComma
             return;
         }
 
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.LinkSteamIdAsync(authorId, steamId);
         // Link confirms on success (no Game Manager broadcast for it), so unlike the
@@ -80,9 +83,15 @@ public sealed class UnregisterCommandHandler(ISteamClient steamClient) : IDiscor
 
     public async Task HandleAsync(IDiscordCommandContext context)
     {
-        if (context.AuthorId is not { } authorId) return;
+        if (context.AuthorId is not { } authorId)
+            return;
 
         var result = await steamClient.UnregisterAsync(authorId);
-        await CommandReplies.ReplyIfFailedAsync(context, result?.Success, result?.Message, CommandMessages.UnregisterFailed);
+        await CommandReplies.ReplyIfFailedAsync(
+            context,
+            result?.Success,
+            result?.Message,
+            CommandMessages.UnregisterFailed
+        );
     }
 }

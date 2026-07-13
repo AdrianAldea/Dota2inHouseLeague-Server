@@ -36,7 +36,8 @@ public partial class ShellViewModel : ViewModelBase
         LeaderboardViewModel leaderboard,
         MatchHistoryViewModel matches,
         AppSession session,
-        AuthService auth)
+        AuthService auth
+    )
     {
         _auth = auth;
 
@@ -48,20 +49,44 @@ public partial class ShellViewModel : ViewModelBase
 
         NavItems = new ObservableCollection<NavItem>
         {
-            new() { Title = "Play",        Icon = Geo("IconPlay"),        Page = play },
-            new() { Title = "Profile",     Icon = Geo("IconProfile"),     Page = profile },
-            new() { Title = "Leaderboard", Icon = Geo("IconLeaderboard"), Page = leaderboard },
-            new() { Title = "Matches",     Icon = Geo("IconMatches"),     Page = matches },
+            new()
+            {
+                Title = "Play",
+                Icon = Geo("IconPlay"),
+                Page = play,
+            },
+            new()
+            {
+                Title = "Profile",
+                Icon = Geo("IconProfile"),
+                Page = profile,
+            },
+            new()
+            {
+                Title = "Leaderboard",
+                Icon = Geo("IconLeaderboard"),
+                Page = leaderboard,
+            },
+            new()
+            {
+                Title = "Matches",
+                Icon = Geo("IconMatches"),
+                Page = matches,
+            },
         };
         SelectedNav = NavItems[0];
     }
 
     /// <summary>Design-time / fallback constructor (mock pages, no live session).</summary>
     public ShellViewModel()
-        : this(new PlayViewModel(), new ProfileViewModel(), new LeaderboardViewModel(),
-               new MatchHistoryViewModel(), new AppSession(), null!)
-    {
-    }
+        : this(
+            new PlayViewModel(),
+            new ProfileViewModel(),
+            new LeaderboardViewModel(),
+            new MatchHistoryViewModel(),
+            new AppSession(),
+            null!
+        ) { }
 
     partial void OnSelectedNavChanged(NavItem? value)
     {
@@ -79,9 +104,11 @@ public partial class ShellViewModel : ViewModelBase
 
     private static Geometry Geo(string key)
     {
-        if (Application.Current is { } app &&
-            app.TryGetResource(key, ThemeVariant.Default, out var value) &&
-            value is Geometry geometry)
+        if (
+            Application.Current is { } app
+            && app.TryGetResource(key, ThemeVariant.Default, out var value)
+            && value is Geometry geometry
+        )
         {
             return geometry;
         }

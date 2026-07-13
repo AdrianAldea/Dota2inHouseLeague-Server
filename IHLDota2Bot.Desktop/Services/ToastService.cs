@@ -5,7 +5,12 @@ using Avalonia.Threading;
 
 namespace IHLDota2Bot.Desktop.Services;
 
-public enum ToastKind { Info, Success, Error }
+public enum ToastKind
+{
+    Info,
+    Success,
+    Error,
+}
 
 /// <summary>A transient notification shown top-right and auto-dismissed.</summary>
 public sealed class ToastItem(string message, ToastKind kind)
@@ -13,12 +18,13 @@ public sealed class ToastItem(string message, ToastKind kind)
     public string Message { get; } = message;
     public ToastKind Kind { get; } = kind;
 
-    public IBrush Accent => Kind switch
-    {
-        ToastKind.Success => SuccessBrush,
-        ToastKind.Error => ErrorBrush,
-        _ => InfoBrush,
-    };
+    public IBrush Accent =>
+        Kind switch
+        {
+            ToastKind.Success => SuccessBrush,
+            ToastKind.Error => ErrorBrush,
+            _ => InfoBrush,
+        };
 
     private static readonly IBrush SuccessBrush = new SolidColorBrush(Color.Parse("#3FD6A0"));
     private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.Parse("#FF5C5C"));
@@ -42,5 +48,6 @@ public sealed class ToastService
     }
 
     public void Success(string message) => Show(message, ToastKind.Success);
+
     public void Error(string message) => Show(message, ToastKind.Error);
 }

@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -11,7 +10,10 @@
   <ItemGroup>
     <PackageReference Include="Discord.Net" Version="3.20.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference
+      Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets"
+      Version="1.23.0"
+    />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.1" />
   </ItemGroup>
 
@@ -19,5 +21,4 @@
     <ProjectReference Include="..\IHLDota2Bot.Common\IHLDota2Bot.Common.csproj" />
     <ProjectReference Include="..\IHLDota2Bot.ServiceDefaults\IHLDota2Bot.ServiceDefaults.csproj" />
   </ItemGroup>
-
 </Project>

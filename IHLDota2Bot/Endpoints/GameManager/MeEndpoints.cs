@@ -16,37 +16,100 @@ public static class MeEndpoints
     {
         var me = group.MapGroup(string.Empty).RequireAuthorization("Player");
 
-        me.MapPost("/queue/join",
-            (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log, CancellationToken ct) =>
-                EndpointHelpers.TryOkAsync(log, "join queue (me)", () => svc.JoinQueueAsync(UserId(user), ct)));
+        me.MapPost(
+            "/queue/join",
+            (
+                ClaimsPrincipal user,
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                CancellationToken ct
+            ) =>
+                EndpointHelpers.TryOkAsync(
+                    log,
+                    "join queue (me)",
+                    () => svc.JoinQueueAsync(UserId(user), ct)
+                )
+        );
 
-        me.MapPost("/queue/leave",
+        me.MapPost(
+            "/queue/leave",
             (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log) =>
-                EndpointHelpers.TryOkAsync(log, "leave queue (me)", () => svc.LeaveQueueAsync(UserId(user))));
+                EndpointHelpers.TryOkAsync(
+                    log,
+                    "leave queue (me)",
+                    () => svc.LeaveQueueAsync(UserId(user))
+                )
+        );
 
-        me.MapPost("/ready",
+        me.MapPost(
+            "/ready",
             (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log) =>
-                EndpointHelpers.TryOkAsync(log, "ready (me)", () => svc.MarkPlayerAsReadyAsync(UserId(user))));
+                EndpointHelpers.TryOkAsync(
+                    log,
+                    "ready (me)",
+                    () => svc.MarkPlayerAsReadyAsync(UserId(user))
+                )
+        );
 
-        me.MapPost("/unready",
+        me.MapPost(
+            "/unready",
             (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log) =>
-                EndpointHelpers.TryOkAsync(log, "unready (me)", () => svc.MarkPlayerAsUnreadyAsync(UserId(user))));
+                EndpointHelpers.TryOkAsync(
+                    log,
+                    "unready (me)",
+                    () => svc.MarkPlayerAsUnreadyAsync(UserId(user))
+                )
+        );
 
-        me.MapGet("/me/stats",
-            (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log, CancellationToken ct) =>
-                EndpointHelpers.TryFindAsync(log, "me stats", () => svc.GetPlayerStatsAsync(UserId(user), ct)));
+        me.MapGet(
+            "/me/stats",
+            (
+                ClaimsPrincipal user,
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                CancellationToken ct
+            ) =>
+                EndpointHelpers.TryFindAsync(
+                    log,
+                    "me stats",
+                    () => svc.GetPlayerStatsAsync(UserId(user), ct)
+                )
+        );
 
-        me.MapGet("/me/rank",
-            (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log, CancellationToken ct) =>
-                EndpointHelpers.TryFindAsync(log, "me rank", () => svc.GetPlayerRankAsync(UserId(user), ct)));
+        me.MapGet(
+            "/me/rank",
+            (
+                ClaimsPrincipal user,
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                CancellationToken ct
+            ) =>
+                EndpointHelpers.TryFindAsync(
+                    log,
+                    "me rank",
+                    () => svc.GetPlayerRankAsync(UserId(user), ct)
+                )
+        );
 
-        me.MapGet("/me/matches",
-            (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log, [FromQuery] int? top, CancellationToken ct) =>
-                EndpointHelpers.TryOkAsync(log, "me matches", () => svc.GetRecentMatchesAsync(UserId(user), top ?? 5, ct)));
+        me.MapGet(
+            "/me/matches",
+            (
+                ClaimsPrincipal user,
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                [FromQuery] int? top,
+                CancellationToken ct
+            ) =>
+                EndpointHelpers.TryOkAsync(
+                    log,
+                    "me matches",
+                    () => svc.GetRecentMatchesAsync(UserId(user), top ?? 5, ct)
+                )
+        );
 
         return group;
     }
 
-    private static ulong UserId(ClaimsPrincipal user)
-        => ulong.TryParse(user.FindFirstValue(PlayerClaims.Subject), out var id) ? id : 0UL;
+    private static ulong UserId(ClaimsPrincipal user) =>
+        ulong.TryParse(user.FindFirstValue(PlayerClaims.Subject), out var id) ? id : 0UL;
 }

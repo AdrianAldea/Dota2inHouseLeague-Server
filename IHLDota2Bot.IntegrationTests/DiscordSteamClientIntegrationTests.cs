@@ -22,7 +22,13 @@ public class DiscordSteamClientIntegrationTests : IntegrationTestBase
         var steam = CreateSteamClient();
 
         var registered = await steam.RegisterPlayerAsync(
-            new RegisterPlayerRequest { SteamId = 76561198000000001, UserId = 1, Username = "alice" });
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000001,
+                UserId = 1,
+                Username = "alice",
+            }
+        );
 
         Assert.NotNull(registered);
         Assert.Equal("alice", registered!.Username);
@@ -34,7 +40,13 @@ public class DiscordSteamClientIntegrationTests : IntegrationTestBase
     {
         var steam = CreateSteamClient();
         await steam.RegisterPlayerAsync(
-            new RegisterPlayerRequest { SteamId = 76561198000000001, UserId = 1, Username = "alice" });
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000001,
+                UserId = 1,
+                Username = "alice",
+            }
+        );
 
         var stats = await steam.GetPlayerStatsAsync(1);
 
@@ -56,8 +68,22 @@ public class DiscordSteamClientIntegrationTests : IntegrationTestBase
     public async Task GetLeaderboard_ReflectsRegisteredPlayers()
     {
         var steam = CreateSteamClient();
-        await steam.RegisterPlayerAsync(new RegisterPlayerRequest { SteamId = 76561198000000001, UserId = 1, Username = "alice" });
-        await steam.RegisterPlayerAsync(new RegisterPlayerRequest { SteamId = 76561198000000002, UserId = 2, Username = "bob" });
+        await steam.RegisterPlayerAsync(
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000001,
+                UserId = 1,
+                Username = "alice",
+            }
+        );
+        await steam.RegisterPlayerAsync(
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000002,
+                UserId = 2,
+                Username = "bob",
+            }
+        );
 
         var board = await steam.GetLeaderboardAsync(10);
 
@@ -71,7 +97,14 @@ public class DiscordSteamClientIntegrationTests : IntegrationTestBase
     public async Task JoinQueue_AfterRegister_Succeeds()
     {
         var steam = CreateSteamClient();
-        await steam.RegisterPlayerAsync(new RegisterPlayerRequest { SteamId = 76561198000000001, UserId = 1, Username = "alice" });
+        await steam.RegisterPlayerAsync(
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000001,
+                UserId = 1,
+                Username = "alice",
+            }
+        );
 
         var result = await steam.JoinQueueAsync(1);
 

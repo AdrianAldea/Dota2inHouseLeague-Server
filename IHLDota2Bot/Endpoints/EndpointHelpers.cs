@@ -9,7 +9,10 @@ namespace IHLDota2Bot.Endpoints;
 public static class EndpointHelpers
 {
     public static async Task<Results<Ok<T>, StatusCodeHttpResult>> TryOkAsync<T>(
-        ILogger logger, string action, Func<Task<T>> work)
+        ILogger logger,
+        string action,
+        Func<Task<T>> work
+    )
     {
         try
         {
@@ -23,7 +26,11 @@ public static class EndpointHelpers
     }
 
     public static async Task<Results<Ok<T>, NotFound, StatusCodeHttpResult>> TryFindAsync<T>(
-        ILogger logger, string action, Func<Task<T?>> work) where T : class
+        ILogger logger,
+        string action,
+        Func<Task<T?>> work
+    )
+        where T : class
     {
         try
         {
@@ -38,7 +45,10 @@ public static class EndpointHelpers
     }
 
     public static Results<Ok<T>, StatusCodeHttpResult> TryOk<T>(
-        ILogger logger, string action, Func<T> work)
+        ILogger logger,
+        string action,
+        Func<T> work
+    )
     {
         try
         {
@@ -51,8 +61,7 @@ public static class EndpointHelpers
         }
     }
 
-    public static Results<Ok, StatusCodeHttpResult> Try(
-        ILogger logger, string action, Action work)
+    public static Results<Ok, StatusCodeHttpResult> Try(ILogger logger, string action, Action work)
     {
         try
         {

@@ -12,12 +12,24 @@ namespace IHLDota2Bot.IntegrationTests;
 public class QueueApiTests : IntegrationTestBase
 {
     private async Task RegisterAsync(ulong userId, string username) =>
-        (await Client.PostAsJsonAsync("/api/gamemanager/register",
-            new RegisterPlayerRequest { SteamId = 76561198000000000 + userId, UserId = userId, Username = username }))
-        .EnsureSuccessStatusCode();
+        (
+            await Client.PostAsJsonAsync(
+                "/api/gamemanager/register",
+                new RegisterPlayerRequest
+                {
+                    SteamId = 76561198000000000 + userId,
+                    UserId = userId,
+                    Username = username,
+                }
+            )
+        ).EnsureSuccessStatusCode();
 
     private async Task<QueueOperationResponse> PostOp(string path) =>
-        (await (await Client.PostAsync(path, content: null)).Content.ReadFromJsonAsync<QueueOperationResponse>())!;
+        (
+            await (
+                await Client.PostAsync(path, content: null)
+            ).Content.ReadFromJsonAsync<QueueOperationResponse>()
+        )!;
 
     [Fact]
     public async Task Join_Unregistered_IsRefused()
@@ -36,7 +48,9 @@ public class QueueApiTests : IntegrationTestBase
         var join = await PostOp("/api/gamemanager/queue/1");
         Assert.True(join.Success);
 
-        var status = await Client.GetFromJsonAsync<QueueStatusResponse>("/api/gamemanager/queue/status");
+        var status = await Client.GetFromJsonAsync<QueueStatusResponse>(
+            "/api/gamemanager/queue/status"
+        );
         Assert.Equal(1, status!.CurrentLobbyPlayerCount);
         Assert.Equal(1, status.TotalRegistered);
         Assert.Equal(LeagueConstants.PlayersPerLobby, status.PlayersPerLobby);

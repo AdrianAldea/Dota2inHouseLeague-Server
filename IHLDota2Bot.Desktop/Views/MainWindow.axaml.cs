@@ -33,23 +33,24 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Maximized)
             return;
 
-        if (sender is Border { Tag: string edgeName }
+        if (
+            sender is Border { Tag: string edgeName }
             && Enum.TryParse<WindowEdge>(edgeName, out var edge)
-            && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+        )
         {
             BeginResizeDrag(edge, e);
         }
     }
 
-    private void Minimize_Click(object? sender, RoutedEventArgs e)
-        => WindowState = WindowState.Minimized;
+    private void Minimize_Click(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState.Minimized;
 
-    private void Maximize_Click(object? sender, RoutedEventArgs e)
-        => ToggleMaximize();
+    private void Maximize_Click(object? sender, RoutedEventArgs e) => ToggleMaximize();
 
-    private void Close_Click(object? sender, RoutedEventArgs e)
-        => Close();
+    private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 
-    private void ToggleMaximize()
-        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    private void ToggleMaximize() =>
+        WindowState =
+            WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 }

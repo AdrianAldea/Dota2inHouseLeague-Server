@@ -11,7 +11,10 @@ namespace IHLDota2Bot.Desktop.Services;
 /// </summary>
 public sealed class AuthHeaderHandler(AppSession session) : DelegatingHandler
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken
+    )
     {
         if (!string.IsNullOrEmpty(session.Token))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Token);

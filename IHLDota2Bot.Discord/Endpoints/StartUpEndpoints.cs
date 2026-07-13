@@ -16,14 +16,16 @@ public static class StartUpEndpoints
     private static async Task HandleMessage(
         MessageRequest messageRequest,
         DiscordService service,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         await service.SendMessageAsync(messageRequest.Message, cancellationToken);
     }
 
     private static async Task<Results<Ok<bool>, StatusCodeHttpResult>> StartServer(
         DiscordService service,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         await service.StartAsync(cancellationToken);
         return TypedResults.Ok(service.IsRunning);
@@ -31,7 +33,8 @@ public static class StartUpEndpoints
 
     private static async Task<Results<Ok, StatusCodeHttpResult>> StopServer(
         DiscordService service,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         await service.StopAsync(cancellationToken);
         return TypedResults.Ok();

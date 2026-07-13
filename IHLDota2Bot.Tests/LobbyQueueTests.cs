@@ -17,7 +17,10 @@ public class LobbyQueueTests
     private const int Capacity = 2;
 
     private static LobbyQueue CreateQueue() =>
-        new(Mock.Of<ILogger<LobbyQueue>>(), Options.Create(new LeagueOptions { PlayersPerLobby = Capacity }));
+        new(
+            Mock.Of<ILogger<LobbyQueue>>(),
+            Options.Create(new LeagueOptions { PlayersPerLobby = Capacity })
+        );
 
     /// <summary>Joins <paramref name="count"/> distinct users, returning their ids.</summary>
     private static async Task<List<ulong>> FillAsync(LobbyQueue queue, int count)
@@ -36,14 +39,16 @@ public class LobbyQueueTests
     public void Constructor_NullLogger_Throws()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new LobbyQueue(null!, Options.Create(new LeagueOptions())));
+            new LobbyQueue(null!, Options.Create(new LeagueOptions()))
+        );
     }
 
     [Fact]
     public void Constructor_NullOptions_Throws()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), null!));
+            new LobbyQueue(Mock.Of<ILogger<LobbyQueue>>(), null!)
+        );
     }
 
     [Fact]

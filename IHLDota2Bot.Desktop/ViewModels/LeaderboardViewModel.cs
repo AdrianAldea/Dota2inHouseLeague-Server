@@ -64,19 +64,31 @@ public partial class LeaderboardViewModel : ViewModelBase
         Entries.Clear();
         var seed = new (string Name, int Rating, int W, int L)[]
         {
-            ("Miracle-", 1612, 88, 40), ("Topson", 1574, 81, 44), ("SumaiL", 1551, 77, 41),
-            ("Arteezy", 1530, 73, 45), ("Ceb", 1498, 69, 47), ("Puppey", 1471, 64, 48),
-            ("YourName", 1340, 42, 31), ("Nisha", 1322, 51, 49), ("Ana", 1300, 33, 30),
+            ("Miracle-", 1612, 88, 40),
+            ("Topson", 1574, 81, 44),
+            ("SumaiL", 1551, 77, 41),
+            ("Arteezy", 1530, 73, 45),
+            ("Ceb", 1498, 69, 47),
+            ("Puppey", 1471, 64, 48),
+            ("YourName", 1340, 42, 31),
+            ("Nisha", 1322, 51, 49),
+            ("Ana", 1300, 33, 30),
             ("33", 1284, 40, 44),
         };
         for (var i = 0; i < seed.Length; i++)
         {
             var (name, rating, w, l) = seed[i];
-            Entries.Add(new LeaderboardEntry
-            {
-                Rank = i + 1, UserId = (ulong)(1000 + i), Username = name,
-                Rating = rating, Wins = w, Losses = l,
-            });
+            Entries.Add(
+                new LeaderboardEntry
+                {
+                    Rank = i + 1,
+                    UserId = (ulong)(1000 + i),
+                    Username = name,
+                    Rating = rating,
+                    Wins = w,
+                    Losses = l,
+                }
+            );
         }
     }
 }

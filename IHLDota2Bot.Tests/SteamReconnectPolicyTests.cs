@@ -23,7 +23,7 @@ public class SteamReconnectPolicyTests
     }
 
     [Theory]
-    [InlineData(5)]   // 160s would exceed the cap
+    [InlineData(5)] // 160s would exceed the cap
     [InlineData(6)]
     [InlineData(20)]
     [InlineData(1000)]

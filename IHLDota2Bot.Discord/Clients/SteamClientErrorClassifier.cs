@@ -15,34 +15,40 @@ public static class SteamClientErrorClassifier
     {
         /// <summary>The resilience pipeline's per-attempt/total timeout elapsed.</summary>
         Timeout,
+
         /// <summary>The circuit breaker is open — the backend is being given time to recover.</summary>
         CircuitOpen,
+
         /// <summary>The caller cancelled (e.g. shutdown); not a backend fault.</summary>
         Canceled,
+
         /// <summary>A network/transport-level failure reaching the backend.</summary>
         Transport,
+
         /// <summary>Anything else — genuinely unexpected, worth an error.</summary>
-        Unexpected
+        Unexpected,
     }
 
-    public static FailureKind Classify(Exception ex) => ex switch
-    {
-        TimeoutRejectedException => FailureKind.Timeout,
-        BrokenCircuitException => FailureKind.CircuitOpen,
-        OperationCanceledException => FailureKind.Canceled,
-        HttpRequestException => FailureKind.Transport,
-        _ => FailureKind.Unexpected
-    };
+    public static FailureKind Classify(Exception ex) =>
+        ex switch
+        {
+            TimeoutRejectedException => FailureKind.Timeout,
+            BrokenCircuitException => FailureKind.CircuitOpen,
+            OperationCanceledException => FailureKind.Canceled,
+            HttpRequestException => FailureKind.Transport,
+            _ => FailureKind.Unexpected,
+        };
 
     /// <summary>
     /// Transient/expected conditions (timeout, open circuit, cancellation) log as
     /// warnings; transport and unexpected faults log as errors.
     /// </summary>
-    public static LogLevel LevelFor(FailureKind kind) => kind switch
-    {
-        FailureKind.Timeout => LogLevel.Warning,
-        FailureKind.CircuitOpen => LogLevel.Warning,
-        FailureKind.Canceled => LogLevel.Warning,
-        _ => LogLevel.Error
-    };
+    public static LogLevel LevelFor(FailureKind kind) =>
+        kind switch
+        {
+            FailureKind.Timeout => LogLevel.Warning,
+            FailureKind.CircuitOpen => LogLevel.Warning,
+            FailureKind.Canceled => LogLevel.Warning,
+            _ => LogLevel.Error,
+        };
 }

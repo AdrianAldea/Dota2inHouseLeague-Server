@@ -13,16 +13,23 @@ namespace IHLDota2Bot.Tests;
 /// </summary>
 public class PlayerRepositoryTests
 {
-    private static PlayerEntity Player(ulong id, string name, int rating = 1000, int wins = 0, int losses = 0) => new()
-    {
-        UserId = id,
-        Username = name,
-        SteamId = $"steam-{id}",
-        Rating = rating,
-        Wins = wins,
-        Losses = losses,
-        RegisteredAt = DateTime.UtcNow,
-    };
+    private static PlayerEntity Player(
+        ulong id,
+        string name,
+        int rating = 1000,
+        int wins = 0,
+        int losses = 0
+    ) =>
+        new()
+        {
+            UserId = id,
+            Username = name,
+            SteamId = $"steam-{id}",
+            Rating = rating,
+            Wins = wins,
+            Losses = losses,
+            RegisteredAt = DateTime.UtcNow,
+        };
 
     [Fact]
     public async Task Upsert_NewPlayer_InsertsWithTimestamps()
@@ -137,9 +144,10 @@ public class PlayerRepositoryTests
         {
             ctx.Players.AddRange(
                 Player(1, "Alice", rating: 1200, wins: 5, losses: 1),
-                Player(2, "Bob",   rating: 1200, wins: 5, losses: 3), // same rating+wins, more losses → after Alice
-                Player(3, "Cara",  rating: 1100, wins: 10, losses: 0), // lower rating → last despite most wins
-                Player(4, "Dan",   rating: 1200, wins: 7, losses: 0)); // most wins in the 1200 tier → first
+                Player(2, "Bob", rating: 1200, wins: 5, losses: 3), // same rating+wins, more losses → after Alice
+                Player(3, "Cara", rating: 1100, wins: 10, losses: 0), // lower rating → last despite most wins
+                Player(4, "Dan", rating: 1200, wins: 7, losses: 0)
+            ); // most wins in the 1200 tier → first
             await ctx.SaveChangesAsync();
         }
 
@@ -159,7 +167,8 @@ public class PlayerRepositoryTests
             ctx.Players.AddRange(
                 Player(1, "Alice", rating: 1300),
                 Player(2, "Bob", rating: 1200),
-                Player(3, "Cara", rating: 1100));
+                Player(3, "Cara", rating: 1100)
+            );
             await ctx.SaveChangesAsync();
         }
 
@@ -192,9 +201,10 @@ public class PlayerRepositoryTests
         {
             ctx.Players.AddRange(
                 Player(1, "Alice", rating: 1200, wins: 5, losses: 1),
-                Player(2, "Bob",   rating: 1200, wins: 5, losses: 3), // our subject
-                Player(3, "Cara",  rating: 1100, wins: 10, losses: 0),
-                Player(4, "Dan",   rating: 1200, wins: 7, losses: 0));
+                Player(2, "Bob", rating: 1200, wins: 5, losses: 3), // our subject
+                Player(3, "Cara", rating: 1100, wins: 10, losses: 0),
+                Player(4, "Dan", rating: 1200, wins: 7, losses: 0)
+            );
             await ctx.SaveChangesAsync();
         }
 

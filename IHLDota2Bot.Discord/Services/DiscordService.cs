@@ -33,7 +33,8 @@ public class DiscordService : IHostedService, IAsyncDisposable
         DiscordCommandTelemetry telemetry,
         DiscordSocketClient discordClient,
         IOptions<DiscordOptions> options,
-        ILogger<DiscordService> logger)
+        ILogger<DiscordService> logger
+    )
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(rateLimiter);
@@ -63,30 +64,41 @@ public class DiscordService : IHostedService, IAsyncDisposable
             LogSeverity.Info => LogLevel.Information,
             LogSeverity.Verbose => LogLevel.Debug,
             LogSeverity.Debug => LogLevel.Trace,
-            _ => LogLevel.Information
+            _ => LogLevel.Information,
         };
-        logger.Log(level, message.Exception, "[Discord] {Source}: {Message}", message.Source, message.Message);
+        logger.Log(
+            level,
+            message.Exception,
+            "[Discord] {Source}: {Message}",
+            message.Source,
+            message.Message
+        );
         return Task.CompletedTask;
     }
 
     private async Task HandleMessageAsync(SocketMessage message)
     {
-        if (message is not SocketUserMessage userMessage) return;
-        if (userMessage.Author?.IsBot ?? false) return;
+        if (message is not SocketUserMessage userMessage)
+            return;
+        if (userMessage.Author?.IsBot ?? false)
+            return;
 
         var content = userMessage.Content?.Trim();
-        if (string.IsNullOrEmpty(content)) return;
-        if (!content.StartsWith('!')) return;
+        if (string.IsNullOrEmpty(content))
+            return;
+        if (!content.StartsWith('!'))
+            return;
 
         var parts = content[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return;
+        if (parts.Length == 0)
+            return;
 
         var rawCommand = parts[0].ToUpperInvariant();
         var command = rawCommand switch
         {
             "Q" => "QUEUE",
             "HELP" => "COMMANDS",
-            _ => rawCommand
+            _ => rawCommand,
         };
 
         if (!Enum.TryParse(command, out DiscordAction action))
@@ -110,33 +122,46 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
         // Throttle ordinary users to curb spam. Admin commands bypass the limit so
         // moderation isn't blocked when the channel is busy.
-        if (!handler.RequiresAdmin
+        if (
+            !handler.RequiresAdmin
             && userMessage.Author is { } author
-            && !rateLimiter.TryAcquire(author.Id, out var retryAfter))
+            && !rateLimiter.TryAcquire(author.Id, out var retryAfter)
+        )
         {
             telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeRateLimited, 0);
             await userMessage.Channel.SendMessageAsync(
-                $"Slow down — try again in {Math.Ceiling(retryAfter.TotalSeconds)}s.");
+                $"Slow down — try again in {Math.Ceiling(retryAfter.TotalSeconds)}s."
+            );
             return;
         }
 
         logger.LogInformation("Received command: {Action}", action);
 
-        using var activity = DiscordCommandTelemetry.ActivitySource.StartActivity("discord.command.handle");
+        using var activity = DiscordCommandTelemetry.ActivitySource.StartActivity(
+            "discord.command.handle"
+        );
         activity?.SetTag("discord.command", action.ToString());
 
         var startedAt = Stopwatch.GetTimestamp();
         try
         {
-            await handler.HandleAsync(new DiscordCommandContext { Message = userMessage, Parts = parts });
-            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeHandled,
-                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            await handler.HandleAsync(
+                new DiscordCommandContext { Message = userMessage, Parts = parts }
+            );
+            telemetry.Record(
+                action.ToString(),
+                DiscordCommandTelemetry.OutcomeHandled,
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds
+            );
         }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            telemetry.Record(action.ToString(), DiscordCommandTelemetry.OutcomeFailed,
-                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            telemetry.Record(
+                action.ToString(),
+                DiscordCommandTelemetry.OutcomeFailed,
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds
+            );
             logger.LogError(ex, "Command handler for {Action} threw", action);
         }
     }
@@ -153,7 +178,8 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (isRunning) return;
+        if (isRunning)
+            return;
 
         if (string.IsNullOrWhiteSpace(options.Token))
         {
@@ -171,7 +197,8 @@ public class DiscordService : IHostedService, IAsyncDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (!isRunning) return;
+        if (!isRunning)
+            return;
 
         logger.LogInformation("Stopping Discord service...");
         await discordClient.LogoutAsync();
@@ -179,7 +206,10 @@ public class DiscordService : IHostedService, IAsyncDisposable
         isRunning = false;
     }
 
-    public async Task SendMessageAsync(string message, CancellationToken cancellationToken = default)
+    public async Task SendMessageAsync(
+        string message,
+        CancellationToken cancellationToken = default
+    )
     {
         if (options.ChannelId == 0)
         {

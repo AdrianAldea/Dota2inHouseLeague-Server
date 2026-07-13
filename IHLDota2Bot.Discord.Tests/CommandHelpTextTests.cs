@@ -11,7 +11,7 @@ public class CommandHelpTextTests
     [Theory]
     [InlineData("register")]
     [InlineData("queue")]
-    [InlineData("q")]          // alias
+    [InlineData("q")] // alias
     [InlineData("report")]
     [InlineData("ban")]
     [InlineData("pool_status")]

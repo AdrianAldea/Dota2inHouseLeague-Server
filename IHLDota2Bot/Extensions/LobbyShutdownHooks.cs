@@ -14,7 +14,9 @@ public static class LobbyShutdownHooks
     public static WebApplication UseLobbyShutdownHooks(this WebApplication app)
     {
         var steamPool = app.Services.GetRequiredService<SteamGcClientPool>();
-        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LobbyShutdownHook");
+        var logger = app
+            .Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("LobbyShutdownHook");
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
@@ -24,7 +26,10 @@ public static class LobbyShutdownHooks
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
-            logger.LogError(e.ExceptionObject as Exception, "UnhandledException; destroying active lobbies");
+            logger.LogError(
+                e.ExceptionObject as Exception,
+                "UnhandledException; destroying active lobbies"
+            );
             steamPool.DestroyAllActiveLobbies();
         };
 

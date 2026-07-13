@@ -12,10 +12,21 @@ namespace IHLDota2Bot.IntegrationTests;
 /// </summary>
 public class PlayerApiTests : IntegrationTestBase
 {
-    private async Task<RegisteredPlayer> RegisterAsync(ulong userId, string username, ulong steamId = 76561198000000000)
+    private async Task<RegisteredPlayer> RegisterAsync(
+        ulong userId,
+        string username,
+        ulong steamId = 76561198000000000
+    )
     {
-        var response = await Client.PostAsJsonAsync("/api/gamemanager/register",
-            new RegisterPlayerRequest { SteamId = steamId, UserId = userId, Username = username });
+        var response = await Client.PostAsJsonAsync(
+            "/api/gamemanager/register",
+            new RegisterPlayerRequest
+            {
+                SteamId = steamId,
+                UserId = userId,
+                Username = username,
+            }
+        );
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<RegisteredPlayer>())!;
     }
@@ -41,7 +52,9 @@ public class PlayerApiTests : IntegrationTestBase
     {
         await RegisterAsync(1, "alice");
 
-        var profile = await Client.GetFromJsonAsync<PlayerStatsResponse>("/api/gamemanager/player/1");
+        var profile = await Client.GetFromJsonAsync<PlayerStatsResponse>(
+            "/api/gamemanager/player/1"
+        );
         var stats = await Client.GetFromJsonAsync<PlayerStatsResponse>("/api/gamemanager/stats/1");
 
         Assert.Equal(stats!.UserId, profile!.UserId);
@@ -59,7 +72,9 @@ public class PlayerApiTests : IntegrationTestBase
         Assert.Equal("alice_renamed", stats!.Username);
 
         // Still a single player on the board (upsert, not insert).
-        var board = await Client.GetFromJsonAsync<LeaderboardResponse>("/api/gamemanager/leaderboard");
+        var board = await Client.GetFromJsonAsync<LeaderboardResponse>(
+            "/api/gamemanager/leaderboard"
+        );
         Assert.Single(board!.Entries);
     }
 
@@ -79,7 +94,9 @@ public class PlayerApiTests : IntegrationTestBase
         await RegisterAsync(1, "alice", steamId: 76561198000000001);
         await RegisterAsync(2, "bob", steamId: 76561198000000002);
 
-        var board = await Client.GetFromJsonAsync<LeaderboardResponse>("/api/gamemanager/leaderboard?top=10");
+        var board = await Client.GetFromJsonAsync<LeaderboardResponse>(
+            "/api/gamemanager/leaderboard?top=10"
+        );
 
         Assert.Equal(["alice", "bob", "charlie"], board!.Entries.Select(e => e.Username));
         Assert.Equal([1, 2, 3], board.Entries.Select(e => e.Rank));
@@ -102,7 +119,10 @@ public class PlayerApiTests : IntegrationTestBase
     {
         await RegisterAsync(1, "alice", steamId: 76561198000000001);
 
-        var response = await Client.PostAsync("/api/gamemanager/link/1/76561198000000999", content: null);
+        var response = await Client.PostAsync(
+            "/api/gamemanager/link/1/76561198000000999",
+            content: null
+        );
         var op = await response.Content.ReadFromJsonAsync<QueueOperationResponse>();
 
         Assert.True(op!.Success);

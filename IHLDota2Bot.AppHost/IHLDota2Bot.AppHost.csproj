@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.3" />
 
   <PropertyGroup>
@@ -27,5 +26,4 @@
     <ProjectReference Include="..\IHLDota2Bot.Discord\IHLDota2Bot.Discord.csproj" />
     <ProjectReference Include="..\IHLDota2Bot\IHLDota2Bot.csproj" />
   </ItemGroup>
-
 </Project>

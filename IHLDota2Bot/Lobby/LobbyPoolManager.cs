@@ -37,7 +37,8 @@ public class LobbyPoolManager : IHostedService
         ISteamGcClientPool steamGcPool,
         GameMetrics gameMetrics,
         IOptions<SteamOptions> steamOptions,
-        ILogger<LobbyPoolManager> logger)
+        ILogger<LobbyPoolManager> logger
+    )
     {
         ArgumentNullException.ThrowIfNull(accountPool);
         ArgumentNullException.ThrowIfNull(lobbyQueue);
@@ -100,7 +101,10 @@ public class LobbyPoolManager : IHostedService
         try
         {
             var olderThan = DateTime.UtcNow - LeagueConstants.StaleMatchThreshold;
-            var stale = await matchRepository.GetStaleInProgressMatchesAsync(olderThan, cancellationToken);
+            var stale = await matchRepository.GetStaleInProgressMatchesAsync(
+                olderThan,
+                cancellationToken
+            );
             if (stale.Count == 0)
             {
                 logger.LogInformation("Reconciliation: no stale InProgress matches found");
@@ -114,7 +118,10 @@ public class LobbyPoolManager : IHostedService
                 {
                     logger.LogWarning(
                         "Reconciliation: cancelled stale InProgress match {MatchId} (started {Started:o}, age {AgeHours:F1}h)",
-                        match.Id, match.CreatedAt, (DateTime.UtcNow - match.CreatedAt).TotalHours);
+                        match.Id,
+                        match.CreatedAt,
+                        (DateTime.UtcNow - match.CreatedAt).TotalHours
+                    );
                 }
             }
 
@@ -129,11 +136,16 @@ public class LobbyPoolManager : IHostedService
     }
 
     public AccountPoolStats GetAccountPoolStats() => accountPool.GetStats();
+
     public List<SteamAccount> GetSteamAccounts() => accountPool.GetAllAccounts();
+
     public int GetAvailableAccountCount() => accountPool.GetAvailableAccountCount();
 
-    public Task<QueueOperationResponse> JoinQueueAsync(ulong userId, string username, string steamId) =>
-        lobbyQueue.JoinQueueAsync(userId, username, steamId);
+    public Task<QueueOperationResponse> JoinQueueAsync(
+        ulong userId,
+        string username,
+        string steamId
+    ) => lobbyQueue.JoinQueueAsync(userId, username, steamId);
 
     public Task<QueueOperationResponse> LeaveQueueAsync(ulong userId) =>
         lobbyQueue.LeaveQueueAsync(userId);
@@ -148,21 +160,32 @@ public class LobbyPoolManager : IHostedService
 
     public bool RemovePlayerCompletely(ulong userId) => lobbyQueue.RemovePlayerCompletely(userId);
 
-    public bool UpdatePlayerSteamId(ulong userId, string steamId) => lobbyQueue.UpdatePlayerSteamId(userId, steamId);
+    public bool UpdatePlayerSteamId(ulong userId, string steamId) =>
+        lobbyQueue.UpdatePlayerSteamId(userId, steamId);
 
-    public Task<QueueOperationResponse> KickFromLobbyAsync(ulong userId) => lobbyQueue.KickFromLobbyAsync(userId);
+    public Task<QueueOperationResponse> KickFromLobbyAsync(ulong userId) =>
+        lobbyQueue.KickFromLobbyAsync(userId);
 
     public Task<QueueOperationResponse> ForceLobbyReadyAsync() => lobbyQueue.ForceLobbyReadyAsync();
 
-    public Task<QueueOperationResponse> ResetCurrentLobbyAsync() => lobbyQueue.ResetCurrentLobbyAsync();
+    public Task<QueueOperationResponse> ResetCurrentLobbyAsync() =>
+        lobbyQueue.ResetCurrentLobbyAsync();
 
     public async Task<QueueOperationResponse> AddSteamAccountAsync(string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return new QueueOperationResponse { Success = false, Message = "Username and password are required." };
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = "Username and password are required.",
+            };
 
         if (accountPool.GetAccountByUsername(username) != null)
-            return new QueueOperationResponse { Success = false, Message = $"Account {username} already exists." };
+            return new QueueOperationResponse
+            {
+                Success = false,
+                Message = $"Account {username} already exists.",
+            };
 
         // Register the Steam connection FIRST. If we don't have a real Steam
         // client for this account, reserving it from the bookkeeping pool later
@@ -171,7 +194,11 @@ public class LobbyPoolManager : IHostedService
         var (gcAdded, gcMessage) = await steamGcPool.TryAddAccountAsync(username, password);
         if (!gcAdded)
         {
-            logger.LogWarning("Refusing AddSteamAccount({Username}): SteamGcClientPool refused — {Message}", username, gcMessage);
+            logger.LogWarning(
+                "Refusing AddSteamAccount({Username}): SteamGcClientPool refused — {Message}",
+                username,
+                gcMessage
+            );
             return new QueueOperationResponse { Success = false, Message = gcMessage };
         }
 
@@ -179,7 +206,7 @@ public class LobbyPoolManager : IHostedService
         return new QueueOperationResponse
         {
             Success = true,
-            Message = $"Steam account {username} registered and connecting."
+            Message = $"Steam account {username} registered and connecting.",
         };
     }
 
@@ -192,20 +219,22 @@ public class LobbyPoolManager : IHostedService
             Ready = stats.ReadyAccounts,
             InUse = stats.InUseAccounts,
             OnCooldown = stats.OnCooldownAccounts,
-            Accounts = stats.Accounts
-                .Select(a => new PoolAccountSummary
+            Accounts = stats
+                .Accounts.Select(a => new PoolAccountSummary
                 {
                     Username = a.Username,
                     State = (PoolAccountState)a.State,
                     CurrentLobbyId = a.CurrentLobbyId,
-                    LastUsedAt = a.LastUsedAt
+                    LastUsedAt = a.LastUsedAt,
                 })
-                .ToList()
+                .ToList(),
         };
     }
 
     public Lobby GetCurrentLobby() => lobbyQueue.GetCurrentLobby();
+
     public QueueStats GetQueueStats() => lobbyQueue.GetStats();
+
     public List<Player> GetRegisteredPlayers() => lobbyQueue.GetRegisteredPlayers();
 
     private void OnLobbyReady(object? sender, LobbyReadyEventArgs e) =>
@@ -235,7 +264,7 @@ public class LobbyPoolManager : IHostedService
                     AccountId = account.Id,
                     Players = lobby.Players.ToList(),
                     State = LobbySessionState.Ready,
-                    StartedAt = DateTime.UtcNow
+                    StartedAt = DateTime.UtcNow,
                 };
                 activeSessions[lobby.Id] = session;
                 lobby.SteamAccountId = account.Id;
@@ -254,17 +283,28 @@ public class LobbyPoolManager : IHostedService
                 var shuffled = lobby.Players.OrderBy(_ => Guid.NewGuid()).ToList();
                 var half = shuffled.Count / 2;
                 var teamAssignments = shuffled
-                    .Select((p, idx) => (p.UserId, Team: idx < half ? MatchTeam.Radiant : MatchTeam.Dire))
+                    .Select(
+                        (p, idx) =>
+                            (p.UserId, Team: idx < half ? MatchTeam.Radiant : MatchTeam.Dire)
+                    )
                     .ToList();
 
                 var match = await matchRepository.CreateMatchAsync(lobby.Id, teamAssignments);
-                logger.LogInformation("Match {MatchId} created for lobby {LobbyId}", match.Id, lobby.Id);
+                logger.LogInformation(
+                    "Match {MatchId} created for lobby {LobbyId}",
+                    match.Id,
+                    lobby.Id
+                );
                 matchPersisted = true;
                 gameMetrics.RecordMatchCreated();
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to persist match for lobby {LobbyId}; rolling back reservation", lobby.Id);
+                logger.LogError(
+                    ex,
+                    "Failed to persist match for lobby {LobbyId}; rolling back reservation",
+                    lobby.Id
+                );
             }
 
             if (!matchPersisted)
@@ -290,16 +330,21 @@ public class LobbyPoolManager : IHostedService
             if (botClient == null)
             {
                 logger.LogError(
-                    "Lobby {LobbyId} reserved pool account {Username}, but no SteamGcClient is registered for that name. " +
-                    "Add the account via Steam:PoolAccounts in configuration, or use !add_account at runtime.",
-                    lobby.Id, account.Username);
+                    "Lobby {LobbyId} reserved pool account {Username}, but no SteamGcClient is registered for that name. "
+                        + "Add the account via Steam:PoolAccounts in configuration, or use !add_account at runtime.",
+                    lobby.Id,
+                    account.Username
+                );
             }
             else if (!botClient.IsLoggedOn)
             {
                 logger.LogWarning(
-                    "Lobby {LobbyId} reserved pool account {Username}, but its Steam client isn't logged on yet. " +
-                    "Skipping CreateLobby / invites. Match still persisted; admin can invoke /admin/game/finished/{LobbyId} to release the account.",
-                    lobby.Id, account.Username, lobby.Id);
+                    "Lobby {LobbyId} reserved pool account {Username}, but its Steam client isn't logged on yet. "
+                        + "Skipping CreateLobby / invites. Match still persisted; admin can invoke /admin/game/finished/{LobbyId} to release the account.",
+                    lobby.Id,
+                    account.Username,
+                    lobby.Id
+                );
             }
             else
             {
@@ -311,30 +356,40 @@ public class LobbyPoolManager : IHostedService
                 EventHandler<MatchCompletedEventArgs>? completedHandler = null;
                 try
                 {
-                    var steamIds = lobby.Players
-                        .Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
+                    var steamIds = lobby
+                        .Players.Select(p => ulong.TryParse(p.SteamId, out var id) ? id : 0UL)
                         .Where(id => id > 0)
                         .ToList();
 
                     if (steamIds.Count == 0)
                     {
-                        logger.LogWarning("Lobby {LobbyId} ready but no parsable Steam IDs among its players; auto-launch disabled", lobby.Id);
+                        logger.LogWarning(
+                            "Lobby {LobbyId} ready but no parsable Steam IDs among its players; auto-launch disabled",
+                            lobby.Id
+                        );
                     }
 
                     handler = async (_, args) =>
                     {
-                        if (args.AppLobbyId != lobbyId) return;
+                        if (args.AppLobbyId != lobbyId)
+                            return;
                         botClient.LobbyLaunched -= handler;
                         logger.LogInformation(
                             "Lobby {LobbyId} launched in Dota (DotaLobbyId={DotaLobbyId}); flipping to InProgress",
-                            lobbyId, args.DotaLobbyId);
+                            lobbyId,
+                            args.DotaLobbyId
+                        );
                         try
                         {
                             await NotifyGameStartedAsync(lobbyId);
                         }
                         catch (Exception ex)
                         {
-                            logger.LogError(ex, "Failed to flip game-started state for lobby {LobbyId}", lobbyId);
+                            logger.LogError(
+                                ex,
+                                "Failed to flip game-started state for lobby {LobbyId}",
+                                lobbyId
+                            );
                         }
                     };
                     botClient.LobbyLaunched += handler;
@@ -344,7 +399,8 @@ public class LobbyPoolManager : IHostedService
                     // posted to Discord without anyone having to !report it.
                     completedHandler = async (_, args) =>
                     {
-                        if (args.AppLobbyId != lobbyId) return;
+                        if (args.AppLobbyId != lobbyId)
+                            return;
                         botClient.MatchCompleted -= completedHandler;
                         try
                         {
@@ -352,19 +408,25 @@ public class LobbyPoolManager : IHostedService
                         }
                         catch (Exception ex)
                         {
-                            logger.LogError(ex, "Failed to handle match completion for lobby {LobbyId}", lobbyId);
+                            logger.LogError(
+                                ex,
+                                "Failed to handle match completion for lobby {LobbyId}",
+                                lobbyId
+                            );
                         }
                     };
                     botClient.MatchCompleted += completedHandler;
 
-                    await botClient.CreateLobbyAsync(new CreateLobbyRequest
-                    {
-                        AuthorId = account.Id,
-                        LobbyName = lobbyName,
-                        LobbyPassword = lobbyPassword,
-                        ExpectedSteamIds = steamIds,
-                        AppLobbyId = lobby.Id
-                    });
+                    await botClient.CreateLobbyAsync(
+                        new CreateLobbyRequest
+                        {
+                            AuthorId = account.Id,
+                            LobbyName = lobbyName,
+                            LobbyPassword = lobbyPassword,
+                            ExpectedSteamIds = steamIds,
+                            AppLobbyId = lobby.Id,
+                        }
+                    );
 
                     if (steamIds.Count > 0)
                     {
@@ -380,19 +442,38 @@ public class LobbyPoolManager : IHostedService
                     // InProgress with the account reserved: detach the now-stale launch/
                     // complete handlers and run the compensating rollback so the DB and
                     // Steam agree and the players can re-queue.
-                    logger.LogError(ex, "Failed to create Dota lobby / send invites for {LobbyId}; rolling back reservation", lobby.Id);
-                    if (handler != null) botClient.LobbyLaunched -= handler;
-                    if (completedHandler != null) botClient.MatchCompleted -= completedHandler;
+                    logger.LogError(
+                        ex,
+                        "Failed to create Dota lobby / send invites for {LobbyId}; rolling back reservation",
+                        lobby.Id
+                    );
+                    if (handler != null)
+                        botClient.LobbyLaunched -= handler;
+                    if (completedHandler != null)
+                        botClient.MatchCompleted -= completedHandler;
                     await RollbackLaunchAsync(lobby, account, session);
                     return;
                 }
             }
 
-            var readyMessage = LobbyMessages.LobbyReady(lobby.Id, lobbyName, lobbyPassword, account.Username);
+            var readyMessage = LobbyMessages.LobbyReady(
+                lobby.Id,
+                lobbyName,
+                lobbyPassword,
+                account.Username
+            );
             logger.LogInformation("{Message}", readyMessage);
             await discordClient.SendMessageAsync(readyMessage);
 
-            GameReady?.Invoke(this, new GameReadyEventArgs { Lobby = lobby, Account = account, Session = session });
+            GameReady?.Invoke(
+                this,
+                new GameReadyEventArgs
+                {
+                    Lobby = lobby,
+                    Account = account,
+                    Session = session,
+                }
+            );
 
             // InProgress flip happens when SteamGcClient.LobbyLaunched fires
             // (i.e. all expected players have seated on team slots and the
@@ -418,12 +499,19 @@ public class LobbyPoolManager : IHostedService
         try
         {
             // Null winner => Cancelled, no rating change; no-op if already settled.
-            var result = await matchRepository.CompleteMatchByLobbyAsync(lobby.Id, winningTeam: null);
+            var result = await matchRepository.CompleteMatchByLobbyAsync(
+                lobby.Id,
+                winningTeam: null
+            );
             logger.LogInformation("RollbackLaunchAsync: {Message}", result.Message);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "RollbackLaunchAsync: failed to cancel match for lobby {LobbyId}", lobby.Id);
+            logger.LogError(
+                ex,
+                "RollbackLaunchAsync: failed to cancel match for lobby {LobbyId}",
+                lobby.Id
+            );
         }
 
         lock (lockObject)
@@ -438,50 +526,117 @@ public class LobbyPoolManager : IHostedService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "RollbackLaunchAsync: failed to release account {AccountId} for lobby {LobbyId}", account.Id, lobby.Id);
+            logger.LogError(
+                ex,
+                "RollbackLaunchAsync: failed to release account {AccountId} for lobby {LobbyId}",
+                account.Id,
+                lobby.Id
+            );
         }
 
         // The match was created then immediately cancelled — record the finish so the
         // lobby→finish lifecycle metric stays balanced against RecordMatchCreated.
-        gameMetrics.RecordMatchFinished(GameMetrics.OutcomeCancelled, DateTime.UtcNow - session.StartedAt);
+        gameMetrics.RecordMatchFinished(
+            GameMetrics.OutcomeCancelled,
+            DateTime.UtcNow - session.StartedAt
+        );
 
         await SafeBroadcastAsync(LobbyMessages.LaunchFailed(lobby.Id, account.Username));
     }
 
     private void OnLobbyCreated(object? sender, LobbyCreatedEventArgs e) =>
-        RunHandlerSafely(nameof(OnLobbyCreated), () =>
-        {
-            gameMetrics.RecordLobbyCreated();
-            return SafeBroadcastAsync(LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count));
-        });
+        RunHandlerSafely(
+            nameof(OnLobbyCreated),
+            () =>
+            {
+                gameMetrics.RecordLobbyCreated();
+                return SafeBroadcastAsync(
+                    LobbyMessages.LobbyCreated(e.Lobby.Id, e.Lobby.Players.Count)
+                );
+            }
+        );
 
     private void OnPlayerJoined(object? sender, PlayerJoinedEventArgs e) =>
-        RunHandlerSafely(nameof(OnPlayerJoined), () => SafeBroadcastAsync(LobbyMessages.PlayerJoined(e.Player.Username, e.Lobby.Players.Count, lobbyQueue.PlayersPerLobby)));
+        RunHandlerSafely(
+            nameof(OnPlayerJoined),
+            () =>
+                SafeBroadcastAsync(
+                    LobbyMessages.PlayerJoined(
+                        e.Player.Username,
+                        e.Lobby.Players.Count,
+                        lobbyQueue.PlayersPerLobby
+                    )
+                )
+        );
 
     private void OnPlayerLeft(object? sender, PlayerLeftEventArgs e) =>
-        RunHandlerSafely(nameof(OnPlayerLeft), () => SafeBroadcastAsync(LobbyMessages.PlayerLeft(e.Player.Username, e.Lobby.Players.Count, lobbyQueue.PlayersPerLobby)));
+        RunHandlerSafely(
+            nameof(OnPlayerLeft),
+            () =>
+                SafeBroadcastAsync(
+                    LobbyMessages.PlayerLeft(
+                        e.Player.Username,
+                        e.Lobby.Players.Count,
+                        lobbyQueue.PlayersPerLobby
+                    )
+                )
+        );
 
     private void OnPlayerReady(object? sender, PlayerReadyEventArgs e) =>
-        RunHandlerSafely(nameof(OnPlayerReady), () =>
-        {
-            var lobby = lobbyQueue.GetCurrentLobby();
-            return SafeBroadcastAsync(LobbyMessages.PlayerReady(e.Player.Username, lobby.ReadyCount, lobby.TotalCount));
-        });
+        RunHandlerSafely(
+            nameof(OnPlayerReady),
+            () =>
+            {
+                var lobby = lobbyQueue.GetCurrentLobby();
+                return SafeBroadcastAsync(
+                    LobbyMessages.PlayerReady(e.Player.Username, lobby.ReadyCount, lobby.TotalCount)
+                );
+            }
+        );
 
     private void OnPlayerUnready(object? sender, PlayerUnreadyEventArgs e) =>
-        RunHandlerSafely(nameof(OnPlayerUnready), () => SafeBroadcastAsync(LobbyMessages.PlayerUnready(e.Player.Username)));
+        RunHandlerSafely(
+            nameof(OnPlayerUnready),
+            () => SafeBroadcastAsync(LobbyMessages.PlayerUnready(e.Player.Username))
+        );
 
     private void OnPlayerKicked(object? sender, PlayerKickedEventArgs e) =>
-        RunHandlerSafely(nameof(OnPlayerKicked), () => SafeBroadcastAsync(LobbyMessages.PlayerKicked(e.Player.Username, e.Lobby.Players.Count, lobbyQueue.PlayersPerLobby)));
+        RunHandlerSafely(
+            nameof(OnPlayerKicked),
+            () =>
+                SafeBroadcastAsync(
+                    LobbyMessages.PlayerKicked(
+                        e.Player.Username,
+                        e.Lobby.Players.Count,
+                        lobbyQueue.PlayersPerLobby
+                    )
+                )
+        );
 
     private void OnLobbyReset(object? sender, LobbyResetEventArgs e) =>
-        RunHandlerSafely(nameof(OnLobbyReset), () => SafeBroadcastAsync(LobbyMessages.LobbyReset(e.RemovedPlayerCount)));
+        RunHandlerSafely(
+            nameof(OnLobbyReset),
+            () => SafeBroadcastAsync(LobbyMessages.LobbyReset(e.RemovedPlayerCount))
+        );
 
     private void OnLobbyFinished(object? sender, LobbyFinishedEventArgs e) =>
-        RunHandlerSafely(nameof(OnLobbyFinished), () => SafeBroadcastAsync(LobbyMessages.LobbyFinished(e.Lobby.Id)));
+        RunHandlerSafely(
+            nameof(OnLobbyFinished),
+            () => SafeBroadcastAsync(LobbyMessages.LobbyFinished(e.Lobby.Id))
+        );
 
     private void OnLobbyFull(object? sender, LobbyFullEventArgs e) =>
-        RunHandlerSafely(nameof(OnLobbyFull), () => SafeBroadcastAsync(LobbyMessages.LobbyFull(e.Lobby.Id, e.Lobby.Players.Count, lobbyQueue.PlayersPerLobby)));
+        RunHandlerSafely(
+            nameof(OnLobbyFull),
+            () =>
+                SafeBroadcastAsync(
+                    LobbyMessages.LobbyFull(
+                        e.Lobby.Id,
+                        e.Lobby.Players.Count,
+                        lobbyQueue.PlayersPerLobby
+                    )
+                )
+        );
 
     /// <summary>
     /// Bridges synchronous <see cref="EventHandler{TEventArgs}"/> callbacks to async
@@ -502,7 +657,11 @@ public class LobbyPoolManager : IHostedService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Unhandled exception in lobby event handler {Handler}", handlerName);
+            logger.LogError(
+                ex,
+                "Unhandled exception in lobby event handler {Handler}",
+                handlerName
+            );
         }
     }
 
@@ -552,7 +711,10 @@ public class LobbyPoolManager : IHostedService
         GameStarted?.Invoke(this, new GameStartedEventArgs { Session = session });
     }
 
-    public async Task NotifyGameFinishedAsync(string lobbyId, string outcome = GameMetrics.OutcomeCompleted)
+    public async Task NotifyGameFinishedAsync(
+        string lobbyId,
+        string outcome = GameMetrics.OutcomeCompleted
+    )
     {
         LobbySession? session;
         lock (lockObject)
@@ -577,7 +739,10 @@ public class LobbyPoolManager : IHostedService
         }
 
         // Lobby-ready → finish wall-clock time, tagged by how the match ended.
-        gameMetrics.RecordMatchFinished(outcome, (session.FinishedAt ?? DateTime.UtcNow) - session.StartedAt);
+        gameMetrics.RecordMatchFinished(
+            outcome,
+            (session.FinishedAt ?? DateTime.UtcNow) - session.StartedAt
+        );
 
         // Each cleanup step is wrapped independently so a failure in step N
         // doesn't strand steps N+1..end. The previous form was sequential
@@ -593,10 +758,16 @@ public class LobbyPoolManager : IHostedService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "NotifyGameFinishedAsync: failed to release account {AccountId}", session.AccountId);
+            logger.LogError(
+                ex,
+                "NotifyGameFinishedAsync: failed to release account {AccountId}",
+                session.AccountId
+            );
         }
 
-        await SafeBroadcastAsync(LobbyMessages.GameFinished(lobbyId, username ?? session.AccountId));
+        await SafeBroadcastAsync(
+            LobbyMessages.GameFinished(lobbyId, username ?? session.AccountId)
+        );
 
         try
         {
@@ -604,7 +775,11 @@ public class LobbyPoolManager : IHostedService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "NotifyGameFinishedAsync: failed to finish queue lobby {LobbyId}", lobbyId);
+            logger.LogError(
+                ex,
+                "NotifyGameFinishedAsync: failed to finish queue lobby {LobbyId}",
+                lobbyId
+            );
         }
 
         try
@@ -631,7 +806,10 @@ public class LobbyPoolManager : IHostedService
         var session = GetSession(lobbyId);
         if (session == null)
         {
-            logger.LogWarning("DestroyLobbyAsync: session {LobbyId} not found; running finish cleanup anyway", lobbyId);
+            logger.LogWarning(
+                "DestroyLobbyAsync: session {LobbyId} not found; running finish cleanup anyway",
+                lobbyId
+            );
         }
         else
         {
@@ -641,7 +819,9 @@ public class LobbyPoolManager : IHostedService
             {
                 logger.LogWarning(
                     "DestroyLobbyAsync: no Steam client for lobby {LobbyId} (account {AccountId}); finishing without GC leave",
-                    lobbyId, session.AccountId);
+                    lobbyId,
+                    session.AccountId
+                );
             }
             else
             {
@@ -651,7 +831,11 @@ public class LobbyPoolManager : IHostedService
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "DestroyLobbyAsync: GC leave failed for lobby {LobbyId}", lobbyId);
+                    logger.LogError(
+                        ex,
+                        "DestroyLobbyAsync: GC leave failed for lobby {LobbyId}",
+                        lobbyId
+                    );
                 }
             }
         }
@@ -664,12 +848,19 @@ public class LobbyPoolManager : IHostedService
         // the match was already settled some other way.
         try
         {
-            var result = await matchRepository.CompleteMatchByLobbyAsync(lobbyId, winningTeam: null);
+            var result = await matchRepository.CompleteMatchByLobbyAsync(
+                lobbyId,
+                winningTeam: null
+            );
             logger.LogInformation("DestroyLobbyAsync: {Message}", result.Message);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "DestroyLobbyAsync: failed to settle match for lobby {LobbyId}", lobbyId);
+            logger.LogError(
+                ex,
+                "DestroyLobbyAsync: failed to settle match for lobby {LobbyId}",
+                lobbyId
+            );
         }
 
         await NotifyGameFinishedAsync(lobbyId, GameMetrics.OutcomeCancelled);
@@ -690,7 +881,11 @@ public class LobbyPoolManager : IHostedService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "HandleMatchCompletedAsync: failed to persist result for lobby {LobbyId}", lobbyId);
+            logger.LogError(
+                ex,
+                "HandleMatchCompletedAsync: failed to persist result for lobby {LobbyId}",
+                lobbyId
+            );
         }
 
         if (result?.Match is { } match)
@@ -700,7 +895,9 @@ public class LobbyPoolManager : IHostedService
         else
         {
             // DB write failed or no match row — still surface what the GC told us.
-            await SafeBroadcastAsync(LobbyMessages.MatchFinishedFallback(lobbyId, args.WinningTeam, args.MatchId));
+            await SafeBroadcastAsync(
+                LobbyMessages.MatchFinishedFallback(lobbyId, args.WinningTeam, args.MatchId)
+            );
         }
 
         // Release the account and reopen the queue regardless of how the result
@@ -724,8 +921,8 @@ public class LobbyPoolManager : IHostedService
     {
         lock (lockObject)
         {
-            return activeSessions.Values
-                .Select(s => new ActiveSessionSummary
+            return activeSessions
+                .Values.Select(s => new ActiveSessionSummary
                 {
                     LobbyId = s.LobbyId,
                     AccountId = s.AccountId,
@@ -733,7 +930,7 @@ public class LobbyPoolManager : IHostedService
                     State = (PoolSessionState)s.State,
                     StartedAt = s.StartedAt,
                     GameStartedAt = s.GameStartedAt,
-                    FinishedAt = s.FinishedAt
+                    FinishedAt = s.FinishedAt,
                 })
                 .ToList();
         }
@@ -748,11 +945,12 @@ public class LobbyPoolManager : IHostedService
         }
     }
 
-    public SystemStatus GetSystemStatus() => new()
-    {
-        PoolStats = GetAccountPoolStats(),
-        QueueStats = GetQueueStats(),
-        ActiveSessions = GetActiveSessions(),
-        Timestamp = DateTime.UtcNow
-    };
+    public SystemStatus GetSystemStatus() =>
+        new()
+        {
+            PoolStats = GetAccountPoolStats(),
+            QueueStats = GetQueueStats(),
+            ActiveSessions = GetActiveSessions(),
+            Timestamp = DateTime.UtcNow,
+        };
 }

@@ -18,7 +18,8 @@ public static class EloCalculator
     public static (int RadiantDelta, int DireDelta) ComputeDeltas(
         IReadOnlyCollection<int> radiantRatings,
         IReadOnlyCollection<int> direRatings,
-        MatchTeam winningTeam)
+        MatchTeam winningTeam
+    )
     {
         if (radiantRatings.Count == 0 || direRatings.Count == 0)
         {
@@ -29,7 +30,8 @@ public static class EloCalculator
         var avgDire = direRatings.Average();
         var expectedRadiant = 1.0 / (1.0 + Math.Pow(10, (avgDire - avgRadiant) / 400.0));
         var actualRadiant = winningTeam == MatchTeam.Radiant ? 1.0 : 0.0;
-        var radiantDelta = (int)Math.Round(LeagueConstants.EloKFactor * (actualRadiant - expectedRadiant));
+        var radiantDelta = (int)
+            Math.Round(LeagueConstants.EloKFactor * (actualRadiant - expectedRadiant));
         return (radiantDelta, -radiantDelta);
     }
 }

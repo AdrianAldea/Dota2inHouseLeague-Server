@@ -30,8 +30,9 @@ public class DatabaseInitializerTests : IDisposable
     private SharedConnectionContextFactory CreateFactory() => new(connection);
 
     private static async Task RunInitializerAsync(IDbContextFactory<AppDbContext> factory) =>
-        await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance)
-            .StartAsync(CancellationToken.None);
+        await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance).StartAsync(
+            CancellationToken.None
+        );
 
     [Fact]
     public async Task FreshDatabase_AppliesMigrations_AndRecordsHistory()

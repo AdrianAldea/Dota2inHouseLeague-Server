@@ -29,16 +29,20 @@ internal sealed class MockHttp
         var mock = new MockHttp();
 
         var handler = new Mock<HttpMessageHandler>();
-        handler.Protected()
+        handler
+            .Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .Returns((HttpRequestMessage req, CancellationToken _) =>
-            {
-                mock.Requests.Add((req.Method, req.RequestUri!));
-                return Task.FromResult(responder(req));
-            });
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .Returns(
+                (HttpRequestMessage req, CancellationToken _) =>
+                {
+                    mock.Requests.Add((req.Method, req.RequestUri!));
+                    return Task.FromResult(responder(req));
+                }
+            );
 
         var client = new HttpClient(handler.Object) { BaseAddress = new Uri("http://localhost/") };
         mock.Factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
@@ -46,8 +50,7 @@ internal sealed class MockHttp
     }
 
     /// <summary>Always returns the given body as JSON with HTTP 200.</summary>
-    public static MockHttp ReturningJson<T>(T body) =>
-        Returning(_ => JsonOk(body));
+    public static MockHttp ReturningJson<T>(T body) => Returning(_ => JsonOk(body));
 
     /// <summary>Always returns the given status code with no body.</summary>
     public static MockHttp ReturningStatus(HttpStatusCode code) =>
@@ -58,7 +61,10 @@ internal sealed class MockHttp
         Returning(_ => throw new HttpRequestException("simulated connection failure"));
 
     public static HttpResponseMessage JsonOk<T>(T body) =>
-        new(HttpStatusCode.OK) { Content = JsonContent.Create(body, options: JsonSerializerOptions.Web) };
+        new(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(body, options: JsonSerializerOptions.Web),
+        };
 
     /// <summary>The single request that was sent (fails if zero or more than one).</summary>
     public (HttpMethod Method, Uri Uri) SingleRequest() => Assert.Single(Requests);
