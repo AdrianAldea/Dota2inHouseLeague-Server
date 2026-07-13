@@ -1,0 +1,73 @@
+name: Release desktop client
+
+# Builds the Avalonia desktop client and publishes it as a release in the PUBLIC
+# distribution repo (AdrianAldea/Dota2inHouseLeague-Client) whenever a change to the
+# client source lands on main (i.e. a client PR is merged). Players download from that
+# public repo's Releases page; this source repo stays private.
+#
+# Prerequisites (one-time):
+#   1. The public repo AdrianAldea/Dota2inHouseLeague-Client must exist.
+#   2. A repo secret named RELEASE_TOKEN must be set on THIS repo, holding a fine-grained
+#      PAT scoped to the public client repo with Contents: Read and write. The default
+#      GITHUB_TOKEN only works on the current repo, so a dedicated token is required.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'IHLDota2Bot.Desktop/**'
+      - 'IHLDota2Bot.Common/**'
+      - '.github/workflows/release-client.yml'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-client
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build & publish client release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Cross-publish win-x64 from Linux: self-contained so players need no .NET install,
+      # single-file so the tree is tidy (native libs stay alongside the exe), no pdbs.
+      - name: Publish client
+        run: |
+          dotnet publish IHLDota2Bot.Desktop/IHLDota2Bot.Desktop.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            --output publish/desktop
+
+      - name: Package zip
+        run: |
+          cd publish/desktop
+          zip -r ../IHLClient-win-x64.zip . -x '*.pdb'
+
+      # Unique, sortable tag per commit, e.g. v2026.07.13-1a2b3c4
+      - name: Compute release tag
+        id: tag
+        run: echo "value=v$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release in client repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag.outputs.value }}" \
+            publish/IHLClient-win-x64.zip \
+            --repo AdrianAldea/Dota2inHouseLeague-Client \
+            --title "Desktop client ${{ steps.tag.outputs.value }}" \
+            --notes-file .github/client-release-notes.md

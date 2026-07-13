@@ -1,6 +1,8 @@
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Extensions;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +10,18 @@ builder.AddServiceDefaults();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddGameManager(builder.Configuration);
+
+// Behind the Cloudflare Tunnel, cloudflared terminates TLS at the edge and forwards plain
+// HTTP from the local loopback, so ctx.Request.Scheme would be "http" and the Steam OpenID
+// realm/return_to would come out as http:// even though players connect over https. Honour
+// X-Forwarded-Proto so the scheme reflects the public https URL. Trust the header ONLY from
+// the loopback cloudflared process (not arbitrary clients) so a remote caller can't spoof it.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Add(IPAddress.Loopback);      // 127.0.0.1
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);  // ::1
+});
 
 var app = builder.Build();
 
@@ -32,6 +46,9 @@ if (string.IsNullOrEmpty(playerJwtOpts.SigningKey))
         "Using an ephemeral per-process key — tokens won't survive a restart. " +
         "Set PlayerJwt__SigningKey via user-secrets or environment variable for production.");
 }
+
+// Apply forwarded headers before anything reads Scheme/Host (Steam OpenID realm/return_to).
+app.UseForwardedHeaders();
 
 app.UseLobbyShutdownHooks();
 

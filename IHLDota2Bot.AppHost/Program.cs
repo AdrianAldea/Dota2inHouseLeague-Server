@@ -37,9 +37,21 @@ var sql = builder.AddSqlServer("Dota2inHouseLeagueSQL", password: sqlPassword, p
 
 var db = sql.AddDatabase("Dota2inHouseLeagueDB");
 
+// Pin the Game Manager to a fixed, un-proxied HTTP port (5193) so the exposure setup has a
+// stable target across runs. Without this Aspire assigns a random Kestrel port behind a
+// random proxy port. Kestrel binds localhost:5193; a Windows netsh portproxy rule
+// (0.0.0.0:5193 -> 127.0.0.1:5193) plus a firewall rule expose it to port-forwarded players
+// — see HOSTING_FOR_TESTING.md. Marked external so the dashboard surfaces the endpoint.
 var dota2 = builder.AddProject<Projects.IHLDota2Bot>("Dota2inHouseLeague-Backend")
     .WithReference(db)
-    .WaitFor(db);
+    .WaitFor(db)
+    .WithEndpoint("http", e =>
+    {
+        e.Port = 5193;
+        e.TargetPort = 5193;
+        e.IsProxied = false;
+    })
+    .WithExternalHttpEndpoints();
 
 var discord = builder.AddProject<Projects.IHLDota2Bot_Discord>("Dota2inHouseLeague-Backend-Discord");
 
