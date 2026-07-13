@@ -23,8 +23,22 @@ public static class AuthEndpoints
         //    our callback (which carries the desktop loopback returnUrl as state).
         group.MapGet(
             "/steam/login",
-            (HttpContext ctx, SteamOpenIdService steam, [FromQuery] string returnUrl) =>
+            (
+                HttpContext ctx,
+                SteamOpenIdService steam,
+                ILogger<SteamOpenIdService> log,
+                [FromQuery] string returnUrl
+            ) =>
             {
+                if (!IsAllowedReturnUrl(returnUrl))
+                {
+                    log.LogWarning(
+                        "Rejected /steam/login with non-loopback returnUrl {ReturnUrl}",
+                        returnUrl
+                    );
+                    return Results.BadRequest(new { error = InvalidReturnUrlMessage });
+                }
+
                 var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
                 var returnTo =
                     $"{baseUrl}/api/auth/steam/callback?returnUrl={Uri.EscapeDataString(returnUrl)}";
@@ -46,6 +60,17 @@ public static class AuthEndpoints
                 CancellationToken ct
             ) =>
             {
+                // Validate before doing anything else — this URL receives the token, and
+                // a request can hit the callback directly without passing through /login.
+                if (!IsAllowedReturnUrl(returnUrl))
+                {
+                    log.LogWarning(
+                        "Rejected /steam/callback with non-loopback returnUrl {ReturnUrl}",
+                        returnUrl
+                    );
+                    return Results.BadRequest(new { error = InvalidReturnUrlMessage });
+                }
+
                 var query = ctx.Request.Query.Select(kv => new KeyValuePair<string, string>(
                     kv.Key,
                     kv.Value.ToString()
@@ -165,6 +190,21 @@ public static class AuthEndpoints
 
         return group;
     }
+
+    private const string InvalidReturnUrlMessage =
+        "returnUrl must be an http(s) URL on a loopback address (e.g. http://127.0.0.1:{port}/callback).";
+
+    /// <summary>
+    /// The desktop client always supplies an RFC 8252 loopback redirect
+    /// (<c>http://127.0.0.1:{port}/callback</c>), and the callback appends the freshly
+    /// issued JWT to this URL — so accepting anything else would let a crafted login
+    /// link deliver a player's token to an attacker's site (open redirect → token
+    /// theft). Absolute http/https URLs on a loopback host only.
+    /// </summary>
+    internal static bool IsAllowedReturnUrl(string? returnUrl) =>
+        Uri.TryCreate(returnUrl, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+        && uri.IsLoopback;
 
     /// <summary>Appends a query param, choosing <c>?</c> or <c>&amp;</c> as appropriate.</summary>
     private static string AppendQuery(string url, string key, string value)
