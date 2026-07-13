@@ -35,17 +35,18 @@ Landed between 2026-06 and 2026-07 — see git history for specifics:
 
 Ordered by risk.
 
-- [ ] **Purge committed secrets** (highest priority). `IHLDota2Bot/appsettings.json`
-      is committed with real Steam account passwords (`Steam:BotAccount` +
-      `Steam:PoolAccounts`) and a real `PlayerJwt:SigningKey` — despite the README's
-      "empty placeholders only" policy. They entered history at `e64b427`. The repo
-      is private, which limits exposure, but the JWT signing key lets anyone with
-      repo access forge player tokens for the publicly tunnelled API.
-      Steps: (1) move the values to user-secrets (mechanism already documented in
-      the README), (2) commit the file with empty placeholders, (3) **rotate** the
-      Steam passwords and the signing key (rotation matters more than history
-      rewriting — treat the old values as burned), (4) optionally scrub history
-      with `git filter-repo` if the repo may ever go public.
+- [x] **Purge committed secrets.** All credentials moved from
+      `IHLDota2Bot/appsettings.json` to user-secrets; the committed file now ships
+      empty placeholders only, and the dead Steam-masking block was dropped from
+      `appsettings.Development.json`. The `PlayerJwt:SigningKey` was **rotated**
+      (fresh random key in user-secrets — the burned one no longer validates
+      anything after the next server start). The integration-test factory now
+      force-clears `SteamOptions` (`PostConfigure`) so tests stay hermetic and
+      never pick up real credentials from user-secrets.
+      **Still open (operator action):** change the Steam account passwords on
+      Steam's side — the old shared password is burned in git history — then
+      update the user-secrets values. Optionally scrub history with
+      `git filter-repo` if the repo may ever go public.
 - [x] **Validate `returnUrl` in the Steam auth flow** (`AuthEndpoints`,
       `/steam/login` + `/steam/callback`). It was unvalidated, and the callback
       appends the freshly issued JWT to it — a crafted login link could exfiltrate
@@ -55,12 +56,12 @@ Ordered by risk.
       or verifying; the callback validates first since it can be hit directly.
       Covered by `AuthReturnUrlValidationTests` (unit) and
       `SteamAuthReturnUrlTests` (integration).
-- [ ] **Resolve the admin-panel vs. admin-key contradiction.** The Angular admin
-      panel calls `/admin/*` with no `X-Api-Key` header, so any deployment that
-      sets `GameManager:AdminApiKey` (as HOSTING_FOR_TESTING.md instructs) breaks
-      the panel — which pressures operators to leave the gate open. Either have
-      the dev-server proxy inject the key, or add a small key-entry field in the
-      panel that stores it and sends it via an interceptor.
+- [x] **Resolve the admin-panel vs. admin-key contradiction.** The admin panel
+      header now has an **Admin API key** field (`AdminKeyService`, persisted to
+      localStorage per browser) and an `apiKeyInterceptor` that attaches the value
+      as `X-Api-Key` to every request — so setting `GameManager:AdminApiKey` no
+      longer breaks the panel. Verified end-to-end in the browser; covered by
+      `admin-key.service.spec` and `api-key.interceptor.spec`.
 - [x] **MMR-balanced teams.** `LobbyPoolManager.HandleLobbyReadyAsync` previously
       assigned teams by random shuffle while the README advertised MMR balancing.
       Teams are now split by the pure `TeamBalancer` (stable sort by rating desc,
