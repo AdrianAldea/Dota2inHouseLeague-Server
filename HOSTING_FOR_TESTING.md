@@ -53,6 +53,9 @@ it before exposing the server publicly — no elevation needed:
 ```powershell
 dotnet user-secrets --project IHLDota2Bot set "GameManager:AdminApiKey" "<choose-a-secret>"
 ```
+The Angular admin panel works with the key enabled: paste the same value into the
+**Admin API key** field in the panel header (stored in that browser only; sent as
+`X-Api-Key` on every request).
 
 That's the only one-time step. Unlike port-forwarding, the tunnel needs no firewall or
 router changes.

@@ -26,6 +26,22 @@ h1 {
     margin-bottom: 2.5rem;
 }
 
+/* Admin API key entry in the page header */
+.admin-key {
+    max-width: 420px;
+    margin: -1.5rem 0 2.5rem;
+}
+
+.admin-key .hint {
+    font-size: 0.75rem;
+    color: #8b949e;
+}
+
+.admin-key code {
+    color: #f0a500;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
 .section-title {
     font-size: 1.15rem;
     font-weight: 600;

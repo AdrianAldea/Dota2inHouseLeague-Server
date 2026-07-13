@@ -1,8 +1,9 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CardComponent } from '../../components/card/card';
 import { LobbyMonitorComponent } from '../../components/lobby-monitor/lobby-monitor';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../environments/environment';
+import { AdminKeyService } from '../../services/admin-key.service';
 
 @Component({
   selector: 'admin-page',
@@ -12,6 +13,12 @@ import { environment } from '../../environments/environment';
   styleUrl: './admin.css'
 })
 export class AdminPage {
+  private readonly adminKey = inject(AdminKeyService);
+
+  /** Admin API key sent as X-Api-Key by the interceptor; persisted per browser. */
+  readonly adminApiKey = this.adminKey.key;
+  readonly setAdminApiKey = (value: string) => this.adminKey.setKey(value);
+
   discordMessage = signal('');
 
   // Player lifecycle
