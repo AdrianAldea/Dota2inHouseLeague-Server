@@ -1,57 +1,36 @@
-# Hosting the API locally for real-world testing (router port-forwarding + port bridge)
+# Hosting the API for real-world testing (Cloudflare Tunnel)
 
-How to expose the Game Manager API straight from your PC so other players can connect over
-the internet during a test session. No third-party tunnel, no cloud, no cost.
+How to expose the Game Manager API from your PC so other players can connect over the
+internet during a test session. Free, and it works from behind CGNAT.
 
 Fits an "open → test for ~1 hour → close" workflow: the API holds persistent Steam bot
 connections while it runs, so it only needs to be up during the session.
 
-**Exposure method:** router port-forward → Windows firewall rule → a `netsh portproxy`
-bridge that forwards the public-facing port to Kestrel's loopback binding. (This is
-"Method A". An earlier "Method B" that bound Kestrel to all interfaces directly was
-removed — do not reintroduce it, it collides with the bridge.)
+---
+
+## Why a tunnel (not router port-forwarding)
+
+This connection is behind **CGNAT** (carrier-grade NAT). The router's WAN IP is a
+`100.64.0.0/10` address (e.g. `100.67.230.205`), not the public IP that `api.ipify.org`
+reports (`82.76.59.60`) — that public IP is shared across many ISP customers. Inbound
+connections never reach the router, so **port-forwarding cannot work on this line**, no
+matter how the router rule is configured.
+
+A tunnel sidesteps this: `cloudflared` makes an **outbound** connection from the PC to
+Cloudflare's edge, and players reach a public Cloudflare URL that rides back down that
+tunnel. No inbound port, no public IP required. (Because of this, the old Windows firewall
+rule and `netsh portproxy` bridge from the port-forwarding attempt are **not needed** — see
+"Optional cleanup".)
 
 ---
 
-## Your environment (as detected 2026-07-13)
+## Your environment (as of 2026-07-13)
 
 | Thing | Value | Notes |
 |---|---|---|
-| PC LAN IP (router forwards here) | `192.168.1.10` | The "Ethernet" adapter — the router port-forward target. |
-| Public IP (players connect here) | `82.76.59.60` | **Dynamic** — can change when the router/ISP reconnects. See DDNS note. |
-| API internal port | `5193` | Fixed by the AppHost change (`IHLDota2Bot.AppHost/Program.cs`). |
-| External port | *the port you opened on the router* | May or may not equal 5193 — see Step 1. |
-| IP Helper service (`iphlpsvc`) | Running | Required for `netsh portproxy`. Confirmed present. |
-
-Throughout: replace `<EXTERNAL_PORT>` with the port you forwarded on the router, and
-`82.76.59.60` with your current public IP.
-
----
-
-## The core problem this solves
-
-Your router forwards `82.76.59.60:<EXTERNAL_PORT>` → `192.168.1.10:5193`. But Kestrel (the
-API's web server) binds to **`localhost` (127.0.0.1) only** by default, so it rejects any
-connection that didn't originate from the PC itself. Forwarded traffic arrives on the
-`192.168.1.10` interface and gets refused.
-
-The fix: a `netsh portproxy` rule that listens on **all** interfaces at `5193` and relays to
-the loopback address where Kestrel is listening — plus a Windows Firewall rule to let the
-inbound traffic in.
-
-**Important IPv4/IPv6 detail:** the portproxy rule loads at boot and grabs the IPv4 wildcard
-`0.0.0.0:5193` *before* you start the app. Kestrel (bound to `localhost`) then can't get IPv4
-`127.0.0.1:5193` and falls back to **IPv6 loopback `[::1]:5193` only**. So the bridge must
-connect to `::1`, not `127.0.0.1` — hence a `v4tov6` rule below. (If you use `v4tov4` →
-`127.0.0.1`, everything looks fine locally via `localhost` but external traffic dies at the
-bridge because nothing listens on IPv4 loopback.)
-
-```
-Player ──internet──▶ 82.76.59.60:<EXTERNAL_PORT>
-        (router port-forward)
-                 └──▶ 192.168.1.10:5193  ──▶ portproxy  0.0.0.0:5193  (IPv4)
-                                                      └──▶ [::1]:5193 (Kestrel, IPv6 loopback)
-```
+| API internal target | `http://localhost:5193` | Fixed by the AppHost change; cloudflared points here. |
+| cloudflared | `C:\Program Files (x86)\cloudflared\cloudflared.exe` | Installed via `winget install Cloudflare.cloudflared`. |
+| Tunnel type | Quick tunnel (`--url`) | Free, no account. **URL is random and changes every cloudflared restart.** |
 
 ---
 
@@ -59,158 +38,115 @@ Player ──internet──▶ 82.76.59.60:<EXTERNAL_PORT>
 
 - **Docker Desktop** — the AppHost provisions the SQL Server container.
 - **.NET SDK** — to run the AppHost.
-- **An elevated (Administrator) PowerShell** — for the firewall + portproxy rules. Open with
-  Win+X → **Terminal (Admin)** / **Windows PowerShell (Admin)**.
+- **cloudflared** — install once:
+  ```powershell
+  winget install --id Cloudflare.cloudflared -e --accept-package-agreements --accept-source-agreements
+  ```
 
 ---
 
-## Part 1 — One-time setup (do these once, ever)
+## One-time setup
 
-### Step 1. Confirm the router forward
-You've already configured this. Just confirm it maps an external port to
-**`192.168.1.10` port `5193` (TCP)**:
-- If your external port is also `5193`, players use `http://82.76.59.60:5193`.
-- If it's something else (e.g. `8080`), players use `http://82.76.59.60:8080` — everything
-  still works, because the public port is what ends up in the URL and the OpenID realm.
-
-### Step 2. Add the firewall rule + port bridge (elevated PowerShell)
-Run this whole block in an **Administrator** PowerShell. It's **idempotent** — safe to re-run.
-
-```powershell
-# 1) Firewall: allow inbound TCP 5193 (remove any prior rule of the same name first)
-Get-NetFirewallRule -DisplayName "IHL API 5193" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName "IHL API 5193" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5193 | Out-Null
-
-# 2) Port bridge: expose IPv4 0.0.0.0:5193 -> Kestrel's IPv6 loopback ::1:5193
-#    (delete any prior v4tov4/v4tov6 rule first so this is idempotent)
-netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=5193 2>$null
-netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=5193 2>$null
-netsh interface portproxy add    v4tov6 listenaddress=0.0.0.0 listenport=5193 connectaddress=::1 connectport=5193
-
-# 3) Show the results
-Write-Host "`n--- portproxy table ---"
-netsh interface portproxy show all
-Write-Host "`n--- firewall rule ---"
-Get-NetFirewallRule -DisplayName "IHL API 5193" | Select-Object DisplayName, Enabled, Direction, Action | Format-Table -AutoSize
-```
-
-> The `delete` lines may print **"The system cannot find the file specified"** when there's no
-> existing rule to remove — that's harmless, ignore it. What matters is the `show all` output.
-
-**Expected output:** a portproxy row `Listen ipv4 0.0.0.0 5193  →  Connect ipv6 ::1 5193`, and
-a firewall rule showing `Enabled=True, Direction=Inbound, Action=Allow`. Both the firewall rule
-and the bridge **persist across reboots**, so this is genuinely one-time.
-
-### Step 3. Set the admin API key
-Admin endpoints are unrestricted until this is set (the API logs a warning about it at
-startup). Set it before exposing the server publicly — no elevation needed:
+### Set the admin API key
+Admin endpoints are unrestricted until this is set (the API logs a warning at startup). Set
+it before exposing the server publicly — no elevation needed:
 ```powershell
 dotnet user-secrets --project IHLDota2Bot set "GameManager:AdminApiKey" "<choose-a-secret>"
 ```
 
-### Step 4. Per-tester: point each client at your public address (each player, once)
-On **each player's** machine:
-```powershell
-setx IHL_API_BASE "http://82.76.59.60:<EXTERNAL_PORT>"
-```
-> `setx` writes the variable for **future** processes — the player must open a **new**
-> terminal (or restart the desktop client) for it to take effect; it does not affect an
-> already-open shell.
-
-Then they launch the desktop client normally. Steam login works: the client opens a local
-callback on the player's own machine, the server bounces the browser back to it, and the
-OpenID realm is built from the public address the player used.
-
-> If your public IP changes, testers must update this value. A DDNS hostname (see Security &
-> reliability) avoids that.
+That's the only one-time step. Unlike port-forwarding, the tunnel needs no firewall or
+router changes.
 
 ---
 
-## Part 2 — Every test session
+## Every test session
 
 ### Step 1. Start Docker Desktop
-Make sure the Docker engine is up so the AppHost can start the SQL Server container.
+So the AppHost can start the SQL Server container.
 
 ### Step 2. Start the full stack
 ```powershell
 dotnet run --project IHLDota2Bot.AppHost
 ```
-This brings up SQL Server (container, port 52001), the Game Manager API on **5193**, and the
-Steam bot accounts (they log in on boot). Wait in the Aspire dashboard (opens automatically)
-until `Dota2inHouseLeague-Backend` shows **Running/Healthy**.
+Brings up SQL Server (container, port 52001), the Game Manager API on **5193**, and the
+Steam bot accounts (they log in on boot). Wait in the Aspire dashboard until
+`Dota2inHouseLeague-Backend` is **Running / Healthy**.
 
 > The Discord bot and Angular frontend also start by default; they aren't needed for API
-> testing. Ignore them, or Stop those two resources from the Aspire dashboard.
+> testing. Ignore them, or Stop those two resources from the dashboard.
 
-### Step 3. Confirm Kestrel and the bridge are both up
+### Step 3. Start the tunnel (second terminal)
 ```powershell
-netstat -ano | Select-String ":5193" | Select-String "LISTENING"
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:5193
 ```
-**Expected:** among the lines —
-- `[::1]:5193` → Kestrel (owned by the `IHLDota2Bot` process) on the IPv6 loopback, and
-- `0.0.0.0:5193` → the portproxy bridge (owned by `svchost`).
+Within a few seconds it prints a line like:
+```
++--------------------------------------------------------------------------------------------+
+|  Your quick Tunnel has been created! Visit it at:                                          |
+|  https://<random-words>.trycloudflare.com                                                  |
++--------------------------------------------------------------------------------------------+
+```
+Copy that `https://<random-words>.trycloudflare.com` URL — that's what players use. **Leave
+this terminal running** for the whole session; closing it drops the tunnel.
 
-Then confirm the **bridge path itself** works by hitting the LAN interface the router forwards
-to (this goes through the portproxy, not straight to Kestrel):
+### Step 4. Verify (from this PC is fine — the request still goes out to Cloudflare and back)
 ```powershell
-Invoke-WebRequest "http://192.168.1.10:5193/swagger/index.html" -TimeoutSec 8 -UseBasicParsing |
-  Select-Object -ExpandProperty StatusCode   # expect 200
+$u = "https://<random-words>.trycloudflare.com"   # paste your URL
+(Invoke-WebRequest "$u/swagger/index.html" -TimeoutSec 20 -UseBasicParsing).StatusCode  # expect 200
 ```
-A `200` here means the full external path (router → bridge → Kestrel) is good.
+A `200` means the public path (Cloudflare edge → tunnel → Kestrel) is good.
 
-### Step 4. Verify reachability
-- **From this PC:** open `http://localhost:5193/swagger` — Swagger loads (the app runs in the
-  Development environment).
-- **From outside your home network:** on a phone using **mobile data (Wi-Fi off)**, browse
-  `http://82.76.59.60:<EXTERNAL_PORT>/swagger`. Do **not** test from your home Wi-Fi — most
-  home routers can't loop back to their own public IP (NAT hairpin), so a home-network test
-  can fail even when external access works fine. An online "open port check" tool against
-  `82.76.59.60:<EXTERNAL_PORT>` is a quick alternative.
-- **Check your public IP hasn't changed** since you told testers:
-  ```powershell
-  (Invoke-RestMethod https://api.ipify.org)
-  ```
+### Step 5. Testers connect
+Give each tester the URL. On their machine, once per URL:
+```powershell
+setx IHL_API_BASE "https://<random-words>.trycloudflare.com"
+```
+> `setx` affects **future** processes — they must open a **new** terminal (or restart the
+> desktop client) for it to take effect. Then launch the desktop client. Steam login works:
+> the API emits `https://` realm/return_to (see "How Steam login stays HTTPS"), and the
+> client handles the final callback on the player's own loopback.
 
-### Step 5. Test
-Players launch their desktop clients (with `IHL_API_BASE` set) and you run through the
-functionality you want to exercise / capture test cases for.
-
-### Step 6. Shut down when finished
-`Ctrl+C` in the AppHost terminal — this stops the API, logs the Steam bots off, and stops the
-frontend/Discord. The SQL container is **persistent by design**, so your data (registrations,
-matches, ratings) survives to the next session.
-
-The firewall rule and the portproxy bridge are harmless to leave in place for next time — no
-need to remove them between sessions.
+### Step 6. Shut down
+- `Ctrl+C` the cloudflared terminal (drops the public URL).
+- `Ctrl+C` the AppHost terminal (stops the API, logs the Steam bots off). The SQL container
+  is persistent, so data survives to the next session.
 
 ---
 
-## Teardown (only if you want to remove the exposure)
+## How Steam login stays HTTPS (background)
 
+`cloudflared` terminates TLS at Cloudflare's edge and forwards plain HTTP to Kestrel, so
+`ctx.Request.Scheme` would be `http` and the Steam OpenID `realm`/`return_to` would come out
+as `http://` even though players are on `https`. `IHLDota2Bot/Program.cs` calls
+`UseForwardedHeaders` honouring `X-Forwarded-Proto`, **trusted only from the loopback
+cloudflared process** (`KnownProxies` = `127.0.0.1` + `::1`), so the scheme reflects the
+public `https` URL without letting a remote caller spoof it. Verified: the login redirect
+emits `openid.realm=https://<random-words>.trycloudflare.com`.
+
+---
+
+## A permanent URL (optional, later)
+
+Quick tunnels hand out a new random URL every time cloudflared starts, so testers re-set
+`IHL_API_BASE` each session. For a **stable** URL you need a **named tunnel**, which requires
+a domain added to your Cloudflare account:
+1. Add a domain to Cloudflare (you must own one — Cloudflare doesn't give free domains).
+2. `cloudflared tunnel login`, `cloudflared tunnel create ihl`, map a hostname via
+   `cloudflared tunnel route dns ihl ihl.yourdomain.com`, and run with a config file.
+Then the URL (`https://ihl.yourdomain.com`) never changes. Ask and I'll set this up.
+
+---
+
+## Optional cleanup (leftover port-forwarding artifacts)
+
+The earlier port-forwarding attempt left a firewall rule and a portproxy bridge that are now
+unused. They're harmless, but to remove them (elevated PowerShell):
 ```powershell
-# Remove the port bridge
 netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=5193
-# Remove the firewall rule
 Get-NetFirewallRule -DisplayName "IHL API 5193" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 ```
-(And, if you no longer want to host at all, remove the port-forward on your router.)
-
----
-
-## Security & reliability notes (read once)
-
-- **Plain HTTP over the internet.** There's no TLS, so player JWTs and the Steam return token
-  travel in cleartext. Acceptable for a private test among friends; do **not** treat this as
-  production. For encryption later, put a lightweight reverse proxy with an automatic cert
-  (e.g. Caddy) in front of `5193` and forward `443` on the router instead.
-- **Admin key.** Keep `GameManager:AdminApiKey` set whenever the server is publicly reachable
-  (Part 1, Step 3) — otherwise admin endpoints are open to anyone who finds the URL.
-- **Dynamic public IP.** `82.76.59.60` can change. For a stable address testers set once, use
-  a free DDNS provider (DuckDNS, No-IP): install its updater on this PC and hand testers
-  `http://yourname.duckdns.org:<EXTERNAL_PORT>` instead of the raw IP.
-- **Bot credentials.** `IHLDota2Bot/appsettings.json` contains Steam bot passwords in
-  plaintext. That predates this setup, but since the API is now internet-reachable, consider
-  moving them to user-secrets / environment variables.
+You can also delete/disable the `DotaBot` port-forward rule on the router — it can't work
+under CGNAT anyway.
 
 ---
 
@@ -219,9 +155,9 @@ Get-NetFirewallRule -DisplayName "IHL API 5193" -ErrorAction SilentlyContinue | 
 The API (`IHLDota2Bot`) is stateful/always-on: `SteamGcClientPool` is an `IHostedService`
 holding live SteamKit connections. Free cloud tiers that sleep or scale to zero drop those
 connections, and no Azure tier is both permanently free and always-on. Since the server only
-runs during your ~1-hour test sessions, running it locally is free and fits the workflow. The
-AppHost change pins the backend to a fixed port (5193) so the firewall/bridge rules stay valid
-across runs.
+runs during your ~1-hour test sessions, running it locally + tunnelling is free and fits the
+workflow. The AppHost change pins the backend to a fixed port (5193) so cloudflared's target
+is stable across runs.
 
 ---
 
@@ -229,13 +165,9 @@ across runs.
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `localhost:5193/swagger` works, public URL doesn't | Firewall rule or portproxy bridge missing/misdirected — re-run Part 1 Step 2 and re-check via the LAN IP (Part 2 Step 3). |
-| `localhost:5193` works but `192.168.1.10:5193` (LAN IP) times out | The classic IPv4/IPv6 trap: bridge points at `127.0.0.1` but Kestrel is on `[::1]` only. Use the `v4tov6 … connectaddress=::1` rule from Part 1 Step 2. |
-| `netstat` shows only `0.0.0.0:5193` (svchost) and no Kestrel line | The backend isn't running/serving — start the AppHost (Part 2 Step 2) and wait for Healthy. |
-| `netsh portproxy add` seems to do nothing / errors | Run it elevated; ensure the `iphlpsvc` (IP Helper) service is Running. |
-| Public URL works from home Wi-Fi but not cellular | You were testing via NAT loopback. Always verify external reachability from a network outside your home. |
-| Nothing reachable externally at all | Router forward wrong (external port not mapped to `192.168.1.10:5193`), or ISP uses CGNAT — confirm `82.76.59.60` matches what an external "what is my IP" site reports. |
-| Steam login fails for players | Confirm `IHL_API_BASE` is the exact public `http://IP:<EXTERNAL_PORT>`, that they opened a fresh terminal after `setx`, and that the same port is forwarded and open. |
-| Player address stopped working next day | Public IP changed — set up DDNS, or hand out the new IP. |
-| Admin-key warning in the API logs | Set `GameManager:AdminApiKey` (Part 1 Step 3). |
-| Port bridge conflict / `0.0.0.0:5193` already in use on startup | An old server process (or a reintroduced all-interfaces bind) still holds the port — close it, or don't bind Kestrel to `0.0.0.0` directly; the bridge owns that address. |
+| cloudflared prints a URL but it 502s | The backend isn't up yet — wait for `Dota2inHouseLeague-Backend` = Healthy, then retry. |
+| Tunnel URL changed since last session | Expected for quick tunnels — it's random per start. Re-share the URL, or set up a named tunnel. |
+| Steam login fails for players | Confirm `IHL_API_BASE` is the exact `https://…trycloudflare.com`, and that they opened a fresh terminal after `setx`. The API must be on the build with `UseForwardedHeaders`. |
+| `swagger` 200 locally but not via the URL | cloudflared terminal was closed or lost connection — restart it (this yields a new URL). |
+| Admin-key warning in the API logs | Set `GameManager:AdminApiKey` (One-time setup). |
+| Players on the desktop client can't authenticate but swagger loads | Ensure they set `IHL_API_BASE` (env var) — the bundled `appsettings.json` defaults to localhost. |
