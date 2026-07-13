@@ -108,14 +108,34 @@ public class PlayerEndpointsEdgeCaseTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Register_WithSameSteamId_TwoDifferentUserIds_BothSucceed()
+    public async Task Register_WithSameSteamId_SecondUserIsRejected_FirstIntact()
     {
-        // Steam IDs are not unique-constrained at the register endpoint level;
-        // two Discord users can share a Steam account (link is advisory).
-        var r1 = await RegisterAsync(1, "alice", steamId: 76561198000000001);
-        var r2 = await RegisterAsync(2, "bob", steamId: 76561198000000001);
+        // The Players table has a unique index on SteamId, so one Steam account maps
+        // to one league account. (The previous "both succeed" behavior only ever held
+        // against the in-memory test provider, which doesn't enforce unique indexes —
+        // real SQL Server rejected the second insert with an opaque constraint error.)
+        // The service now refuses the claim explicitly and logs it as an audit trail.
+        var first = await RegisterAsync(1, "alice", steamId: 76561198000000001);
+        Assert.NotNull(first);
 
-        Assert.NotNull(r1);
-        Assert.NotNull(r2);
+        var response = await Client.PostAsJsonAsync(
+            "/api/gamemanager/register",
+            new RegisterPlayerRequest
+            {
+                SteamId = 76561198000000001,
+                UserId = 2,
+                Username = "bob",
+            }
+        );
+
+        Assert.False(response.IsSuccessStatusCode);
+
+        // alice's account is untouched and bob was never created.
+        var alice = await Client.GetFromJsonAsync<PlayerStatsResponse>(
+            "/api/gamemanager/player/1"
+        );
+        Assert.Equal("alice", alice!.Username);
+        var bob = await Client.GetAsync("/api/gamemanager/player/2");
+        Assert.Equal(HttpStatusCode.NotFound, bob.StatusCode);
     }
 }

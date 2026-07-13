@@ -16,6 +16,17 @@ public static class MeEndpoints
     {
         var me = group.MapGroup(string.Empty).RequireAuthorization("Player");
 
+        // A token whose `sub` doesn't parse as a user id carries no usable identity —
+        // reject it outright rather than letting UserId() fall back to 0 and act as a
+        // phantom "user 0". PlayerTokenService always writes a numeric sub, so this
+        // only fires for malformed/foreign tokens; it's defence in depth.
+        me.AddEndpointFilter(
+            async (ctx, next) =>
+                ulong.TryParse(ctx.HttpContext.User.FindFirstValue(PlayerClaims.Subject), out _)
+                    ? await next(ctx)
+                    : TypedResults.Unauthorized()
+        );
+
         me.MapPost(
             "/queue/join",
             (
@@ -110,6 +121,7 @@ public static class MeEndpoints
         return group;
     }
 
+    /// <summary>Parses the token's subject; the group's endpoint filter guarantees it parses.</summary>
     private static ulong UserId(ClaimsPrincipal user) =>
-        ulong.TryParse(user.FindFirstValue(PlayerClaims.Subject), out var id) ? id : 0UL;
+        ulong.Parse(user.FindFirstValue(PlayerClaims.Subject)!);
 }

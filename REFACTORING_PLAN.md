@@ -69,23 +69,24 @@ Ordered by risk.
       new `IPlayerRepository.GetByUserIdsAsync` batch lookup; missing rows fall
       back to the default rating. Covered by `TeamBalancerTests` (unit) and
       `LobbyPoolManagerTeamBalanceTests` (lobby-ready → persisted teams).
-- [ ] **Minor hardening / consistency** (batchable):
-      - `AdminApiKeyAuthenticationHandler`: compare keys with
-        `CryptographicOperations.FixedTimeEquals` instead of `string.Equals`.
-      - `PlayerRepository.GetRankAsync`: the `higherCount` predicate omits the
-        username tie-break the leaderboard uses, so rank can disagree with
-        leaderboard position on exact rating/wins/losses ties (comment claims
-        parity).
-      - `MeEndpoints.UserId` maps an unparsable `sub` claim to user id `0`
-        instead of rejecting with 401.
-      - Swagger is served through the tunnel in Development; consider disabling
-        it for tunnelled test sessions or gating it.
-      - `DiscordService.HandleMessageAsync` accepts `!` commands from any
-        channel/DM the bot can read, not just `Discord:ChannelId` — confirm
-        intentional or filter by channel.
-      - `!register <steamId>` lets a user claim an arbitrary SteamId before its
-        real owner registers (squatting). The unique index prevents duplicates;
-        acceptable for a trust-based league, but worth an admin-visible audit log.
+- [x] **Minor hardening / consistency** (landed as one batch):
+      - `AdminApiKeyAuthenticationHandler` compares keys with
+        `CryptographicOperations.FixedTimeEquals` (timing-safe).
+      - `PlayerRepository.GetRankAsync` now applies the full leaderboard ordering
+        (username tie-break included), so rank always matches the leaderboard row
+        (`GetRank_ExactStatTies_AgreesWithLeaderboardOrder`).
+      - The me-endpoints group rejects tokens whose `sub` doesn't parse with a
+        401 endpoint filter instead of acting as user `0`
+        (`MeAction_ValidlySignedTokenWithNonNumericSub_Returns401`).
+      - Swagger can be disabled per session via `Swagger:Enabled=false`
+        (documented in HOSTING_FOR_TESTING.md for public tunnel sessions).
+      - `DiscordService` serves only the configured `Discord:ChannelId` when one
+        is set (`ChannelPolicy`, mirrors `AdminPolicy`; 0 = accept anywhere).
+      - `!register`/`!link` refuse claiming a SteamId already linked to another
+        account, with a warning-level audit log of the attempt. This also aligns
+        endpoint behavior with the DB's unique SteamId index — the old
+        "both succeed" integration test only ever passed because the in-memory
+        provider doesn't enforce unique indexes.
 
 ### Deferred (carried over from Phases 3 & 6)
 

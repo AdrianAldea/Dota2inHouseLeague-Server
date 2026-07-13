@@ -60,7 +60,11 @@ app.UseAuthorization();
 app.MapDefaultEndpoints();
 app.ConfigureEndpoints();
 
-if (app.Environment.IsDevelopment())
+// Swagger is a Development convenience, but the Development server is sometimes
+// exposed publicly (Cloudflare tunnel test sessions — see HOSTING_FOR_TESTING.md),
+// where advertising the full API surface is unnecessary. Swagger:Enabled=false
+// (e.g. the Swagger__Enabled env var) turns it off without switching environments.
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue("Swagger:Enabled", true))
 {
     app.UseSwagger();
     app.UseSwaggerUI();

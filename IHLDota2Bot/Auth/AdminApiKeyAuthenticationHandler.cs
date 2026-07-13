@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Encodings.Web;
 using IHLDota2Bot.Configuration;
 using Microsoft.AspNetCore.Authentication;
@@ -46,7 +48,12 @@ public sealed class AdminApiKeyAuthenticationHandler(
         if (!Request.Headers.TryGetValue(HeaderName, out var value) || value.Count == 0)
             return Task.FromResult(AuthenticateResult.Fail("Missing X-Api-Key header."));
 
-        if (!string.Equals(value[0], configuredKey, StringComparison.Ordinal))
+        // Constant-time comparison so response timing can't be used to guess the
+        // key byte-by-byte. (FixedTimeEquals short-circuits on length mismatch,
+        // which only reveals the key's length — acceptable.)
+        var presented = Encoding.UTF8.GetBytes(value[0] ?? string.Empty);
+        var expected = Encoding.UTF8.GetBytes(configuredKey);
+        if (!CryptographicOperations.FixedTimeEquals(presented, expected))
             return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));
 
         var principal = new ClaimsPrincipal(
