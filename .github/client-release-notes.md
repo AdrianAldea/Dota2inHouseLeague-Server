@@ -13,3 +13,11 @@ Windows 64-bit. Self-contained - no .NET install required.
 ### Notes
 - Windows SmartScreen may warn "unknown publisher" (the app isn't code-signed). Click **More info -> Run anyway**.
 - Keep the `.dll` files next to `IHLDota2Bot.Desktop.exe`.
+
+### Reporting a problem
+If the app crashes or won't start, it writes a crash log to:
+```
+%LOCALAPPDATA%\IHLDota2Bot\crash.log
+```
+Paste that path into File Explorer's address bar (or Win+R) to open the folder, then send
+`crash.log` to your host — it makes the problem much easier to diagnose.
