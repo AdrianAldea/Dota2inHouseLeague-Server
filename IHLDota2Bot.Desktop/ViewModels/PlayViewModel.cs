@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +20,7 @@ public partial class PlayViewModel : ViewModelBase
 {
     private readonly ApiClient? _api;
     private readonly ToastService? _toasts;
+    private readonly AppSession? _session;
     private readonly DispatcherTimer? _timer;
 
     [ObservableProperty]
@@ -41,16 +43,33 @@ public partial class PlayViewModel : ViewModelBase
     [ObservableProperty]
     private bool _matchReady;
 
+    /// <summary>The player has a current in-progress match (the match-found card is showing).</summary>
+    [ObservableProperty]
+    private bool _matchFound;
+
+    [ObservableProperty]
+    private string? _lobbyName;
+
+    [ObservableProperty]
+    private string? _lobbyPassword;
+
+    /// <summary>"You're on RADIANT/DIRE", or null when the side is unknown.</summary>
+    [ObservableProperty]
+    private string? _myTeamLabel;
+
     public ObservableCollection<QueueSlot> Slots { get; } = new();
+    public ObservableCollection<TeamSlot> RadiantPlayers { get; } = new();
+    public ObservableCollection<TeamSlot> DirePlayers { get; } = new();
 
     /// <summary>Design-time / fallback constructor.</summary>
     public PlayViewModel() => SeedMock();
 
     /// <summary>DI constructor — polls live queue status.</summary>
-    public PlayViewModel(ApiClient api, ToastService toasts)
+    public PlayViewModel(ApiClient api, ToastService toasts, AppSession session)
     {
         _api = api;
         _toasts = toasts;
+        _session = session;
         _ = RefreshAsync();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -106,6 +125,9 @@ public partial class PlayViewModel : ViewModelBase
             var status = await _api!.GetQueueStatusAsync();
             if (status is not null)
                 ApplyStatus(status);
+            // Fetched on the same poll: the match-found card is the client-side
+            // fallback for a missed Steam invite (teams + lobby password).
+            ApplyMatch(await _api!.GetMyMatchAsync());
             IsOffline = false;
         }
         catch
@@ -128,6 +150,40 @@ public partial class PlayViewModel : ViewModelBase
             Slots.Add(new QueueSlot { Name = player.Username, IsReady = player.IsReady });
         for (var i = status.Players.Count; i < status.PlayersPerLobby; i++)
             Slots.Add(new QueueSlot());
+    }
+
+    private void ApplyMatch(CurrentMatchResponse? current)
+    {
+        if (current is null)
+        {
+            MatchFound = false;
+            LobbyName = null;
+            LobbyPassword = null;
+            MyTeamLabel = null;
+            RadiantPlayers.Clear();
+            DirePlayers.Clear();
+            return;
+        }
+
+        var myUserId = _session?.Me?.UserId;
+
+        RadiantPlayers.Clear();
+        DirePlayers.Clear();
+        foreach (var player in current.Match.Players)
+        {
+            var slot = new TeamSlot { Name = player.Username, IsMe = player.UserId == myUserId };
+            (player.Team == MatchTeam.Radiant ? RadiantPlayers : DirePlayers).Add(slot);
+        }
+
+        MyTeamLabel = current.Match.Players.FirstOrDefault(p => p.UserId == myUserId)?.Team switch
+        {
+            MatchTeam.Radiant => "You're on RADIANT",
+            MatchTeam.Dire => "You're on DIRE",
+            _ => null,
+        };
+        LobbyName = current.LobbyName;
+        LobbyPassword = current.LobbyPassword;
+        MatchFound = true;
     }
 
     private void SeedMock()

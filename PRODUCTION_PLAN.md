@@ -78,15 +78,18 @@ posture.
 | TLS | terminate at the edge (Cloudflare Tunnel already handled via forwarded headers) |
 | `Swagger:Enabled` | `false` on any publicly reachable instance |
 
-## Phase 2 — Surface the match in the client
+## Phase 2 — Surface the match in the client ✅
 
-- [ ] Backend: `GET /api/gamemanager/me/match` (JWT) — the signed-in player's
-      current match: state, both rosters with sides, and (once launched) the
-      Dota lobby name + password.
-- [ ] Client: "Match found" state on the Play screen — poll `/me/match` when a
-      lobby forms; show your team, the lobby password, and "accept the Steam
-      invite or join via the lobby browser (password `Dota2IHL-…`)". Keep it
-      visible until the match completes.
+- [x] Backend: `GET /api/gamemanager/me/match` (JWT) — the signed-in player's
+      current in-progress match: both rosters with sides plus the Dota lobby
+      name + password. Credentials are derived from the lobby id via the shared
+      `LobbyNaming` helper (same derivation the launch path uses), so nothing
+      extra is persisted and only the match's participants can fetch them.
+- [x] Client: "Match found" card on the Play screen — the 2s poll now also
+      fetches `/me/match`; when a match exists the card shows your side,
+      both team rosters (you highlighted), the lobby name/password (selectable
+      for copy/paste), and join instructions. It stays until the match
+      completes (the endpoint returns 404 and the card clears).
 
 ## Phase 3 — Client correctness fixes
 

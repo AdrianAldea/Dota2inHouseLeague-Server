@@ -76,6 +76,16 @@ public sealed class ApiClient(HttpClient http)
             ct
         );
 
+    /// <summary>The signed-in player's current match, or null when there isn't one (404).</summary>
+    public async Task<CurrentMatchResponse?> GetMyMatchAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("gamemanager/me/match", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<CurrentMatchResponse>(JsonOptions, ct);
+    }
+
     // ── "Me" actions ──
 
     public Task<QueueOperationResponse?> JoinQueueAsync(CancellationToken ct = default) =>
