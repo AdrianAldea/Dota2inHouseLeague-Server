@@ -184,6 +184,9 @@ public class Dota2Service : IDota2Service
 
     public QueueStatusResponse GetQueueStatus() => poolManager.GetQueueStatus();
 
+    public MyQueueStateResponse GetPlayerQueueState(ulong userId) =>
+        poolManager.GetPlayerQueueState(userId);
+
     public async Task<QueueOperationResponse> UnregisterPlayerAsync(
         ulong userId,
         CancellationToken cancellationToken = default

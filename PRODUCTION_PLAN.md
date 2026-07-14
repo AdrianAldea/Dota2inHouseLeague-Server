@@ -91,17 +91,22 @@ posture.
       for copy/paste), and join instructions. It stays until the match
       completes (the endpoint returns 404 and the card clears).
 
-## Phase 3 — Client correctness fixes
+## Phase 3 — Client correctness fixes ✅
 
-- [ ] Respect `Success`/`Message` on every queue/ready/leave call and show the
-      server's message (e.g. ban reason) instead of an unconditional success
-      toast.
-- [ ] Derive `InQueue` from the server so an app restart reconciles (include
-      user ids in `queue/status`, or a small `/me/queue` flag).
-- [ ] Add an UNREADY button (the API client already has `UnreadyAsync`).
-- [ ] On any 401 mid-session, clear the session and return to the login screen.
-- [ ] (Hardening) add a random `state` nonce to the loopback sign-in
-      round-trip and verify it on the callback.
+- [x] Respect `Success`/`Message` on every queue/ready/unready/leave call: the
+      server's message (e.g. the ban reason) is shown and the optimistic queue
+      flip reverted when the server refuses.
+- [x] Derive `InQueue` from the server: new JWT endpoint
+      `GET /api/gamemanager/me/queue` (`MyQueueStateResponse`) polled together
+      with the queue status, so restarts reconcile and the public queue status
+      never has to expose user ids.
+- [x] UNREADY button — shown when you're in the queue and ready; READY UP only
+      when you aren't ready yet (both driven by the server-confirmed state).
+- [x] On any 401 from a request that carried a token, the client drops the
+      saved token and clears the session (`AuthHeaderHandler`), landing back on
+      the login screen instead of endless generic errors.
+- [x] Loopback sign-in hardened with a random `state` nonce: the callback must
+      echo it or the received token is discarded (RFC 8252 §8.9).
 
 ## Phase 4 — Distribute the client
 

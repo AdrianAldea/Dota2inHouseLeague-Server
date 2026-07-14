@@ -162,6 +162,9 @@ public class LobbyPoolManager : IHostedService
 
     public QueueStatusResponse GetQueueStatus() => lobbyQueue.GetQueueStatus();
 
+    public MyQueueStateResponse GetPlayerQueueState(ulong userId) =>
+        lobbyQueue.GetPlayerQueueState(userId);
+
     public bool RemovePlayerCompletely(ulong userId) => lobbyQueue.RemovePlayerCompletely(userId);
 
     public bool UpdatePlayerSteamId(ulong userId, string steamId) =>

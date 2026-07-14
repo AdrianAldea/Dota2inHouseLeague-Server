@@ -86,6 +86,10 @@ public sealed class ApiClient(HttpClient http)
         return await response.Content.ReadFromJsonAsync<CurrentMatchResponse>(JsonOptions, ct);
     }
 
+    /// <summary>The signed-in player's own queue membership/ready state.</summary>
+    public Task<MyQueueStateResponse?> GetMyQueueAsync(CancellationToken ct = default) =>
+        http.GetFromJsonAsync<MyQueueStateResponse>("gamemanager/me/queue", JsonOptions, ct);
+
     // ── "Me" actions ──
 
     public Task<QueueOperationResponse?> JoinQueueAsync(CancellationToken ct = default) =>

@@ -28,7 +28,13 @@ public sealed class SteamAuthService(AppSettings settings)
         try
         {
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            var returnUrl = $"http://127.0.0.1:{port}/callback";
+            // One-shot random state (RFC 8252 §8.9): the callback must echo it, so a
+            // request from anything other than this sign-in round-trip (e.g. a rogue
+            // local page racing the port with a foreign token) is rejected.
+            var state = Convert.ToHexString(
+                System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)
+            );
+            var returnUrl = $"http://127.0.0.1:{port}/callback?state={state}";
             var loginUrl =
                 $"{settings.ApiBaseUrl.TrimEnd('/')}/api/auth/steam/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
@@ -47,6 +53,10 @@ public sealed class SteamAuthService(AppSettings settings)
             query.TryGetValue("token", out var token);
             query.TryGetValue("error", out var error);
             var registered = query.TryGetValue("registered", out var reg) && reg == "true";
+            var stateEchoed =
+                query.TryGetValue("state", out var echoedState) && echoedState == state;
+            if (!stateEchoed)
+                token = null;
 
             await WriteResponseAsync(
                 stream,
