@@ -102,7 +102,8 @@ Ordered by risk.
       before invoking the handler (handlers can exceed Discord's 3-second
       acknowledge window) and "reply only on failure" handlers are closed out
       with a ✅ follow-up. Text `!` commands keep working. Covered by
-      `SlashCommandCatalogTests` and `SlashCommandArgsTests`.
+      `SlashCommandCatalogTests` and `SlashCommandArgsTests`. Full guide with
+      examples: `IHLDota2Bot.Discord/SLASH_COMMANDS.md`.
 - [x] **Frontend routing**: the inlined admin page is gone — the app now
       bootstraps a `<router-outlet>` with `provideRouter` and lazy-loads the
       admin page at `/admin` (root and unknown paths redirect there). Adding a
