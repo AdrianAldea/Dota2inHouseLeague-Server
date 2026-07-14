@@ -31,6 +31,9 @@ public interface IDota2Service
     );
     Task<QueueOperationResponse> LeaveQueueAsync(ulong userId);
     QueueStatusResponse GetQueueStatus();
+
+    /// <summary>The given player's own queue membership/ready state.</summary>
+    MyQueueStateResponse GetPlayerQueueState(ulong userId);
     Task<QueueOperationResponse> UnregisterPlayerAsync(
         ulong userId,
         CancellationToken cancellationToken = default

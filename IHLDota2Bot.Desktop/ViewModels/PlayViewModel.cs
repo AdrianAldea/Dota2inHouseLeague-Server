@@ -24,7 +24,18 @@ public partial class PlayViewModel : ViewModelBase
     private readonly DispatcherTimer? _timer;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanReadyUp))]
+    [NotifyPropertyChangedFor(nameof(CanUnready))]
     private bool _inQueue;
+
+    /// <summary>Server-confirmed: the player is marked ready in the current lobby.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanReadyUp))]
+    [NotifyPropertyChangedFor(nameof(CanUnready))]
+    private bool _myReady;
+
+    public bool CanReadyUp => InQueue && !MyReady;
+    public bool CanUnready => InQueue && MyReady;
 
     [ObservableProperty]
     private int _playersReady;
@@ -80,17 +91,22 @@ public partial class PlayViewModel : ViewModelBase
     [RelayCommand]
     private async Task ToggleQueue()
     {
-        // Optimistic flip; the next poll reconciles with server truth.
+        // Optimistic flip; reverted when the server refuses (e.g. banned) and
+        // reconciled with server truth on every poll.
         var joining = !InQueue;
         InQueue = joining;
         if (_api is null)
             return;
         try
         {
-            if (joining)
-                await _api.JoinQueueAsync();
-            else
-                await _api.LeaveQueueAsync();
+            var result = joining ? await _api.JoinQueueAsync() : await _api.LeaveQueueAsync();
+            if (result is { Success: false })
+            {
+                InQueue = !joining;
+                _toasts?.Error(FallbackIfEmpty(result.Message, "The server refused the request."));
+                return;
+            }
+
             await RefreshAsync();
             _toasts?.Success(joining ? "Joined the queue" : "Left the queue");
         }
@@ -108,13 +124,42 @@ public partial class PlayViewModel : ViewModelBase
             return;
         try
         {
-            await _api.ReadyAsync();
+            var result = await _api.ReadyAsync();
+            if (result is { Success: false })
+            {
+                _toasts?.Error(FallbackIfEmpty(result.Message, "Couldn't ready up."));
+                return;
+            }
+
             await RefreshAsync();
             _toasts?.Success("You're ready — waiting for the others");
         }
         catch
         {
             _toasts?.Error("Couldn't ready up — is the server up?");
+        }
+    }
+
+    [RelayCommand]
+    private async Task Unready()
+    {
+        if (_api is null)
+            return;
+        try
+        {
+            var result = await _api.UnreadyAsync();
+            if (result is { Success: false })
+            {
+                _toasts?.Error(FallbackIfEmpty(result.Message, "Couldn't undo ready."));
+                return;
+            }
+
+            await RefreshAsync();
+            _toasts?.Success("You're not ready anymore");
+        }
+        catch
+        {
+            _toasts?.Error("Couldn't undo ready — is the server up?");
         }
     }
 
@@ -125,6 +170,15 @@ public partial class PlayViewModel : ViewModelBase
             var status = await _api!.GetQueueStatusAsync();
             if (status is not null)
                 ApplyStatus(status);
+
+            // Server truth for *my* membership — survives app restarts and
+            // reverts optimistic flips the server refused.
+            if (await _api!.GetMyQueueAsync() is { } mine)
+            {
+                InQueue = mine.InQueue;
+                MyReady = mine.IsReady;
+            }
+
             // Fetched on the same poll: the match-found card is the client-side
             // fallback for a missed Steam invite (teams + lobby password).
             ApplyMatch(await _api!.GetMyMatchAsync());
@@ -137,6 +191,9 @@ public partial class PlayViewModel : ViewModelBase
             IsOffline = true;
         }
     }
+
+    private static string FallbackIfEmpty(string? message, string fallback) =>
+        string.IsNullOrWhiteSpace(message) ? fallback : message;
 
     private void ApplyStatus(QueueStatusResponse status)
     {

@@ -106,6 +106,19 @@ public static class MeEndpoints
                 )
         );
 
+        // The player's own queue membership — lets the client reconcile its
+        // optimistic in-queue state with server truth (e.g. after a restart)
+        // without the public queue status exposing user ids.
+        me.MapGet(
+            "/me/queue",
+            (ClaimsPrincipal user, IDota2Service svc, ILogger<Dota2Service> log) =>
+                EndpointHelpers.TryOk(
+                    log,
+                    "me queue state",
+                    () => svc.GetPlayerQueueState(UserId(user))
+                )
+        );
+
         // The player's current in-progress match, including the Dota lobby
         // credentials — the client-side fallback for a missed Steam invite.
         // Credentials derive from the lobby id (see LobbyNaming), so nothing

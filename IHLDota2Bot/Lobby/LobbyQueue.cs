@@ -328,6 +328,20 @@ public class LobbyQueue
         }
     }
 
+    /// <summary>The given player's own membership/ready state in the current lobby.</summary>
+    public MyQueueStateResponse GetPlayerQueueState(ulong userId)
+    {
+        lock (lockObject)
+        {
+            var player = currentLobby.Players.FirstOrDefault(p => p.UserId == userId);
+            return new MyQueueStateResponse
+            {
+                InQueue = player != null,
+                IsReady = player?.IsReady ?? false,
+            };
+        }
+    }
+
     public Task<QueueOperationResponse> MarkPlayerReadyAsync(ulong userId)
     {
         Player? player;

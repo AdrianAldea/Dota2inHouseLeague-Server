@@ -240,8 +240,15 @@
               Classes="accent"
               HorizontalAlignment="Stretch"
               Command="{Binding ReadyCommand}"
-              IsVisible="{Binding InQueue}"
+              IsVisible="{Binding CanReadyUp}"
               Content="READY UP"
+            />
+            <Button
+              Classes="ghost"
+              HorizontalAlignment="Stretch"
+              Command="{Binding UnreadyCommand}"
+              IsVisible="{Binding CanUnready}"
+              Content="UNREADY"
             />
             <Button
               Classes="ghost"
