@@ -125,6 +125,10 @@ dotnet user-secrets set "GameManager:AdminApiKey" "a_long_random_string"
 cd IHLDota2Bot.Discord
 dotnet user-secrets set "Discord:Token" "your_discord_bot_token"
 dotnet user-secrets set "Discord:ChannelId" "your_channel_id"
+# Optional: register slash commands in one guild for instant availability
+# (when 0/unset they are registered globally, which can take up to an hour).
+# See IHLDota2Bot.Discord/SLASH_COMMANDS.md for the full guide.
+dotnet user-secrets set "Discord:GuildId" "your_guild_id"
 # Same value as GameManager:AdminApiKey so admin commands authenticate.
 dotnet user-secrets set "SteamClient:ApiKey" "a_long_random_string"
 ```
@@ -250,6 +254,10 @@ dota2ihnhouseleague/
 - Match queue commands
 - Player statistics commands
 - Real-time match updates in designated channels
+- Every command available both as `!`-prefixed text and as a Discord slash
+  command (`/queue`, `/help`, …) with built-in argument validation — see the
+  [slash commands guide](IHLDota2Bot.Discord/SLASH_COMMANDS.md) for examples,
+  setup, and how it works
 
 ### Web Dashboard
 - Leaderboards and rankings

@@ -371,17 +371,24 @@ poolManager.NotifyGameFinished(lobby.Id);
 
 ## ✅ Checklist
 
-- [ ] Add all 4 files to project (SteamAccountPool.cs, LobbyQueue.cs, LobbyPoolManager.cs, PoolExtensions.cs)
-- [ ] Initialize `poolManager` in Program.cs MainAsync
-- [ ] Register Steam accounts with `RegisterSteamAccount()`
-- [ ] Modify `RegisterPlayerAsync()` to call `poolManager.RegisterPlayer()`
-- [ ] Add new Discord commands (!ready, !queue, !pool, !status)
-- [ ] Subscribe to pool events (GameReady, GameStarted, GameFinished)
-- [ ] Modify CreateGame to use pool system
-- [ ] Add game finish handler
-- [ ] Test registration and queue filling
-- [ ] Test ready status and game readiness
-- [ ] Test game lifecycle and account release
+The integration below is complete. Some pieces landed under different names
+than this design doc originally proposed: the pool lives in
+`Lobby/LobbyPoolManager.cs` + `Lobby/LobbyQueue.cs` with the Steam account
+pool in `Services/SteamGcClientPool.cs`, and the Discord commands are handled
+by the `IHLDota2Bot.Discord` service (available as both `!` text commands and
+slash commands).
+
+- [x] Add the pool/queue/manager files to the project
+- [x] Wire the pool manager up at startup (DI-registered, not MainAsync)
+- [x] Register Steam accounts (config + `!add_account` admin command)
+- [x] Player registration flows through the pool manager
+- [x] Add the Discord commands (`!ready`, `!queue`, `!pool_status`, `!status`)
+- [x] Subscribe to pool events (GameReady, GameStarted, GameFinished)
+- [x] Game creation uses the pool system
+- [x] Add game finish handler
+- [x] Test registration and queue filling
+- [x] Test ready status and game readiness
+- [x] Test game lifecycle and account release (see `LobbyPoolManager*Tests`)
 
 ## 🎉 You're Ready!
 
