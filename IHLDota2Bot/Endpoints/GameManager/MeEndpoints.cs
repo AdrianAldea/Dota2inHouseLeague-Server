@@ -14,7 +14,10 @@ public static class MeEndpoints
 {
     public static RouteGroupBuilder MapMeEndpoints(this RouteGroupBuilder group)
     {
-        var me = group.MapGroup(string.Empty).RequireAuthorization("Player");
+        var me = group
+            .MapGroup(string.Empty)
+            .RequireAuthorization("Player")
+            .RequireRateLimiting(Extensions.RateLimiting.PlayerRateLimiting.PolicyName);
 
         // A token whose `sub` doesn't parse as a user id carries no usable identity —
         // reject it outright rather than letting UserId() fall back to 0 and act as a

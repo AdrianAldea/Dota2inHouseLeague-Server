@@ -4,13 +4,18 @@ using Microsoft.AspNetCore.Mvc;
 namespace IHLDota2Bot.Endpoints.GameManager;
 
 /// <summary>
-/// Queue / ready-state endpoints.
+/// Queue / ready-state endpoints. The id-based mutations act on arbitrary players,
+/// so they map onto the API-key-gated <paramref name="service"/> group (Discord bot /
+/// admin panel); players use the JWT me-endpoints. The id-free status read stays public.
 /// </summary>
 public static class QueueEndpoints
 {
-    public static RouteGroupBuilder MapQueueEndpoints(this RouteGroupBuilder group)
+    public static RouteGroupBuilder MapQueueEndpoints(
+        this RouteGroupBuilder group,
+        RouteGroupBuilder service
+    )
     {
-        group.MapPost(
+        service.MapPost(
             "/queue/{id}",
             (
                 IDota2Service svc,
@@ -20,13 +25,13 @@ public static class QueueEndpoints
             ) => EndpointHelpers.TryOkAsync(log, "join queue", () => svc.JoinQueueAsync(id, ct))
         );
 
-        group.MapPost(
+        service.MapPost(
             "/leave/{id}",
             (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(log, "leave queue", () => svc.LeaveQueueAsync(id))
         );
 
-        group.MapPost(
+        service.MapPost(
             "/ready/{id}",
             (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(
@@ -36,7 +41,7 @@ public static class QueueEndpoints
                 )
         );
 
-        group.MapPost(
+        service.MapPost(
             "/unready/{id}",
             (IDota2Service svc, ILogger<Dota2Service> log, [FromRoute] ulong id) =>
                 EndpointHelpers.TryOkAsync(
