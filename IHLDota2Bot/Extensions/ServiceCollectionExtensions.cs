@@ -5,6 +5,7 @@ using IHLDota2Bot.Clients;
 using IHLDota2Bot.Configuration;
 using IHLDota2Bot.Data;
 using IHLDota2Bot.Data.Repositories;
+using IHLDota2Bot.Extensions.RateLimiting;
 using IHLDota2Bot.Services;
 using IHLDota2Bot.Telemetry;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -87,6 +88,10 @@ public static class ServiceCollectionExtensions
                         .RequireAuthenticatedUser()
             );
         });
+
+        // Fixed-window per-IP limit on the player-facing surface (no-op until
+        // PlayerRateLimit:PermitLimit is configured — Program.cs warns).
+        services.AddPlayerRateLimiting(configuration);
 
         services.AddHttpClient(
             DiscordClient.HttpClientName,

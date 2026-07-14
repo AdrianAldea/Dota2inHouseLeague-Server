@@ -7,12 +7,19 @@ namespace IHLDota2Bot.Endpoints.GameManager;
 
 /// <summary>
 /// Player lifecycle + read endpoints: register / profile / unregister / link / stats / rank.
+/// Reads map onto the public <paramref name="group"/>; the lifecycle mutations act on
+/// arbitrary players by id, so they map onto the API-key-gated <paramref name="service"/>
+/// group (used by the Discord bot and admin panel). Players register through the
+/// JWT-based <c>/api/auth/register</c> instead.
 /// </summary>
 public static class PlayerEndpoints
 {
-    public static RouteGroupBuilder MapPlayerEndpoints(this RouteGroupBuilder group)
+    public static RouteGroupBuilder MapPlayerEndpoints(
+        this RouteGroupBuilder group,
+        RouteGroupBuilder service
+    )
     {
-        group.MapPost(
+        service.MapPost(
             "/register",
             (
                 IDota2Service svc,
@@ -42,7 +49,7 @@ public static class PlayerEndpoints
                 )
         );
 
-        group.MapPost(
+        service.MapPost(
             "/unregister/{id}",
             (
                 IDota2Service svc,
@@ -57,7 +64,7 @@ public static class PlayerEndpoints
                 )
         );
 
-        group.MapPost(
+        service.MapPost(
             "/link/{id}/{steamId}",
             (
                 IDota2Service svc,

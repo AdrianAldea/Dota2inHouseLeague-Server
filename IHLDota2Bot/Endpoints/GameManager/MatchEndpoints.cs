@@ -6,11 +6,16 @@ using Microsoft.AspNetCore.Mvc;
 namespace IHLDota2Bot.Endpoints.GameManager;
 
 /// <summary>
-/// Match endpoints: current / by-id / recent / report.
+/// Match endpoints: current / by-id / recent / report. Reads stay public; the id-based
+/// report mutation maps onto the API-key-gated <paramref name="service"/> group so a
+/// player can't report a match as someone else.
 /// </summary>
 public static class MatchEndpoints
 {
-    public static RouteGroupBuilder MapMatchEndpoints(this RouteGroupBuilder group)
+    public static RouteGroupBuilder MapMatchEndpoints(
+        this RouteGroupBuilder group,
+        RouteGroupBuilder service
+    )
     {
         group.MapGet(
             "/match/current/{id}",
@@ -73,7 +78,7 @@ public static class MatchEndpoints
                 )
         );
 
-        group.MapPost("/match/report/{id}/{winner}", ReportMatch);
+        service.MapPost("/match/report/{id}/{winner}", ReportMatch);
 
         return group;
     }

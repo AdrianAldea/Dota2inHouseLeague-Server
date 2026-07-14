@@ -89,6 +89,121 @@
         </StackPanel>
       </Border>
 
+      <!-- Match found: teams + Dota lobby credentials (fallback for a missed invite) -->
+      <Border
+        IsVisible="{Binding MatchFound}"
+        CornerRadius="18"
+        Padding="26"
+        Background="{DynamicResource SurfaceElevatedBrush}"
+        BorderBrush="{DynamicResource ReadyBrush}"
+        BorderThickness="1"
+      >
+        <StackPanel Spacing="18">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+              <PathIcon
+                Data="{StaticResource IconCheck}"
+                Width="20"
+                Height="20"
+                Foreground="{DynamicResource ReadyBrush}"
+              />
+              <TextBlock
+                Text="MATCH FOUND"
+                Classes="caption"
+                VerticalAlignment="Center"
+                Foreground="{DynamicResource ReadyBrush}"
+              />
+            </StackPanel>
+            <TextBlock
+              Grid.Column="1"
+              Text="{Binding MyTeamLabel}"
+              FontWeight="SemiBold"
+              FontSize="13"
+              VerticalAlignment="Center"
+              Foreground="{DynamicResource AccentSolidBrush}"
+            />
+          </Grid>
+
+          <TextBlock
+            Classes="body"
+            TextWrapping="Wrap"
+            Text="The bot has invited you in Dota 2 — accept the invite, or join manually: Play Dota → Custom Lobbies → Browse, find the lobby below and enter the password."
+          />
+
+          <Grid ColumnDefinitions="*,*">
+            <StackPanel Grid.Column="0" Spacing="3">
+              <TextBlock Text="LOBBY NAME" Classes="caption" />
+              <SelectableTextBlock
+                Text="{Binding LobbyName}"
+                FontWeight="SemiBold"
+                FontSize="15"
+                Foreground="{DynamicResource TextPrimaryBrush}"
+              />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="3">
+              <TextBlock Text="PASSWORD" Classes="caption" />
+              <SelectableTextBlock
+                Text="{Binding LobbyPassword}"
+                FontWeight="SemiBold"
+                FontSize="15"
+                Foreground="{DynamicResource TextPrimaryBrush}"
+              />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,16,*">
+            <StackPanel Grid.Column="0" Spacing="8">
+              <TextBlock Text="RADIANT" Classes="caption" />
+              <ItemsControl ItemsSource="{Binding RadiantPlayers}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <TextBlock
+                        Text="{Binding Name}"
+                        FontWeight="SemiBold"
+                        FontSize="14"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                      />
+                      <TextBlock
+                        Text="(you)"
+                        IsVisible="{Binding IsMe}"
+                        FontSize="12"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource AccentSolidBrush}"
+                      />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="8">
+              <TextBlock Text="DIRE" Classes="caption" />
+              <ItemsControl ItemsSource="{Binding DirePlayers}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <TextBlock
+                        Text="{Binding Name}"
+                        FontWeight="SemiBold"
+                        FontSize="14"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                      />
+                      <TextBlock
+                        Text="(you)"
+                        IsVisible="{Binding IsMe}"
+                        FontSize="12"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource AccentSolidBrush}"
+                      />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
       <!-- Hero -->
       <Border
         CornerRadius="18"

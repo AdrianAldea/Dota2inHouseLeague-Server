@@ -340,9 +340,10 @@ public class LobbyPoolManager : IHostedService
             // Tell Steam to spin up the actual Dota 2 practice lobby and invite the 10 players.
             // The Steam GC operations run on the *specific* SteamGcClient for the reserved
             // pool account, so multiple concurrent lobbies can co-exist on distinct bots.
-            var lobbyShortId = lobby.Id.Length >= 8 ? lobby.Id[..8] : lobby.Id;
-            var lobbyName = $"Dota2IHL-{lobbyShortId}";
-            var lobbyPassword = $"Dota2IHL-{lobbyShortId}";
+            // Name/password are derived from the lobby id (LobbyNaming) so the
+            // player-facing /me/match endpoint can reproduce them without persistence.
+            var lobbyName = LobbyNaming.For(lobby.Id);
+            var lobbyPassword = LobbyNaming.For(lobby.Id);
 
             var botClient = steamGcPool.GetByUsername(account.Username);
             if (botClient == null)

@@ -326,6 +326,14 @@ hand-maintained `docker-compose.yml`. See `.dockerignore` for excluded files.
 - Use appropriate database authentication and encryption
 - Discord bot token should be kept secure and not committed to version control
 - Steam API key should be restricted to authorized IP ranges
+- The API has three trust tiers: public reads (leaderboard, queue status,
+  stats), player actions (JWT `me`-endpoints — identity always comes from the
+  token), and service routes (every id-based mutation + `/admin/*`), which
+  require the `X-Api-Key` shared by the Discord bot and admin panel. Players'
+  desktop clients never hold that key.
+- Player-facing endpoints support opt-in per-IP rate limiting — set
+  `PlayerRateLimit:PermitLimit` (e.g. `60`) in production.
+- See `PRODUCTION_PLAN.md` for the full production hardening checklist.
 
 ## 🤝 Contributing
 

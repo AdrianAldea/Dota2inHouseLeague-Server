@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using IHLDota2Bot.Auth;
+using IHLDota2Bot.Common.DTOs;
 using IHLDota2Bot.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,7 +15,10 @@ public static class MeEndpoints
 {
     public static RouteGroupBuilder MapMeEndpoints(this RouteGroupBuilder group)
     {
-        var me = group.MapGroup(string.Empty).RequireAuthorization("Player");
+        var me = group
+            .MapGroup(string.Empty)
+            .RequireAuthorization("Player")
+            .RequireRateLimiting(Extensions.RateLimiting.PlayerRateLimiting.PolicyName);
 
         // A token whose `sub` doesn't parse as a user id carries no usable identity —
         // reject it outright rather than letting UserId() fall back to 0 and act as a
@@ -99,6 +103,41 @@ public static class MeEndpoints
                     log,
                     "me rank",
                     () => svc.GetPlayerRankAsync(UserId(user), ct)
+                )
+        );
+
+        // The player's current in-progress match, including the Dota lobby
+        // credentials — the client-side fallback for a missed Steam invite.
+        // Credentials derive from the lobby id (see LobbyNaming), so nothing
+        // extra is persisted, and only the match's own participants can get
+        // them (the lookup is keyed on the token's user id).
+        me.MapGet(
+            "/me/match",
+            (
+                ClaimsPrincipal user,
+                IDota2Service svc,
+                ILogger<Dota2Service> log,
+                CancellationToken ct
+            ) =>
+                EndpointHelpers.TryFindAsync<CurrentMatchResponse>(
+                    log,
+                    "me current match",
+                    async () =>
+                    {
+                        var match = await svc.GetCurrentMatchAsync(UserId(user), ct);
+                        if (match is null)
+                            return null;
+
+                        var credentials = match.LobbyId is { Length: > 0 } lobbyId
+                            ? LobbyNaming.For(lobbyId)
+                            : null;
+                        return new CurrentMatchResponse
+                        {
+                            Match = match,
+                            LobbyName = credentials,
+                            LobbyPassword = credentials,
+                        };
+                    }
                 )
         );
 

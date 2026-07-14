@@ -49,6 +49,16 @@ if (string.IsNullOrEmpty(playerJwtOpts.SigningKey))
     );
 }
 
+// Warn when the player-facing rate limit is off so production operators notice.
+var rateLimitOpts = app.Services.GetRequiredService<IOptions<PlayerRateLimitOptions>>().Value;
+if (rateLimitOpts.PermitLimit <= 0)
+{
+    app.Logger.LogWarning(
+        "Player rate limiting is disabled (PlayerRateLimit:PermitLimit is 0). "
+            + "Set a positive limit (e.g. 60 per 60s window) for production."
+    );
+}
+
 // Apply forwarded headers before anything reads Scheme/Host (Steam OpenID realm/return_to).
 app.UseForwardedHeaders();
 
@@ -56,6 +66,7 @@ app.UseLobbyShutdownHooks();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapDefaultEndpoints();
 app.ConfigureEndpoints();
